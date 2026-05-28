@@ -1,0 +1,60 @@
+# ============================================================
+# Python
+# ============================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+
+# ============================================================
+# MorfyAI runtime data (private, user-specific)
+# ============================================================
+cache/
+trainData/
+*.hperf
+
+# Config files contain API keys & user preferences — never push
+config/houdini_ai.ini
+config/plugins.json
+config/user_rules.json
+
+# ============================================================
+# Original upstream backup (Kazama's Houdini Agent v1.5.5)
+# Not part of MorfyAI distribution — kept locally for reference only
+# ============================================================
+houdini_agent_backup/
+
+# ============================================================
+# IDE / editor
+# ============================================================
+.idea/
+.vscode/
+.cursor/
+.claude/
+*.swp
+*.swo
+*~
+
+# ============================================================
+# Temp / backup files
+# ============================================================
+*_backup.py
+*_new.py
+*.bak
+*.tmp
+*.log
+
+# ============================================================
+# Legacy
+# ============================================================
+HOUDINI_HIP_MANAGER/
+
+# ============================================================
+# OS junk
+# ============================================================
+Thumbs.db
+.DS_Store
+desktop.ini

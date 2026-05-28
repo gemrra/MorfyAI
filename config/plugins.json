@@ -1,0 +1,7 @@
+{
+  "disabled_tools": [
+    "add_nodes_to_box",
+    "create_network_box",
+    "skill:analyze_normals"
+  ]
+}
