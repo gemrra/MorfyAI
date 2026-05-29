@@ -10,6 +10,7 @@ Architecture:
 """
 
 import asyncio
+import functools
 import glob
 import logging
 import os
@@ -20,6 +21,42 @@ import time
 import uuid
 import re
 from typing import Any, Optional, Callable
+
+
+def _bootstrap_pywin32_from_lib():
+	"""Make the vendored fastmcp/mcp stack importable.
+
+	fastmcp + deps are installed via `pip install --target lib/`. The `mcp` package
+	imports `pywintypes` (pywin32), but pywin32's .pth side-effects are NOT applied
+	for a --target install, so we replicate them: ensure lib/ is on sys.path, add
+	win32 / win32\\lib / Pythonwin, and register the pywin32_system32 DLL directory.
+	Fully guarded — no-op if absent or not on Windows.
+	"""
+	import sys
+	try:
+		here = os.path.dirname(os.path.abspath(__file__))
+		lib = os.path.abspath(os.path.join(here, "..", "..", "..", "lib"))
+		if not os.path.isdir(lib):
+			return
+		if lib not in sys.path:
+			sys.path.insert(0, lib)
+		for sub in ("win32", os.path.join("win32", "lib"), "Pythonwin"):
+			p = os.path.join(lib, sub)
+			if os.path.isdir(p) and p not in sys.path:
+				sys.path.append(p)
+		dll = os.path.join(lib, "pywin32_system32")
+		if os.path.isdir(dll):
+			try:
+				os.add_dll_directory(dll)
+			except Exception:
+				pass
+			os.environ["PATH"] = dll + os.pathsep + os.environ.get("PATH", "")
+	except Exception:
+		pass
+
+
+_bootstrap_pywin32_from_lib()
+
 
 try:
 	import hou  # type: ignore
@@ -103,6 +140,7 @@ def _setup_fastmcp_tools():
 		return payload
 
 	def tool_wrapper(fn: Callable[..., dict]) -> Callable[..., dict]:
+		@functools.wraps(fn)  # preserve fn's signature so FastMCP sees real params (not *args)
 		def _wrapped(*args, **kwargs) -> dict:
 			try:
 				return fn(*args, **kwargs)
@@ -487,14 +525,14 @@ def _setup_fastmcp_tools():
 				created_connections.append({"from": from_node.path(), "to": to_node.path(), "input_index": input_index})
 			except Exception as conn_error:
 				errors.append(f"Failed to establish connection: {str(conn_error)}")
-	try:
-		parent.layoutChildren()
-	except Exception:
-		pass
-	# note: notagainautoguessconnectrelation. 
-	# Rationale: auto-wiring (e.g., chaining nodes by creation order or guessing
-	# copytopoints inputs) leads to unpredictable results. Connections must be
-	# explicitly specified by the caller via the `connections` config.
+		try:
+			parent.layoutChildren()
+		except Exception:
+			pass
+		# note: notagainautoguessconnectrelation. 
+		# Rationale: auto-wiring (e.g., chaining nodes by creation order or guessing
+		# copytopoints inputs) leads to unpredictable results. Connections must be
+		# explicitly specified by the caller via the `connections` config.
 		success_message = f"Successfully created {len(created_nodes)} node(s) and {len(created_connections)} connection(s)"
 		if errors:
 			success_message += f", buthas {len(errors)} error"
@@ -584,10 +622,12 @@ def _setup_fastmcp_tools():
 	def get_task_queue_status() -> dict:
 		return {"status": "success", "message": "Task queue status retrieved.", "data": {"tasks_in_queue": task_queue.qsize(), "recent_results": getattr(mcp, "recent_results", []) if mcp else []}}
 
-	@mcp.tool(name="viewport_flipbook", description="render Houdini viewportandreturnimageresourcesourcelink", enabled=read_settings().enable_flipbook)  # type: ignore[attr-defined]
+	@mcp.tool(name="viewport_flipbook", description="render Houdini viewportandreturnimageresourcesourcelink")  # type: ignore[attr-defined]
 	@tool_wrapper
 	def viewport_flipbook(start_frame: int = 1, end_frame: int = 24) -> dict:
 		global _registered_flipbook_resources
+		if not read_settings().enable_flipbook:
+			return err("viewport_flipbook is disabled in settings (enable_flipbook=false).")
 		timeId = time.time_ns()
 		if hou is None:
 			return err("Houdini environmentunavailable. ")

@@ -369,6 +369,8 @@ class HeaderMixin:
         act_memory.toggled.connect(self._on_memory_toggle_from_menu)
 
         menu.addSeparator()
+        menu.addAction("Connect to Claude", self._open_claude_connect)
+        menu.addSeparator()
         menu.addAction("Debug Console", self._open_debug_console)
         menu.addAction("About MorfyAI", self._open_about_dialog)
 
@@ -376,6 +378,73 @@ class HeaderMixin:
         menu.exec_(self.btn_overflow.mapToGlobal(
             QtCore.QPoint(0, self.btn_overflow.height())
         ))
+
+    def _open_claude_connect(self):
+        """Start the in-Houdini MCP server and show how to connect a Claude client.
+
+        Fully defensive — any failure shows a message instead of breaking the panel.
+        """
+        try:
+            from ..utils import claude_connect as cc
+        except Exception as e:
+            QtWidgets.QMessageBox.warning(self, "Connect to Claude", f"Module unavailable: {e}")
+            return
+        try:
+            ok, msg, url = cc.start()
+            report = cc.connection_report()
+        except Exception as e:
+            QtWidgets.QMessageBox.warning(self, "Connect to Claude", f"Failed to start server: {e}")
+            return
+
+        lines = [
+            ("[OK] MCP server running" if ok else "[X] Server NOT started") + f"   ->   {url}",
+            "",
+            str(msg),
+            "",
+            "── Claude Code ──────────────────────────",
+            report.get("claude_code_command", ""),
+            "",
+            "or save as .mcp.json in your project:",
+            report.get("claude_code_json", ""),
+            "",
+            "── Claude Desktop (claude_desktop_config.json) ──",
+            report.get("claude_desktop_json", ""),
+            "",
+            "Steps:",
+        ]
+        lines += ["  " + s for s in report.get("steps", [])]
+        lines += ["", report.get("note", "")]
+        text = "\n".join(lines)
+
+        try:
+            dlg = QtWidgets.QDialog(self)
+            dlg.setWindowTitle("Connect to Claude")
+            dlg.resize(640, 500)
+            lay = QtWidgets.QVBoxLayout(dlg)
+            edit = QtWidgets.QPlainTextEdit()
+            edit.setReadOnly(True)
+            edit.setPlainText(text)
+            lay.addWidget(edit)
+
+            btn_row = QtWidgets.QHBoxLayout()
+            btn_copy_url = QtWidgets.QPushButton("Copy URL")
+            btn_copy_url.clicked.connect(
+                lambda: QtWidgets.QApplication.clipboard().setText(url))
+            btn_copy_cfg = QtWidgets.QPushButton("Copy Claude Code cmd")
+            btn_copy_cfg.clicked.connect(
+                lambda: QtWidgets.QApplication.clipboard().setText(report.get("claude_code_command", "")))
+            btn_close = QtWidgets.QPushButton("Close")
+            btn_close.clicked.connect(dlg.accept)
+            btn_row.addWidget(btn_copy_url)
+            btn_row.addWidget(btn_copy_cfg)
+            btn_row.addStretch()
+            btn_row.addWidget(btn_close)
+            lay.addLayout(btn_row)
+            dlg.exec_()
+        except Exception as e:
+            # Fall back to a plain message box if the dialog can't build
+            QtWidgets.QMessageBox.information(self, "Connect to Claude", text[:1500])
+            _dbg(f"[Header] Claude connect dialog fallback: {e}")
 
     def _open_about_dialog(self):
         """About dialog — kredit, versi, license."""
