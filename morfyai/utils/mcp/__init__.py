@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """Houdini MCP package.
 
-架构：
-    hou_core.py  → 底层 Houdini 操作（server / client 共享）
-    client.py    → HoudiniMCP 类，面向内部 AI Agent（直接 Python 调用）
-    server.py    → FastMCP HTTP 服务器，面向外部 MCP 客户端
-    settings.py  → MCPSettings 配置数据类
-    logger.py    → 日志工具
+Architecture:
+    hou_core.py  -> Low-level Houdini operations (shared by server / client)
+    client.py    -> HoudiniMCP class, for internal AI Agent (direct Python calls)
+    server.py    -> FastMCP HTTP server, for external MCP clients
+    settings.py  -> MCPSettings configuration dataclass
+    logger.py    -> Logging utilities
 
 Public APIs:
 - HoudiniMCP: UI-side helper client

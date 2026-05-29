@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-Qt 兼容层 — 统一 PySide6 / PySide2 导入
+Qt compatibility shim — unifies PySide6 / PySide2 imports.
 
-Houdini 20.5 及之前版本自带 PySide2，Houdini 21+ 自带 PySide6。
-所有模块统一从此处导入 QtWidgets / QtCore / QtGui / QSettings，
-无需在每个文件中写 try/except。
+Houdini 20.5 and earlier ship with PySide2; Houdini 21+ ships with PySide6.
+All modules import QtWidgets / QtCore / QtGui / QSettings from here so we
+don't need per-file try/except blocks.
 
-用法:
+Usage:
     from morfyai.qt_compat import QtWidgets, QtCore, QtGui, QSettings
 """
 
@@ -21,15 +21,15 @@ except ImportError:
 
 
 def invoke_on_main(receiver, slot_name: str, *args):
-    """线程安全地在主线程调用 slot（兼容 PySide2 / PySide6）
+    """Thread-safely invoke a slot on the main thread (PySide2 / PySide6 compatible).
 
-    PySide6 支持 QMetaObject.invokeMethod + Q_ARG，
-    PySide2 不支持 Q_ARG，改用 QTimer.singleShot(0, lambda)。
+    PySide6 supports QMetaObject.invokeMethod + Q_ARG;
+    PySide2 lacks Q_ARG, so we fall back to QTimer.singleShot(0, lambda).
 
     Args:
-        receiver: 目标 QObject（仅 PySide6 使用）
-        slot_name: slot 方法名
-        *args: 传递给 slot 的参数
+        receiver: target QObject (only used by PySide6)
+        slot_name: slot method name
+        *args: arguments passed to the slot
     """
     if PYSIDE_VERSION == 6:
         q_args = [QtCore.Q_ARG(type(a), a) for a in args]
@@ -39,6 +39,6 @@ def invoke_on_main(receiver, slot_name: str, *args):
             *q_args
         )
     else:
-        # PySide2: 通过 QTimer.singleShot 排队到主线程
+        # PySide2: queue onto the main thread via QTimer.singleShot
         method = getattr(receiver, slot_name)
         QtCore.QTimer.singleShot(0, lambda: method(*args))

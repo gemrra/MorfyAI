@@ -23,7 +23,7 @@ SKILL_INFO = {
 
 
 def _analyze_with_class(geo, class_attrib):
-    """使用已有的 class 属性Analyze"""
+    """Analyze using an existing 'class' attribute."""
     import hou  # type: ignore
 
     is_prim = (class_attrib.type() == hou.attribType.Prim)
@@ -39,7 +39,7 @@ def _analyze_with_class(geo, class_attrib):
     for c in unique_classes:
         if is_prim:
             prim_count = sum(1 for v in classes if v == c)
-            # 通过 prim 的顶点获取关联的点
+            # Resolve associated points via each prim's vertices
             point_set = set()
             for prim in geo.iterPrims():
                 if prim.attribValue("class") == c:
@@ -66,14 +66,14 @@ def _analyze_with_class(geo, class_attrib):
 
 
 def _analyze_with_union_find(geo):
-    """使用并查集算法计算连通性"""
+    """Compute connectivity via the union-find algorithm."""
     n = geo.intrinsicValue("pointcount")
     num_prims = geo.intrinsicValue("primitivecount")
 
     if n == 0:
         return {"error": "Geometry has no points"}
 
-    # 并查集
+    # Union-find structure
     parent = list(range(n))
 
     def find(x):
@@ -89,14 +89,14 @@ def _analyze_with_union_find(geo):
         if px != py:
             parent[px] = py
 
-    # 通过面的顶点建立连接
+    # Build connections via primitive vertices
     for prim in geo.iterPrims():
         pt_nums = [v.point().number() for v in prim.vertices()]
         if len(pt_nums) > 1:
             for i in range(1, len(pt_nums)):
                 union(pt_nums[0], pt_nums[i])
 
-    # 统计连通分量
+    # Tally connected components
     comp_points = {}
     for i in range(n):
         root = find(i)
@@ -104,7 +104,7 @@ def _analyze_with_union_find(geo):
             comp_points[root] = []
         comp_points[root].append(i)
 
-    # 统计每个分量的面数
+    # Count prims per component
     comp_prims = {root: set() for root in comp_points}
     for prim in geo.iterPrims():
         verts = list(prim.vertices())
@@ -113,7 +113,7 @@ def _analyze_with_union_find(geo):
             root = find(pt_num)
             comp_prims[root].add(prim.number())
 
-    # 整理result (按点数降序)
+    # Assemble result (sorted by point count descending)
     components = []
     for root in sorted(comp_points.keys(), key=lambda r: -len(comp_points[r])):
         components.append({
@@ -135,7 +135,7 @@ def run(node_path):
     """Entry point
 
     Args:
-        node_path: 节点路径
+        node_path: node path
     """
     import hou  # type: ignore
 
@@ -147,7 +147,7 @@ def run(node_path):
     if not geo:
         return {"error": "Cannot fetch geometry"}
 
-    # 优先使用 class 属性
+    # Prefer existing 'class' attribute
     class_attrib = geo.findPrimAttrib("class")
     if not class_attrib:
         class_attrib = geo.findPointAttrib("class")

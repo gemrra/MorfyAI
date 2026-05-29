@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-三层记忆存储模块 (Memory Store)
+three-tier memory store module (Memory Store)
 
-使用 SQLite + 本地 Embedding 实现：
-- Episodic Memory  (事件记忆：具体经历)
-- Semantic Memory  (抽象知识：反思生成的经验规则)
-- Procedural Memory (策略记忆：解决问题的套路)
+use SQLite + thisplace Embedding realnow: 
+- Episodic Memory  (episodic memory: concrete experience)
+- Semantic Memory  (abstract knowledge: reflectiongeneratedexperiencerule)
+- Procedural Memory (strategic memory: problem-solving recipe)
 
-向量检索使用 numpy cosine similarity（记忆条目通常 <10000 条，无需 FAISS）。
+vector retrievaluse numpy cosine similarity (memory entrythroughcommon <10000 item, noneeds FAISS) . 
 """
 
 import json
@@ -30,24 +30,24 @@ import numpy as np
 from .embedding import get_embedder, LocalEmbedder, EMBEDDING_DIM
 
 # ============================================================
-# 数据库路径
+# datalibrarypath
 # ============================================================
 
 _DB_DIR = Path(__file__).parent.parent.parent / "cache" / "memory"
 _DB_PATH = _DB_DIR / "agent_memory.db"
 
 # ============================================================
-# 数据类
+# dataclass
 # ============================================================
 
 @dataclass
 class EpisodicRecord:
-    """事件记忆记录"""
+    """episodic memory record"""
     id: str = ""
     timestamp: float = 0.0
     session_id: str = ""
     task_description: str = ""
-    actions: List[dict] = field(default_factory=list)     # 工具调用序列
+    actions: List[dict] = field(default_factory=list)     # toolcallordercolumn
     result_summary: str = ""
     success: bool = True
     error_count: int = 0
@@ -64,32 +64,32 @@ class EpisodicRecord:
             self.timestamp = time.time()
 
 
-# 用途分类常量
+# Usage-category constants
 MEMORY_CATEGORIES = (
-    "preference",     # 日常偏好（代码风格、输出语言、格式）
-    "command",        # 构建命令（编译、测试、部署常用命令）
-    "debug",          # 调试模式（调试思路和路径）
-    "pitfall",        # 踩坑记录（特殊限制和陷阱）
-    "workflow",       # 工作流模式（节点连接、操作序列）
-    "knowledge",      # 技术知识（节点用法、VEX 语法）
-    "user_profile",   # 用户画像（工作领域、技能水平）
-    "general",        # 其他通用经验
+    "preference",     # day-to-day preferences (code style, output language, format)
+    "command",        # build commands (compile, test, deploy, etc.)
+    "debug",          # debug patterns (debug approach and path)
+    "pitfall",        # pitfall log (special limits and gotchas)
+    "workflow",       # workflow patterns (node wiring, operation sequence)
+    "knowledge",      # technical knowledge (node usage, VEX syntax)
+    "user_profile",   # user profile (work domain, skill level)
+    "general",        # other generic experience
 )
 
-# 抽象层级常量（6 层）
+# Abstraction-level constants (6 tiers)
 ABSTRACTION_LEVELS = {
-    0: "core_identity",   # 核心身份：用户身份、核心偏好、语言习惯（极少极精炼）
-    1: "core_preference",  # 核心偏好：代码风格、格式偏好、交互习惯
-    2: "experience_rule",  # 经验规则：可复用经验、最佳实践、调试思路
-    3: "workflow_pattern",  # 工作流模式：具体工作流、命令序列、节点连接
-    4: "specific_case",    # 具体案例：特定任务的成功/失败记录、踩坑详情
-    5: "raw_detail",       # 原始细节：对话片段、参数细节、临时记录
+    0: "core_identity",   # core identity: user identity, core preferences, language habits (very few, highly refined)
+    1: "core_preference",  # core preferences: code style, format preferences, interaction habits
+    2: "experience_rule",  # experience rules: reusable experience, best practices, debug approaches
+    3: "workflow_pattern",  # workflow patterns: concrete workflows, command sequences, node wiring
+    4: "specific_case",    # concrete cases: specific-task success/failure records, pitfall details
+    5: "raw_detail",       # raw details: conversation snippets, parameter details, ephemeral records
 }
 
 
 @dataclass
 class SemanticRecord:
-    """抽象知识记录"""
+    """abstract knowledgerecord"""
     id: str = ""
     created_at: float = 0.0
     updated_at: float = 0.0
@@ -99,7 +99,7 @@ class SemanticRecord:
     activation_count: int = 0
     embedding: Optional[np.ndarray] = None
     category: str = "general"  # preference / command / debug / pitfall / workflow / knowledge / user_profile / general
-    abstraction_level: int = 2  # 0-5，默认 2（经验规则），见 ABSTRACTION_LEVELS
+    abstraction_level: int = 2  # 0-5, default 2 (experiencerule) , see ABSTRACTION_LEVELS
 
     def __post_init__(self):
         if not self.id:
@@ -113,7 +113,7 @@ class SemanticRecord:
 
 @dataclass
 class ProceduralRecord:
-    """策略记忆记录"""
+    """strategic memory record"""
     id: str = ""
     strategy_name: str = ""
     description: str = ""
@@ -122,7 +122,7 @@ class ProceduralRecord:
     usage_count: int = 0
     last_used: float = 0.0
     embedding: Optional[np.ndarray] = None
-    conditions: List[str] = field(default_factory=list)   # 适用条件
+    conditions: List[str] = field(default_factory=list)   # suitusecondition
 
     def __post_init__(self):
         if not self.id:
@@ -132,11 +132,11 @@ class ProceduralRecord:
 
 
 # ============================================================
-# Memory Store 核心类
+# Memory Store coreclass
 # ============================================================
 
 class MemoryStore:
-    """三层记忆 SQLite 存储 + Embedding 向量检索"""
+    """three-tier memory SQLite savestore + Embedding vector retrieval"""
 
     def __init__(self, db_path: Optional[Path] = None, embedder: Optional[LocalEmbedder] = None):
         self.db_path = db_path or _DB_PATH
@@ -146,7 +146,7 @@ class MemoryStore:
         self._init_db()
 
     # ==========================================================
-    # 数据库初始化
+    # datalibraryinitialization
     # ==========================================================
 
     def _get_conn(self) -> sqlite3.Connection:
@@ -207,12 +207,12 @@ class MemoryStore:
             CREATE INDEX IF NOT EXISTS idx_procedural_priority ON procedural_memory(priority);
         """)
         conn.commit()
-        # ── DB migration: 添加 abstraction_level 列（兼容旧数据库） ──
+        # ── DB migration: add abstraction_level column (compatible witholddatalibrary)  ──
         self._migrate_add_abstraction_level(conn)
 
     @staticmethod
     def _migrate_add_abstraction_level(conn: sqlite3.Connection):
-        """为 semantic_memory 表添加 abstraction_level 列（兼容旧 DB）"""
+        """as semantic_memory tableadd abstraction_level column (compatible withold DB) """
         try:
             cols = [row[1] for row in conn.execute("PRAGMA table_info(semantic_memory)").fetchall()]
             if "abstraction_level" not in cols:
@@ -233,8 +233,8 @@ class MemoryStore:
     # ==========================================================
 
     def add_episodic(self, record: EpisodicRecord) -> str:
-        """写入一条事件记忆"""
-        # 自动计算 embedding
+        """writeoneitemepisodic memory"""
+        # autocompute embedding
         if record.embedding is None:
             text = f"{record.task_description} {record.result_summary}"
             record.embedding = self.embedder.encode(text)
@@ -266,7 +266,7 @@ class MemoryStore:
         return record.id
 
     def get_episodic(self, record_id: str) -> Optional[EpisodicRecord]:
-        """根据 ID 获取事件记忆"""
+        """based on ID getepisodic memory"""
         conn = self._get_conn()
         row = conn.execute(
             "SELECT * FROM episodic_memory WHERE id=?", (record_id,)
@@ -276,7 +276,7 @@ class MemoryStore:
         return self._row_to_episodic(row)
 
     def get_recent_episodic(self, limit: int = 20) -> List[EpisodicRecord]:
-        """获取最近的事件记忆"""
+        """getrecent episodic memory"""
         conn = self._get_conn()
         rows = conn.execute(
             "SELECT * FROM episodic_memory ORDER BY timestamp DESC LIMIT ?",
@@ -285,10 +285,10 @@ class MemoryStore:
         return [self._row_to_episodic(r) for r in rows]
 
     def search_episodic(self, query: str, top_k: int = 5, min_importance: float = 0.1) -> List[Tuple[EpisodicRecord, float]]:
-        """向量检索事件记忆
+        """vector retrievalepisodic memory
 
         Returns:
-            [(record, similarity_score), ...] 按相似度降序
+            [(record, similarity_score), ...] bysimilardegreelowerorder
         """
         query_vec = self.embedder.encode(query)
         conn = self._get_conn()
@@ -305,7 +305,7 @@ class MemoryStore:
             rec = self._row_to_episodic(row)
             if rec.embedding is not None:
                 sim = self.embedder.cosine_similarity(query_vec, rec.embedding)
-                # 综合分 = 相似度 * importance 权重
+                # comprehensivemergepart = similardegree * importance permissionre
                 combined = sim * (0.5 + 0.5 * min(rec.importance, 2.0))
                 results.append((rec, combined))
 
@@ -313,7 +313,7 @@ class MemoryStore:
         return results[:top_k]
 
     def update_episodic_importance(self, record_id: str, new_importance: float):
-        """更新事件记忆的重要度"""
+        """updateepisodic memory reneeddegree"""
         conn = self._get_conn()
         conn.execute(
             "UPDATE episodic_memory SET importance=? WHERE id=?",
@@ -322,7 +322,7 @@ class MemoryStore:
         conn.commit()
 
     def update_episodic_reward(self, record_id: str, reward_score: float, importance: float):
-        """更新事件记忆的 reward 和 importance"""
+        """updateepisodic memory  reward and importance"""
         conn = self._get_conn()
         conn.execute(
             "UPDATE episodic_memory SET reward_score=?, importance=? WHERE id=?",
@@ -331,7 +331,7 @@ class MemoryStore:
         conn.commit()
 
     def update_episodic_tags(self, record_id: str, tags: List[str]):
-        """更新事件记忆的 tags"""
+        """updateepisodic memory  tags"""
         conn = self._get_conn()
         conn.execute(
             "UPDATE episodic_memory SET tags=? WHERE id=?",
@@ -340,12 +340,12 @@ class MemoryStore:
         conn.commit()
 
     def count_episodic(self) -> int:
-        """统计事件记忆总数"""
+        """statisticsepisodic memorytotal"""
         conn = self._get_conn()
         return conn.execute("SELECT COUNT(*) FROM episodic_memory").fetchone()[0]
 
     def get_episodic_by_session(self, session_id: str) -> List[EpisodicRecord]:
-        """获取某个 session 的所有事件记忆"""
+        """getsome session  allepisodic memory"""
         conn = self._get_conn()
         rows = conn.execute(
             "SELECT * FROM episodic_memory WHERE session_id=? ORDER BY timestamp ASC",
@@ -354,7 +354,7 @@ class MemoryStore:
         return [self._row_to_episodic(r) for r in rows]
 
     def delete_episodic(self, record_id: str) -> bool:
-        """删除一条事件记忆"""
+        """deleteoneitemepisodic memory"""
         conn = self._get_conn()
         cur = conn.execute("DELETE FROM episodic_memory WHERE id=?", (record_id,))
         conn.commit()
@@ -365,7 +365,7 @@ class MemoryStore:
     # ==========================================================
 
     def add_semantic(self, record: SemanticRecord) -> str:
-        """写入一条抽象知识"""
+        """writeoneitemabstract knowledge"""
         if record.embedding is None:
             record.embedding = self.embedder.encode(record.rule)
 
@@ -392,7 +392,7 @@ class MemoryStore:
         return record.id
 
     def get_semantic(self, record_id: str) -> Optional[SemanticRecord]:
-        """根据 ID 获取抽象知识"""
+        """based on ID getabstract knowledge"""
         conn = self._get_conn()
         row = conn.execute(
             "SELECT * FROM semantic_memory WHERE id=?", (record_id,)
@@ -402,7 +402,7 @@ class MemoryStore:
         return self._row_to_semantic(row)
 
     def search_semantic(self, query: str, top_k: int = 5, min_confidence: float = 0.2) -> List[Tuple[SemanticRecord, float]]:
-        """向量检索抽象知识"""
+        """vector retrievalabstract knowledge"""
         query_vec = self.embedder.encode(query)
         conn = self._get_conn()
         rows = conn.execute(
@@ -425,7 +425,7 @@ class MemoryStore:
         return results[:top_k]
 
     def get_all_semantic(self, category: Optional[str] = None) -> List[SemanticRecord]:
-        """获取所有抽象知识（可按分类过滤）"""
+        """getallabstract knowledge (canbypartclassfilter) """
         conn = self._get_conn()
         if category:
             rows = conn.execute(
@@ -439,7 +439,7 @@ class MemoryStore:
         return [self._row_to_semantic(r) for r in rows]
 
     def increment_semantic_activation(self, record_id: str):
-        """增加抽象知识的激活次数"""
+        """addaddabstract knowledge activatetimecount"""
         conn = self._get_conn()
         conn.execute(
             "UPDATE semantic_memory SET activation_count = activation_count + 1, updated_at=? WHERE id=?",
@@ -448,7 +448,7 @@ class MemoryStore:
         conn.commit()
 
     def update_semantic_confidence(self, record_id: str, confidence: float):
-        """更新抽象知识的置信度"""
+        """updateabstract knowledge placeinfodegree"""
         conn = self._get_conn()
         conn.execute(
             "UPDATE semantic_memory SET confidence=?, updated_at=? WHERE id=?",
@@ -457,14 +457,14 @@ class MemoryStore:
         conn.commit()
 
     def find_duplicate_semantic(self, rule_text: str, threshold: float = 0.85) -> Optional[SemanticRecord]:
-        """查找是否已存在高度相似的规则（去重用）"""
+        """lookupwhetheralreadysaveinheightsimilar rule (goreuse) """
         results = self.search_semantic(rule_text, top_k=1, min_confidence=0.0)
         if results and results[0][1] >= threshold:
             return results[0][0]
         return None
 
     def delete_semantic(self, record_id: str):
-        """删除指定语义记忆"""
+        """deletespecifiedsemanticmemory"""
         conn = self._get_conn()
         conn.execute("DELETE FROM semantic_memory WHERE id=?", (record_id,))
         conn.commit()
@@ -474,11 +474,11 @@ class MemoryStore:
         return conn.execute("SELECT COUNT(*) FROM semantic_memory").fetchone()[0]
 
     # ==========================================================
-    # 分层记忆检索（6 层抽象层级）
+    # partlayermemorysearch (6 layerabstraction level) 
     # ==========================================================
 
     def get_core_memories(self, max_count: int = 5) -> List[SemanticRecord]:
-        """获取 level=0 核心记忆，按 confidence 降序，最多 max_count 条"""
+        """get level=0 corememory, by confidence lowerorder, at most max_count item"""
         conn = self._get_conn()
         rows = conn.execute(
             "SELECT * FROM semantic_memory WHERE abstraction_level = 0 ORDER BY confidence DESC LIMIT ?",
@@ -490,17 +490,17 @@ class MemoryStore:
         self, query: str, level: int, top_k: int = 3,
         min_confidence: float = 0.2, threshold: float = 0.25,
     ) -> List[Tuple[SemanticRecord, float]]:
-        """按指定层级搜索记忆 chunk
+        """byspecifiedlayerlevelsearchmemory chunk
 
         Args:
-            query: 搜索查询
-            level: 抽象层级 (0-5)
-            top_k: 返回条数上限
-            min_confidence: 最低置信度过滤
-            threshold: 最低相似度阈值（会根据 embedding 后端自动缩放）
+            query: searchquery
+            level: abstraction level (0-5)
+            top_k: returnitemcountonlimit
+            min_confidence: mostlowplaceinfodegreefilter
+            threshold: mostlowsimilardegreethresholdvalue (willbased on embedding afterendautoscale) 
 
         Returns:
-            [(record, similarity_score), ...] 按综合分降序
+            [(record, similarity_score), ...] bycomprehensivemergepartlowerorder
         """
         query_vec = self.embedder.encode(query)
         conn = self._get_conn()
@@ -512,8 +512,8 @@ class MemoryStore:
         if not rows:
             return []
 
-        # ★ fallback embedding (n-gram hash) 的 cosine similarity 值域约 0~0.4，
-        #   远低于 sentence-transformers 的 0~1.0。动态缩放阈值以适配。
+        # ★ Fallback embedding (n-gram hash) has cosine-similarity values roughly in 0~0.4,
+        #   far lower than sentence-transformers (0~1.0). Dynamically scale the threshold to match.
         effective_threshold = threshold
         if not self.embedder.is_semantic:
             effective_threshold = threshold * 0.2  # 0.25 → 0.05, 0.15 → 0.03
@@ -534,16 +534,16 @@ class MemoryStore:
         self, query: str, category: Optional[str] = None,
         top_k: int = 5, min_confidence: float = 0.1,
     ) -> List[Tuple[SemanticRecord, float]]:
-        """跨层级搜索（供 search_memory 工具使用），可按 category 过滤
+        """crosslayerlevelsearch (for search_memory tooluse) , canby category filter
 
         Args:
-            query: 搜索查询
-            category: 用途分类过滤（可选）
-            top_k: 返回条数上限
-            min_confidence: 最低置信度过滤
+            query: searchquery
+            category: usage-category filter (optional)
+            top_k: returnitemcountonlimit
+            min_confidence: mostlowplaceinfodegreefilter
 
         Returns:
-            [(record, similarity_score), ...] 按综合分降序
+            [(record, similarity_score), ...] bycomprehensivemergepartlowerorder
         """
         query_vec = self.embedder.encode(query)
         conn = self._get_conn()
@@ -577,7 +577,7 @@ class MemoryStore:
     # ==========================================================
 
     def add_procedural(self, record: ProceduralRecord) -> str:
-        """写入一条策略记忆"""
+        """writeoneitemstrategic memory"""
         if record.embedding is None:
             text = f"{record.strategy_name}: {record.description}"
             record.embedding = self.embedder.encode(text)
@@ -613,7 +613,7 @@ class MemoryStore:
         return self._row_to_procedural(row)
 
     def search_procedural(self, query: str, top_k: int = 3) -> List[Tuple[ProceduralRecord, float]]:
-        """向量检索策略记忆"""
+        """vector retrievalstrategic memory"""
         query_vec = self.embedder.encode(query)
         conn = self._get_conn()
         rows = conn.execute(
@@ -642,14 +642,14 @@ class MemoryStore:
         return [self._row_to_procedural(r) for r in rows]
 
     def update_procedural_usage(self, record_id: str, success: bool):
-        """更新策略使用统计"""
+        """updatestrategyusestatistics"""
         conn = self._get_conn()
         rec = self.get_procedural(record_id)
         if not rec:
             return
         rec.usage_count += 1
         rec.last_used = time.time()
-        # 更新成功率（滑动平均）
+        # Update success rate (sliding average)
         alpha = min(0.3, 1.0 / rec.usage_count)
         rec.success_rate = (1 - alpha) * rec.success_rate + alpha * (1.0 if success else 0.0)
         conn.execute(
@@ -659,7 +659,7 @@ class MemoryStore:
         conn.commit()
 
     def update_procedural_priority(self, record_id: str, priority_delta: float):
-        """调整策略优先级"""
+        """adjustwholestrategypreferredlevel"""
         conn = self._get_conn()
         conn.execute(
             "UPDATE procedural_memory SET priority = MIN(1.0, MAX(0.0, priority + ?)) WHERE id=?",
@@ -672,14 +672,14 @@ class MemoryStore:
         return conn.execute("SELECT COUNT(*) FROM procedural_memory").fetchone()[0]
 
     def delete_procedural(self, record_id: str) -> bool:
-        """删除一条策略记忆"""
+        """deleteoneitemstrategic memory"""
         conn = self._get_conn()
         cur = conn.execute("DELETE FROM procedural_memory WHERE id=?", (record_id,))
         conn.commit()
         return cur.rowcount > 0
 
     def get_procedural_by_name(self, name: str) -> Optional[ProceduralRecord]:
-        """按策略名查找"""
+        """bystrategynamelookup"""
         conn = self._get_conn()
         row = conn.execute(
             "SELECT * FROM procedural_memory WHERE strategy_name=?", (name,)
@@ -689,11 +689,11 @@ class MemoryStore:
         return self._row_to_procedural(row)
 
     # ==========================================================
-    # 全局重要度衰减
+    # Global importance decay
     # ==========================================================
 
     def decay_importance(self, lambda_decay: float = 0.01):
-        """对所有 episodic 记忆执行时间衰减
+        """Apply time-based decay to every episodic memory.
 
         importance *= exp(-lambda * days_since_creation)
         """
@@ -703,7 +703,7 @@ class MemoryStore:
         for row_id, ts, imp in rows:
             days = (now - ts) / 86400.0
             new_imp = imp * math.exp(-lambda_decay * days)
-            new_imp = max(new_imp, 0.01)  # 不完全归零
+            new_imp = max(new_imp, 0.01)  # don't go all the way to zero
             if abs(new_imp - imp) > 0.001:
                 conn.execute(
                     "UPDATE episodic_memory SET importance=? WHERE id=?",
@@ -712,11 +712,11 @@ class MemoryStore:
         conn.commit()
 
     # ==========================================================
-    # 统计信息
+    # statisticsinfo
     # ==========================================================
 
     def get_stats(self) -> Dict:
-        """获取记忆库统计信息"""
+        """getmemorylibrarystatisticsinfo"""
         return {
             "episodic_count": self.count_episodic(),
             "semantic_count": self.count_semantic(),
@@ -726,7 +726,7 @@ class MemoryStore:
         }
 
     # ==========================================================
-    # 内部工具方法
+    # withinparttoolmethod
     # ==========================================================
 
     def _row_to_episodic(self, row) -> EpisodicRecord:
@@ -774,42 +774,42 @@ class MemoryStore:
         )
 
     # ==========================================================
-    # 初始化默认策略
+    # initializationdefaultstrategy
     # ==========================================================
 
     def seed_default_strategies(self):
-        """写入默认策略（首次运行时调用）"""
+        """writedefaultstrategy (first timerunwhencall) """
         if self.count_procedural() > 0:
-            return  # 已有策略，跳过
+            return  # alreadyhasstrategy, skip
 
         defaults = [
             ProceduralRecord(
                 strategy_name="decompose_complex_task",
-                description="复杂问题应该分解为多个子步骤，逐步执行",
+                description="complexissueshouldthispartresolveasmultisubstep, one by onestepexecute",
                 priority=0.7,
                 conditions=["task_complexity > high", "tool_calls > 5"],
             ),
             ProceduralRecord(
                 strategy_name="clarify_ambiguous_task",
-                description="不确定的任务应该先提问澄清，避免盲目执行",
+                description="For ambiguous tasks, ask clarifying questions first; avoid blind execution.",
                 priority=0.6,
                 conditions=["task_clarity < low", "missing_parameters"],
             ),
             ProceduralRecord(
                 strategy_name="multi_path_reasoning",
-                description="高风险任务应该多路径推理，对比不同方案后选择最优",
+                description="For high-risk tasks, reason along multiple paths, compare alternatives, then pick the best.",
                 priority=0.5,
                 conditions=["risk_level > high", "irreversible_action"],
             ),
             ProceduralRecord(
                 strategy_name="verify_before_modify",
-                description="修改节点或文件前，先查询现有结构确认状态",
+                description="modifynodeorfileprevious, firstquerynowhasstructureconfirmstate",
                 priority=0.65,
                 conditions=["action_type == modify", "target_unknown"],
             ),
             ProceduralRecord(
                 strategy_name="error_recovery",
-                description="遇到错误后，分析错误信息，尝试替代方案而非重复相同操作",
+                description="On error, analyze the error info and try an alternative approach instead of repeating the same operation.",
                 priority=0.7,
                 conditions=["error_occurred", "retry_count > 1"],
             ),
@@ -822,13 +822,13 @@ class MemoryStore:
 
 
 # ============================================================
-# 全局单例
+# globalsingleexample
 # ============================================================
 
 _store_instance: Optional[MemoryStore] = None
 
 def get_memory_store() -> MemoryStore:
-    """获取全局 MemoryStore 实例"""
+    """getglobal MemoryStore instance"""
     global _store_instance
     if _store_instance is None:
         _store_instance = MemoryStore()

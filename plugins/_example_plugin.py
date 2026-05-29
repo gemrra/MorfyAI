@@ -42,19 +42,19 @@ PLUGIN_INFO = {
 
 
 # ─────────────────────────────────────────────
-# 装饰器 API 示例（可选用法 — 在 register 之外也能注册）
+# Decorator API example (optional — also works outside register())
 #
-# 装饰器在 register() 调用后自动应用到 ctx。
-# 注意：装饰器 API 是全局收集器，每个插件加载前会自动清空，
-#       因此不会与其他插件冲突。
+# Decorators are auto-applied to ctx after register() runs.
+# Note: the decorator API uses global collectors that are cleared
+#       before each plugin loads, so plugins don't conflict.
 # ─────────────────────────────────────────────
 
 # from morfyai.utils.hooks import hook, tool, ui_button
 #
 # @hook("on_content_chunk")
 # def on_content(content, iteration=0):
-#     """实时监听 AI 输出的每个文本块"""
-#     pass  # 可以做字数统计、内容过滤等
+#     """Live-listen to every text chunk emitted by the AI."""
+#     pass  # Could do word counting, content filtering, etc.
 #
 # @tool(name="decorator_example", description="Decorator-registered tool")
 # def decorator_tool(args):
@@ -66,19 +66,19 @@ PLUGIN_INFO = {
 
 
 def register(ctx):
-    """插件入口 — ctx 是 PluginContext 实例
+    """Plugin entry point — ctx is a PluginContext instance.
 
-    可用 API:
-      ctx.on(event, callback, priority=100)  — 注册事件钩子
-      ctx.register_tool(...)                 — 注册自定义工具（AI 可调用）
-      ctx.register_button(icon, ...)         — 注册工具栏按钮
-      ctx.insert_chat_card(widget)           — 在聊天区域插入自定义 QWidget
-      ctx.get_setting(key)                   — 读取插件设置
-      ctx.set_setting(key, value)            — 写入插件设置
-      ctx.log(msg)                           — 输出日志
+    Available API:
+      ctx.on(event, callback, priority=100)  — register an event hook
+      ctx.register_tool(...)                 — register a custom tool (AI-callable)
+      ctx.register_button(icon, ...)         — register a toolbar button
+      ctx.insert_chat_card(widget)           — insert a custom QWidget into the chat
+      ctx.get_setting(key)                   — read plugin setting
+      ctx.set_setting(key, value)            — write plugin setting
+      ctx.log(msg)                           — emit log
 
-    可用事件:
-      on_before_request   — (messages) → messages  (管道式过滤)
+    Available events:
+      on_before_request   — (messages) -> messages   (pipeline filter)
       on_after_response   — (result, model, provider)
       on_before_tool      — (tool_name, args)
       on_after_tool       — (tool_name, args, result)
@@ -88,7 +88,7 @@ def register(ctx):
     """
 
     # ─────────────────────────────────────────────
-    # 1. 监听事件 — 工具调用后记录日志
+    # 1. Listen for events — log after every tool call
     # ─────────────────────────────────────────────
     log_level = ctx.get_setting("log_level", "info")
 
@@ -101,8 +101,8 @@ def register(ctx):
     ctx.on("on_after_tool", on_tool_done)
 
     # ─────────────────────────────────────────────
-    # 2. 注册自定义工具 — AI 可以调用此工具
-    #    工具会自动注册到 ToolRegistry，在所有模式下可用
+    # 2. Register a custom tool — callable by the AI.
+    #    The tool is auto-registered into ToolRegistry and available in all modes.
     # ─────────────────────────────────────────────
     if ctx.get_setting("enable_greeting", True):
         prefix = ctx.get_setting("greeting_prefix", "Hello")
@@ -131,7 +131,7 @@ def register(ctx):
         )
 
     # ─────────────────────────────────────────────
-    # 3. 注册工具栏按钮
+    # 3. Register a toolbar button
     # ─────────────────────────────────────────────
     def on_button_click():
         ctx.log("Example button clicked!")
@@ -143,11 +143,11 @@ def register(ctx):
     )
 
     # ─────────────────────────────────────────────
-    # 4. 管道式过滤 prompt（on_before_request）
-    #    注意回调签名支持 (messages) 或 (messages, **kwargs)
+    # 4. Pipeline-style prompt filter (on_before_request)
+    #    Callback signature supports either (messages) or (messages, **kwargs)
     # ─────────────────────────────────────────────
     def add_custom_instruction(messages, **kwargs):
-        """在 system prompt 末尾追加自定义指令"""
+        """Append a custom instruction at the end of the system prompt."""
         if messages and messages[0].get("role") == "system":
             messages[0]["content"] += (
                 "\n\n[Example Plugin] "
@@ -158,7 +158,7 @@ def register(ctx):
     ctx.on("on_before_request", add_custom_instruction)
 
     # ─────────────────────────────────────────────
-    # 5. 会话开始/结束 钩子
+    # 5. Session-start / session-end hooks
     # ─────────────────────────────────────────────
     ctx.on("on_session_start", lambda session_id, **kw:
            ctx.log(f"Session started: {session_id}"))

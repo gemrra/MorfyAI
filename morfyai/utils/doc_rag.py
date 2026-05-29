@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-Houdini 文档轻量级索引系统（重写版）
+Houdini lightweight documentation index system (rewritten version).
 
-替代旧的全量向量化 RAG，采用 **dict 索引** 实现 O(1) 查找：
-  - 节点名 → 文档  (from nodes.zip)
-  - VEX 函数 → 签名+描述  (from vex.zip)
-  - HOM 类/方法 → 签名+描述  (from hom.zip)
-  - 知识库 → 分段检索  (from Doc/*.txt)
+Replacement for the old fully-vectorized RAG. Uses a **dict index** to achieve O(1) lookup:
+  - node name → document  (from nodes.zip)
+  - VEX function → signature + description  (from vex.zip)
+  - HOM class/method → signature + description  (from hom.zip)
+  - knowledge base → chunked retrieval  (from Doc/*.txt)
 
-数据源：Houdini help 目录下的 ZIP 文件（wiki 标记格式） + Doc/*.txt 知识库
+Data sources: ZIP files under Houdini's help directory (wiki marker format) + Doc/*.txt knowledge base.
 """
 
 import os
@@ -27,74 +27,74 @@ except Exception:
 
 
 # ============================================================
-# 数据结构
+# datastructure
 # ============================================================
 
 @dataclass
 class NodeDoc:
-    """节点文档"""
-    node_type: str          # 内部名, e.g. "attribwrangle"
+    """nodedocument"""
+    node_type: str          # internal name, e.g. "attribwrangle"
     context: str            # sop / dop / obj / cop2 / ...
-    title: str              # 显示名称
-    description: str        # 简要描述 (≤300 chars)
-    parameters: list        # [[name, description], ...]  (≤15 条)
+    title: str              # showname
+    description: str        # briefdescription (≤300 chars)
+    parameters: list        # [[name, description], ...]  (≤15 item)
 
 
 @dataclass
 class VexDoc:
-    """VEX 函数文档"""
-    name: str               # 函数名
-    signature: str          # 完整签名
-    description: str        # 简要描述
-    category: str           # 分类, e.g. "attrib", "geo"
+    """VEX functiondocument"""
+    name: str               # functionname
+    signature: str          # full signature
+    description: str        # briefdescription
+    category: str           # partclass, e.g. "attrib", "geo"
 
 
 @dataclass
 class HomDoc:
-    """HOM 类/方法文档"""
-    name: str               # 完整名称, e.g. "hou.Node"
+    """HOM class/methoddocument"""
+    name: str               # completename, e.g. "hou.Node"
     doc_type: str           # class / method / function / homclass
-    signature: str          # 方法签名
-    description: str        # 简要描述
+    signature: str          # methodsignature
+    description: str        # briefdescription
 
 
 @dataclass
 class KnowledgeChunk:
-    """知识库文档片段"""
-    title: str              # 小节标题
-    content: str            # 小节内容 (≤2000 chars)
-    source: str             # 来源文件名
-    keywords: List[str]     # 关键词列表 (小写)
+    """knowledgelibrarydocumentsnippet"""
+    title: str              # smallsectiontitle
+    content: str            # smallsectioncontent (≤2000 chars)
+    source: str             # comesourcefilename
+    keywords: List[str]     # keywordlist (smallwrite)
 
 
 # ============================================================
-# 核心：轻量级文档索引
+# core: lightweightdocumentindex
 # ============================================================
 
 class HoudiniDocIndex:
-    """Houdini 文档轻量级索引
+    """Houdini documentlightweightindex
 
-    使用 dict 实现 O(1) 查找，替代全量向量化。
-    索引来源：$HFS/houdini/help 目录下的 ZIP 文件。
+    use dict realnow O(1) lookup, replacement forallquantityvectorization. 
+    indexcomesource: $HFS/houdini/help directorybelow  ZIP file. 
     """
 
     def __init__(self, help_dir: Optional[str] = None):
         self._help_dir = self._resolve_help_dir(help_dir)
 
-        # 三大索引
+        # three mainindex
         self.node_index: Dict[str, NodeDoc] = {}
         self.vex_index: Dict[str, VexDoc] = {}
         self.hom_index: Dict[str, HomDoc] = {}
 
-        # 知识库索引
+        # knowledgelibraryindex
         self.knowledge_chunks: List[KnowledgeChunk] = []
 
-        # 辅助索引
-        self._node_aliases: Dict[str, str] = {}         # 别名(小写) → node_type
+        # helperindex
+        self._node_aliases: Dict[str, str] = {}         # alias(smallwrite) → node_type
         self._vex_categories: Dict[str, List[str]] = {}  # category → [func_names]
-        self._all_node_types: Optional[set] = None       # 懒初始化
+        self._all_node_types: Optional[set] = None       # lazy initialization
 
-        # 缓存
+        # cache
         project_root = Path(__file__).parent.parent.parent
         self._cache_dir = project_root / "cache" / "doc_index"
         self._cache_dir.mkdir(parents=True, exist_ok=True)
@@ -104,44 +104,44 @@ class HoudiniDocIndex:
         self._load_knowledge_base()
 
     # ==========================================================
-    # 帮助目录发现
+    # helpdirectorydiscover
     # ==========================================================
 
     @staticmethod
     def _resolve_help_dir(help_dir: Optional[str]) -> Optional[Path]:
-        """自动发现文档目录（含 ZIP 文件）
+        """autodiscoverdocumentdirectory (containing ZIP file) 
 
-        查找顺序：
-        1. 显式传入的路径
-        2. 项目内置 Doc/ 目录（随项目分发，确保任何电脑可用）
-        3. 环境变量 HFS / hou 模块
-        4. 常见 Windows 安装路径
+        lookuporderorder: 
+        1. explicitly passed in path
+        2. Bundled Doc/ directory (ships with the project, ensures it works on any machine)
+        3. environmentvariable HFS / hou module
+        4. common Windows installpath
         """
         REQUIRED_ZIPS = ("nodes.zip", "vex.zip", "hom.zip")
 
         def _has_zips(d: Path) -> bool:
             return d.is_dir() and any((d / z).exists() for z in REQUIRED_ZIPS)
 
-        # 0. 显式路径
+        # 0. explicitpath
         if help_dir:
             p = Path(help_dir)
             if _has_zips(p):
                 return p
 
-        # 1. 项目内置 Doc/ 目录（优先——保证跨机器可用）
+        # 1. bundled with the project Doc/ directory (preferred——ensures cross-machine availability) 
         project_root = Path(__file__).parent.parent.parent
         bundled = project_root / "Doc"
         if _has_zips(bundled):
             return bundled
 
-        # 2. 环境变量 HFS（Houdini 标准）
+        # 2. environmentvariable HFS (Houdini standard) 
         hfs = os.environ.get("HFS")
         if hfs:
             p = Path(hfs) / "houdini" / "help"
             if _has_zips(p):
                 return p
 
-        # 3. hou 模块获取
+        # 3. hou moduleget
         try:
             import hou  # type: ignore
             hfs_val = hou.getenv("HFS", "")
@@ -152,7 +152,7 @@ class HoudiniDocIndex:
         except Exception:
             pass
 
-        # 4. 常见 Windows 安装路径
+        # 4. common Windows installpath
         for drive in ("C", "D", "E"):
             base = Path(f"{drive}:/Program Files/Side Effects Software")
             if base.is_dir():
@@ -164,7 +164,7 @@ class HoudiniDocIndex:
         return None
 
     # ==========================================================
-    # 索引加载 / 构建 / 缓存
+    # indexload / build / cache
     # ==========================================================
 
     def _load_or_build(self):
@@ -197,7 +197,7 @@ class HoudiniDocIndex:
             _dbg(f"[DocIndex] Cache save failed: {e}")
 
     def _build_indexes(self):
-        """从 ZIP 文件构建所有索引"""
+        """from ZIP filebuildallindex"""
         for name, builder in [("nodes.zip", self._build_node_index),
                                ("vex.zip",   self._build_vex_index),
                                ("hom.zip",   self._build_hom_index)]:
@@ -208,40 +208,40 @@ class HoudiniDocIndex:
         self._build_aliases()
 
     # ==========================================================
-    # 知识库加载（Doc/*.txt 文件）
+    # knowledgelibraryload (Doc/*.txt file) 
     # ==========================================================
 
     def _load_knowledge_base(self):
-        """从 Doc/ 目录递归加载 .txt 知识库文件，按 ## 标题分段
+        """from Doc/ directoryrecursiveload .txt knowledgelibraryfile, by ## titlechunked
 
-        改进:
-        1. 递归加载子目录 Doc/**/*.txt
-        2. 知识库缓存: 将解析结果序列化到 JSON 缓存
-        3. 增量检测: 按文件修改时间判断是否需要重新解析
+        improved:
+        1. recursiveloadsubdirectory Doc/**/*.txt
+        2. knowledgelibrarycache: willparseresultordercolumnizationto JSON cache
+        3. incrementaldetect: byfilemodifywhenbetweendecidebreakwhetherneedsrenewparse
         """
         if not self._doc_dir or not self._doc_dir.is_dir():
             return
 
-        # 递归发现所有 .txt 文件
+        # recursivediscoverall .txt file
         txt_files = sorted(self._doc_dir.rglob("*.txt"))
         if not txt_files:
             return
 
         kb_cache_file = self._cache_dir / "knowledge_base_cache.json"
 
-        # 构建文件指纹 {相对路径: mtime}
+        # buildfilefingerprint {relative path: mtime}
         file_fingerprints = {}
         for txt_path in txt_files:
             rel = txt_path.relative_to(self._doc_dir)
             file_fingerprints[str(rel)] = txt_path.stat().st_mtime
 
-        # 尝试增量加载缓存
+        # tryincrementalloadcache
         if kb_cache_file.exists():
             try:
                 with open(kb_cache_file, "r", encoding="utf-8") as f:
                     cache_data = json.load(f)
                 cached_fingerprints = cache_data.get("fingerprints", {})
-                # 比较指纹: 完全一致则直接加载缓存
+                # comparefingerprint: finishallconsistentthendirectlyloadcache
                 if cached_fingerprints == file_fingerprints:
                     for chunk_data in cache_data.get("chunks", []):
                         self.knowledge_chunks.append(KnowledgeChunk(
@@ -258,11 +258,11 @@ class HoudiniDocIndex:
             except Exception as e:
                 _dbg(f"[DocIndex] Knowledge base cache read failed: {e}")
 
-        # 全量解析
+        # allquantityparse
         for txt_path in txt_files:
             try:
                 text = txt_path.read_text(encoding="utf-8")
-                # 使用相对路径作为 source（保留子目录信息）
+                # userelative pathas source (keepsubdirectoryinfo) 
                 rel = txt_path.relative_to(self._doc_dir)
                 source = str(rel.with_suffix("")).replace("\\", "/")
                 chunks = self._parse_txt_sections(text, source)
@@ -274,7 +274,7 @@ class HoudiniDocIndex:
             _dbg(f"[DocIndex] Knowledge base loaded: {len(self.knowledge_chunks)} fragment(s) "
                   f"(from {len(txt_files)} file(s))")
 
-            # 保存缓存
+            # savecache
             try:
                 cache_data = {
                     "fingerprints": file_fingerprints,
@@ -296,10 +296,10 @@ class HoudiniDocIndex:
 
     @staticmethod
     def _parse_txt_sections(text: str, source: str) -> List[KnowledgeChunk]:
-        """将 .txt 文件按 ## 标题分段
+        """will .txt fileby ## titlechunked
 
-        每个以 ## 开头的行作为一个新段落的标题。
-        段落内容最多保留 2000 字符。
+        eachby ## start rowasonenewparagraph title. 
+        paragraphcontentkeep at most 2000 character. 
         """
         chunks: List[KnowledgeChunk] = []
         current_title = ""
@@ -308,8 +308,8 @@ class HoudiniDocIndex:
         def _flush():
             if current_title and current_lines:
                 content = '\n'.join(current_lines).strip()
-                if len(content) > 30:  # 跳过过短的段落
-                    # 提取关键词：英文标识符 + 中文词组
+                if len(content) > 30:  # skip very short paragraphs
+                    # extractkeyword: English identifier + inChinese phrase
                     keywords_en = [w.lower() for w in
                                    re.findall(r'[a-zA-Z_@][a-zA-Z0-9_@.]*', current_title + ' ' + content)
                                    if len(w) >= 2]
@@ -319,15 +319,15 @@ class HoudiniDocIndex:
                         title=current_title,
                         content=content[:2000],
                         source=source,
-                        keywords=all_kw[:50],  # 最多50个关键词
+                        keywords=all_kw[:50],  # at most50keyword
                     ))
 
         for line in text.split('\n'):
-            # 匹配 "## 标题" (二级标题)
+            # match "## title" (second-leveltitle)
             m = re.match(r'^##\s+(.+)', line)
             if m:
                 title_text = m.group(1).strip()
-                # 跳过装饰分隔线 (如 "## ========" 或 "## ------")
+                # skipdecorative separator (such as "## ========" or "## ------")
                 if re.match(r'^[=\-#*~]{3,}$', title_text):
                     continue
                 _flush()
@@ -340,27 +340,27 @@ class HoudiniDocIndex:
         return chunks
 
     def search_knowledge(self, query: str, top_k: int = 3) -> List[dict]:
-        """在知识库中搜索与查询匹配的片段"""
+        """inknowledgelibraryinsearchwithquerymatch snippet"""
         if not self.knowledge_chunks:
             return []
 
         ql = query.lower()
-        # 提取查询中的关键词
+        # extractqueryin keyword
         query_words = set(re.findall(r'[a-zA-Z_@][a-zA-Z0-9_@.]*', ql))
         query_cn = set(re.findall(r'[\u4e00-\u9fff]{2,}', query))
 
         scored: List[tuple] = []
         for chunk in self.knowledge_chunks:
             score = 0.0
-            # 英文关键词匹配
+            # English keyword match
             chunk_kw_set = set(chunk.keywords)
             matched = query_words & chunk_kw_set
             score += len(matched) * 0.3
-            # 中文关键词匹配
+            # intextkeywordmatch
             for cn in query_cn:
                 if cn in chunk.title or cn in chunk.content[:200]:
                     score += 0.5
-            # 精确子串匹配（标题）
+            # exact substringmatch (title) 
             for w in query_words:
                 if len(w) >= 3 and w in chunk.title.lower():
                     score += 0.8
@@ -370,20 +370,20 @@ class HoudiniDocIndex:
         scored.sort(key=lambda x: x[0], reverse=True)
         results = []
         for score, chunk in scored[:top_k]:
-            # 截取内容摘要
+            # cutfetchcontentsummary
             snippet = chunk.content[:300]
             if len(chunk.content) > 300:
                 snippet += "..."
             results.append({
                 "type": "knowledge",
                 "name": chunk.title,
-                "snippet": f"[知识库] {chunk.title}\n{snippet}",
+                "snippet": f"[knowledgelibrary] {chunk.title}\n{snippet}",
                 "score": min(score, 1.0),
                 "source": chunk.source,
             })
         return results
 
-    # --- 缓存序列化 ---
+    # --- cacheordercolumnization ---
 
     def _save_to_cache(self, path: Path):
         data = {
@@ -427,14 +427,14 @@ class HoudiniDocIndex:
         self._build_aliases()
 
     # ==========================================================
-    # Wiki 格式解析器
+    # Wiki formatparse 
     # ==========================================================
 
     @staticmethod
     def _parse_wiki(text: str) -> dict:
-        """解析 Houdini wiki 标记格式文档
+        """parse Houdini wiki marker formatdocument
 
-        格式概要::
+        format summary::
 
             = Title =
             #type: homclass
@@ -461,7 +461,7 @@ class HoudiniDocIndex:
         lines = text.split("\n")
         i, n = 0, len(lines)
 
-        # 跳过空行
+        # skipemptyrow
         while i < n and not lines[i].strip():
             i += 1
 
@@ -472,7 +472,7 @@ class HoudiniDocIndex:
                 doc["title"] = m.group(1).strip()
                 i += 1
 
-        # #key: value 元数据
+        # #key: value metadatadata
         while i < n:
             line = lines[i].strip()
             if not line:
@@ -514,7 +514,7 @@ class HoudiniDocIndex:
             line = lines[i]
             s = line.strip()
             if s.startswith("@") and len(s) > 1 and s[1:].split()[0].isalpha():
-                # 保存上一段
+                # saveprevious paragraph
                 text_block = "\n".join(buf).strip()
                 if text_block:
                     if cur_sec == "_body":
@@ -537,7 +537,7 @@ class HoudiniDocIndex:
         return doc
 
     # ==========================================================
-    # 节点索引  (nodes.zip)
+    # nodeindex  (nodes.zip)
     # ==========================================================
 
     def _build_node_index(self, zip_path: Path):
@@ -572,7 +572,7 @@ class HoudiniDocIndex:
                             description=doc.get("description", "")[:300],
                             parameters=params[:15],
                         )
-                        # 短名(无context前缀)优先 SOP > OBJ > DOP > 其他
+                        # short name(nocontextprefix)preferred SOP > OBJ > DOP > other
                         _CTX_PRIORITY = {"sop": 0, "obj": 1, "dop": 2, "cop2": 3}
                         existing = self.node_index.get(internal)
                         if existing is None or (
@@ -590,7 +590,7 @@ class HoudiniDocIndex:
         _dbg(f"[DocIndex]   -> {count} node docs")
 
     # ==========================================================
-    # VEX 索引  (vex.zip)
+    # VEX index  (vex.zip)
     # ==========================================================
 
     def _build_vex_index(self, zip_path: Path):
@@ -607,7 +607,7 @@ class HoudiniDocIndex:
                         if not func_name or func_name.startswith("_"):
                             continue
 
-                        # 从 body / usage section 提取签名
+                        # from body / usage section extractsignature
                         sig_src = (doc.get("body", "") + "\n"
                                    + doc.get("sections", {}).get("usage", ""))
                         sig = ""
@@ -634,7 +634,7 @@ class HoudiniDocIndex:
         _dbg(f"[DocIndex]   → {count} VEX functions")
 
     # ==========================================================
-    # HOM 索引  (hom.zip)
+    # HOM index  (hom.zip)
     # ==========================================================
 
     def _build_hom_index(self, zip_path: Path):
@@ -651,7 +651,7 @@ class HoudiniDocIndex:
                         if not title:
                             title = "hou." + Path(name).stem
 
-                        # 主条目
+                        # main entry
                         self.hom_index[title] = HomDoc(
                             name=title,
                             doc_type=doc.get("type", "") or "class",
@@ -660,7 +660,7 @@ class HoudiniDocIndex:
                         )
                         count += 1
 
-                        # 提取方法
+                        # extractmethod
                         methods_text = doc.get("sections", {}).get("methods", "")
                         if methods_text:
                             count += self._extract_hom_methods(title, methods_text)
@@ -671,15 +671,15 @@ class HoudiniDocIndex:
         _dbg(f"[DocIndex]   → {count} HOM entries")
 
     def _extract_hom_methods(self, parent: str, text: str) -> int:
-        """从 @methods section 提取方法签名"""
+        """from @methods section extractmethodsignature"""
         count = 0
-        # 匹配  ::`methodName(self, arg1, arg2)`:  或类似格式
+        # match  ::`methodName(self, arg1, arg2)`:  orclasssimilarformat
         for m in re.finditer(r"::`(\w+)\(([^)]*)\)`\s*:", text):
             mname = m.group(1)
             margs = m.group(2)
             full = f"{parent}.{mname}"
 
-            # 取紧随其后的缩进行作为描述
+            # Take the immediately-following indented lines as the description
             pos = m.end()
             desc_lines = []
             for line in text[pos:].split("\n"):
@@ -691,7 +691,7 @@ class HoudiniDocIndex:
                     if len(desc_lines) >= 2:
                         break
                 else:
-                    break  # 非缩进行 = 描述结束
+                    break  # notindentationrow = descriptionend
 
             self.hom_index[full] = HomDoc(
                 name=full,
@@ -703,12 +703,12 @@ class HoudiniDocIndex:
         return count
 
     # ==========================================================
-    # 参数解析
+    # parameterparse
     # ==========================================================
 
     @staticmethod
     def _parse_parameters(text: str) -> list:
-        """解析 @parameters 段落 → [[name, desc], ...]"""
+        """parse @parameters paragraph → [[name, desc], ...]"""
         params: list = []
         if not text:
             return params
@@ -718,7 +718,7 @@ class HoudiniDocIndex:
             s = line.strip()
             if not s:
                 continue
-            # 跳过 wiki include 指令
+            # skip wiki include refercommand
             if s.startswith(":include") or s.startswith("#include"):
                 continue
             if s.endswith(":") and not line.startswith((" ", "\t")):
@@ -733,11 +733,11 @@ class HoudiniDocIndex:
         return params
 
     # ==========================================================
-    # 辅助索引
+    # helperindex
     # ==========================================================
 
     def _build_aliases(self):
-        """构建别名（用于模糊匹配）"""
+        """buildalias (used forfuzzymatch) """
         self._node_aliases.clear()
         for ntype, doc in self.node_index.items():
             if "/" in ntype:
@@ -748,11 +748,11 @@ class HoudiniDocIndex:
         self._all_node_types = {k for k in self.node_index if "/" not in k}
 
     # ==========================================================
-    # 查询 API
+    # query API
     # ==========================================================
 
     def lookup_node(self, node_type: str) -> Optional[NodeDoc]:
-        """精确查找节点"""
+        """exact lookupnode"""
         doc = self.node_index.get(node_type)
         if doc:
             return doc
@@ -760,15 +760,15 @@ class HoudiniDocIndex:
         return self.node_index.get(alias) if alias else None
 
     def lookup_vex(self, func_name: str) -> Optional[VexDoc]:
-        """精确查找 VEX 函数"""
+        """exact lookup VEX function"""
         return self.vex_index.get(func_name) or self.vex_index.get(func_name.lower())
 
     def lookup_hom(self, name: str) -> Optional[HomDoc]:
-        """精确查找 HOM 类/方法"""
+        """exact lookup HOM class/method"""
         return self.hom_index.get(name)
 
     def search(self, query: str, top_k: int = 5, **_kw) -> List[dict]:
-        """多策略搜索
+        """multistrategysearch
         
         Returns:
             [{"type": "node"/"vex"/"hom", "name": str,
@@ -777,7 +777,7 @@ class HoudiniDocIndex:
         results: List[dict] = []
         ql = query.lower().strip()
 
-        # --- 精确匹配 ---
+        # --- finecertainmatch ---
         node = self.lookup_node(ql)
         if node:
             results.append({"type": "node", "name": node.node_type,
@@ -791,7 +791,7 @@ class HoudiniDocIndex:
             results.append({"type": "hom", "name": hom.name,
                             "snippet": self._fmt_hom(hom), "score": 1.0})
 
-        # --- 子串匹配 ---
+        # --- substringmatch ---
         if len(results) < top_k:
             words = {w for w in re.findall(r"[a-zA-Z_][a-zA-Z0-9_]{2,}", ql)}
             seen = {r["name"] for r in results}
@@ -822,7 +822,7 @@ class HoudiniDocIndex:
                         if len(results) >= top_k:
                                     break
 
-        # --- 知识库匹配 ---
+        # --- knowledgelibrarymatch ---
         if len(results) < top_k:
             kb_results = self.search_knowledge(query, top_k=top_k - len(results))
             seen = {r["name"] for r in results}
@@ -835,10 +835,10 @@ class HoudiniDocIndex:
         return results[:top_k]
     
     # ==========================================================
-    # 自动检索（供 _run_agent 注入上下文）
+    # autosearch (for _run_agent injectcontext) 
     # ==========================================================
 
-    # 常见英语单词（不应匹配节点/函数名）
+    # common English word (notshouldmatchnode/functionname) 
     _STOP_WORDS = frozenset({
         "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
         "have", "has", "had", "do", "does", "did", "will", "would", "could",
@@ -860,10 +860,10 @@ class HoudiniDocIndex:
     })
 
     def auto_retrieve(self, user_message: str, max_chars: int = 1200) -> str:
-        """从用户消息中自动提取关键词并检索相关文档
+        """fromusermessageinautoextractkeywordandsearchrelateddocument
 
-        返回一段紧凑的文档片段，用于注入 AI 上下文。
-        设计原则：宁精勿滥，每次最多注入 ~300 token。
+        returna compactdocumentsnippet, used forinject AI context. 
+        Design principle: quality over quantity — inject at most ~300 tokens per call.
         """
         if not any((self.node_index, self.vex_index, self.hom_index)):
             return ""
@@ -880,29 +880,29 @@ class HoudiniDocIndex:
             snippets.append(s)
             total += len(s)
 
-        # 1) hou.XXX 引用
+        # 1) hou.XXX reference
         for ref in re.findall(r"hou\.([a-zA-Z_][a-zA-Z0-9_.]*)", user_message):
             full = f"hou.{ref}"
             doc = self.lookup_hom(full)
             if doc:
                 _add(self._fmt_hom(doc), full)
 
-        # 2) 提取英文单词（ASCII-only，避免 \w 匹配中文）
+        # 2) extractEnglish word (ASCII-only, avoid \w matchintext) 
         words = set(re.findall(r"[a-zA-Z_][a-zA-Z0-9_]*", user_message))
         for w in words:
             wl = w.lower()
             if wl in self._STOP_WORDS or len(wl) < 3:
                 continue
-            # VEX 函数
+            # VEX function
             vdoc = self.vex_index.get(wl) or self.vex_index.get(w)
             if vdoc:
                 _add(self._fmt_vex(vdoc), vdoc.name)
-            # 节点
+            # node
             ndoc = self.node_index.get(wl) or self.node_index.get(w)
             if ndoc:
                 _add(self._fmt_node(ndoc), ndoc.node_type)
 
-        # 3) 中文关键词 → 匹配节点标题
+        # 3) intextkeyword → matchnodetitle
         for kw in re.findall(r"[\u4e00-\u9fff]{2,}", user_message)[:3]:
             for ntype, ndoc in self.node_index.items():
                 if "/" in ntype:
@@ -911,32 +911,32 @@ class HoudiniDocIndex:
                     _add(self._fmt_node(ndoc), ndoc.node_type)
                     break
 
-        # 4) 知识库匹配 — 涉及已收录主题时注入
+        # 4) Knowledge-base match — inject when the query involves a covered topic
         if self.knowledge_chunks:
             _KB_HINTS = {
                 # VEX / Wrangle
-                "属性", "attribute", "vex", "@P", "@N", "@Cd", "pscale", "orient",
-                "snippet", "代码", "函数", "语法", "wrangle", "噪波", "noise",
-                "copy", "scatter", "颜色", "法线", "位置", "run over",
+                "attribute", "attribute", "vex", "@P", "@N", "@Cd", "pscale", "orient",
+                "snippet", "code", "function", "syntax", "wrangle", "noise", "noise",
+                "copy", "scatter", "color", "normal", "position", "run over",
                 "nearpoint", "pcfind", "addpoint", "setpointattrib",
-                "hou.", "python", "表达式", "hscript", "变量",
+                "hou.", "python", "tableexpression", "hscript", "variable",
                 # Heightfields / Terrain
-                "heightfield", "terrain", "地形", "height", "erosion", "侵蚀",
-                "mask", "蒙版", "layer", "图层",
+                "heightfield", "terrain", "terrain", "height", "erosion", "erosion",
+                "mask", "mask", "layer", "layer",
                 # Copernicus / COP
-                "copernicus", "cop", "图像", "image", "texture", "纹理",
-                "composite", "合成", "filter", "滤镜", "gpu",
+                "copernicus", "cop", "image", "image", "texture", "texture",
+                "composite", "composite", "filter", "filter", "gpu",
                 # MPM
-                "mpm", "物理", "模拟", "simulation", "solver", "求解器",
-                "snow", "雪", "soil", "mud", "泥", "concrete", "混凝土",
-                "rubber", "橡胶", "jello", "sand", "沙",
+                "mpm", "physics", "simulation", "simulation", "solver", "solver",
+                "snow", "snow", "soil", "mud", "mud", "concrete", "concrete",
+                "rubber", "rubber", "jello", "sand", "sand",
                 # Machine Learning
-                "machine learning", "ml", "机器学习", "train", "训练",
-                "inference", "推理", "model", "dataset", "数据集", "onnx",
+                "machine learning", "ml", "machine learning", "train", "training",
+                "inference", "inference", "model", "dataset", "dataset", "onnx",
                 # Labs
-                "labs", "sidefx labs", "游戏", "game", "gamedev",
-                "baker", "bake", "烘焙", "lod", "impostor", "flowmap",
-                "osm", "photogrammetry", "摄影测量", "wfc", "wave function",
+                "labs", "sidefx labs", "game", "game", "gamedev",
+                "baker", "bake", "bake", "lod", "impostor", "flowmap",
+                "osm", "photogrammetry", "photogrammetry", "wfc", "wave function",
                 "tree", "pivot painter", "unreal", "fbx",
                 "trim texture", "triplanar", "texel", "mesh slice",
                 "destruction", "niagara", "wang tile",
@@ -950,19 +950,19 @@ class HoudiniDocIndex:
 
         if not snippets:
             return ""
-        return "[Houdini 文档参考]\n" + "\n".join(snippets)
+        return "[Houdini documentreference]\n" + "\n".join(snippets)
 
     # ==========================================================
-    # Labs 目录生成（供 system prompt 注入）
+    # Labs directorygenerate (for system prompt inject) 
     # ==========================================================
 
     _labs_catalog_cache: Optional[str] = None
 
     def get_labs_catalog(self) -> str:
-        """生成紧凑的 Labs 节点目录，供注入 system prompt
+        """generatecompact  Labs nodedirectory, forinject system prompt
 
-        从 labs_knowledge_base 的 chunk 标题中提取节点名，
-        按功能分类输出，约 2000~3000 字符。
+        from labs_knowledge_base   chunk titleinextractnodename, 
+        byfeaturepartclassoutput, approximately 2000~3000 character. 
         """
         if self._labs_catalog_cache is not None:
             return self._labs_catalog_cache
@@ -973,18 +973,18 @@ class HoudiniDocIndex:
             self._labs_catalog_cache = ""
             return ""
 
-        # 提取节点名 + 简短描述
+        # extractnodename + briefdescription
         nodes = []
         for chunk in labs_chunks:
             name = chunk.title.strip()
-            # 去掉 "geometry node", "render node" 等后缀
+            # godrop "geometry node", "render node" etc.suffix
             name = re.sub(
                 r'(geometry|render|object|compositing|sop|cop|top|rop|lop|dop|vop)\s*node\s*$',
                 '', name, flags=re.IGNORECASE
             ).strip()
-            # 去掉版本号 如 6.0, 1.0
+            # godropversionnumber such as 6.0, 1.0
             name = re.sub(r'\d+\.\d+$', '', name).strip()
-            # 简短描述（取 content 前 60 字符）
+            # briefdescription (fetch content previous 60 character) 
             desc = chunk.content[:80].split('\n')[0].strip()
             if len(desc) > 60:
                 desc = desc[:60] + '...'
@@ -1042,7 +1042,7 @@ class HoudiniDocIndex:
         for cat, items in categories.items():
             if not items:
                 continue
-            # 去重
+            # gore
             unique = sorted(set(items))
             lines.append(f"  [{cat}] {', '.join(unique)}")
 
@@ -1050,7 +1050,7 @@ class HoudiniDocIndex:
         self._labs_catalog_cache = catalog
         return catalog
 
-    # --- 格式化 ---
+    # --- formatization ---
 
     @staticmethod
     def _fmt_node(d: NodeDoc) -> str:
@@ -1082,19 +1082,19 @@ class HoudiniDocIndex:
 
 
 # ============================================================
-# 全局单例
+# globalsingleexample
 # ============================================================
 
 _index_instance: Optional[HoudiniDocIndex] = None
 
 
 def get_doc_index(help_dir: Optional[str] = None) -> HoudiniDocIndex:
-    """获取全局文档索引实例（单例）"""
+    """getglobaldocumentindexinstance (singleexample) """
     global _index_instance
     if _index_instance is None:
         _index_instance = HoudiniDocIndex(help_dir)
     return _index_instance
 
 
-# 兼容旧 API（client.py 中的 from ..doc_rag import get_doc_rag）
+# compatible withold API (client.py in  from ..doc_rag import get_doc_rag) 
 get_doc_rag = get_doc_index

@@ -26,7 +26,7 @@ def run(network_path):
     """Entry point
 
     Args:
-        network_path: 网络路径
+        network_path: network path
     """
     import hou  # type: ignore
 

@@ -1,18 +1,18 @@
 # -*- coding: utf-8 -*-
 """
-User Rules Manager — 用户自定义规则管理
+User Rules Manager
 
-类似 Cursor Rules 的功能，让用户长期定义上下文规则。
-规则全局生效，自动注入到每次 AI 请求的 system prompt 中。
+Cursor Rules-like functionality, letting the user define long-lived context rules.
+Rules are global and automatically injected into every AI request's system prompt.
 
-支持两种管理方式：
-  1. UI 规则：通过 Rules 编辑器对话框创建/编辑，存储在 config/user_rules.json
-  2. 文件规则：自动扫描 rules/ 目录下的 .md 和 .txt 文件
+Two management modes are supported:
+  1. UI rules: created/edited via the Rules editor dialog, stored in config/user_rules.json
+  2. File rules: automatically scanned from .md and .txt files under the rules/ directory
 
-设计原则：
-  - UI 规则可单独 enable/disable
-  - 文件规则始终启用（以 _ 开头的文件除外，视为草稿/模板）
-  - 所有启用的规则合并后用 <user_rules> 标签包裹注入 system prompt
+Design principles:
+  - UI rules can be enabled/disabled individually
+  - File rules are always enabled (files starting with _ are treated as drafts/templates)
+  - All enabled rules are merged and wrapped in a <user_rules> tag injected into the system prompt
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 # ============================================================
-# 路径常量
+# Path constants
 # ============================================================
 
 _PROJECT_ROOT = Path(__file__).parent.parent.parent          # DCC-ASSET-MANAGER/
@@ -39,11 +39,11 @@ _RULES_FILE = _CONFIG_DIR / "user_rules.json"
 _RULES_DIR = _PROJECT_ROOT / "rules"
 
 # ============================================================
-# 数据结构
+# Data structures
 # ============================================================
 
 def _new_rule(title: str = "", content: str = "", enabled: bool = True) -> Dict[str, Any]:
-    """创建一条新的 UI 规则数据"""
+    """Create a new UI rule data entry"""
     return {
         "id": uuid.uuid4().hex[:12],
         "title": title,
@@ -54,11 +54,11 @@ def _new_rule(title: str = "", content: str = "", enabled: bool = True) -> Dict[
 
 
 # ============================================================
-# 加载 / 保存 UI 规则 (config/user_rules.json)
+# Load / save UI rules (config/user_rules.json)
 # ============================================================
 
 def _load_ui_rules() -> List[Dict[str, Any]]:
-    """从 config/user_rules.json 加载 UI 规则列表"""
+    """Load UI rules list from config/user_rules.json"""
     if not _RULES_FILE.exists():
         return []
     try:
@@ -73,7 +73,7 @@ def _load_ui_rules() -> List[Dict[str, Any]]:
 
 
 def _save_ui_rules(rules: List[Dict[str, Any]]):
-    """保存 UI 规则到 config/user_rules.json"""
+    """Save UI rules to config/user_rules.json"""
     _CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     try:
         with open(_RULES_FILE, "w", encoding="utf-8") as f:
@@ -83,18 +83,18 @@ def _save_ui_rules(rules: List[Dict[str, Any]]):
 
 
 # ============================================================
-# 文件规则扫描 (rules/*.md, *.txt)
+# File rule scanning (rules/*.md, *.txt)
 # ============================================================
 
 def _scan_file_rules() -> List[Dict[str, Any]]:
-    """扫描 rules/ 目录下的 .md / .txt 文件，返回规则列表"""
+    """Scan .md / .txt files under rules/ and return the rule list"""
     if not _RULES_DIR.exists():
         return []
 
     result: List[Dict[str, Any]] = []
     for ext in ("*.md", "*.txt"):
         for f in sorted(_RULES_DIR.glob(ext)):
-            # 以 _ 开头的文件视为模板/草稿，不加载
+            # Files starting with _ are treated as templates/drafts and skipped
             if f.name.startswith("_"):
                 continue
             try:
@@ -103,10 +103,10 @@ def _scan_file_rules() -> List[Dict[str, Any]]:
                     continue
                 result.append({
                     "id": f"file:{f.name}",
-                    "title": f.stem,                 # 文件名（不含扩展名）作为标题
+                    "title": f.stem,                 # filename (without extension) as title
                     "content": content,
                     "enabled": True,
-                    "source": "file",                # 标记来源
+                    "source": "file",                # mark the source
                     "file_path": str(f),
                 })
             except Exception as e:
@@ -115,17 +115,17 @@ def _scan_file_rules() -> List[Dict[str, Any]]:
 
 
 # ============================================================
-# 公共 API — 模块级函数（单例风格）
+# Public API - module-level functions (singleton style)
 # ============================================================
 
-# 内部缓存
+# Internal cache
 _ui_rules_cache: Optional[List[Dict[str, Any]]] = None
 
 
 def get_all_rules(force_reload: bool = False) -> List[Dict[str, Any]]:
-    """获取所有规则（UI 规则 + 文件规则）
+    """Get all rules (UI rules + file rules)
 
-    返回列表中每条规则包含:
+    Each rule in the returned list contains:
         id, title, content, enabled, source("ui"|"file"), ...
     """
     global _ui_rules_cache
@@ -143,7 +143,7 @@ def get_all_rules(force_reload: bool = False) -> List[Dict[str, Any]]:
 
 
 def get_ui_rules() -> List[Dict[str, Any]]:
-    """仅获取 UI 规则"""
+    """Get UI rules only"""
     global _ui_rules_cache
     if _ui_rules_cache is None:
         _ui_rules_cache = _load_ui_rules()
@@ -151,7 +151,7 @@ def get_ui_rules() -> List[Dict[str, Any]]:
 
 
 def add_rule(title: str = "", content: str = "") -> Dict[str, Any]:
-    """添加一条新的 UI 规则"""
+    """Add a new UI rule"""
     global _ui_rules_cache
     if _ui_rules_cache is None:
         _ui_rules_cache = _load_ui_rules()
@@ -162,7 +162,7 @@ def add_rule(title: str = "", content: str = "") -> Dict[str, Any]:
 
 
 def update_rule(rule_id: str, **kwargs):
-    """更新指定 UI 规则的字段 (title, content, enabled)"""
+    """Update fields (title, content, enabled) of the specified UI rule"""
     global _ui_rules_cache
     if _ui_rules_cache is None:
         _ui_rules_cache = _load_ui_rules()
@@ -177,7 +177,7 @@ def update_rule(rule_id: str, **kwargs):
 
 
 def delete_rule(rule_id: str) -> bool:
-    """删除指定 UI 规则"""
+    """Delete the specified UI rule"""
     global _ui_rules_cache
     if _ui_rules_cache is None:
         _ui_rules_cache = _load_ui_rules()
@@ -190,31 +190,31 @@ def delete_rule(rule_id: str) -> bool:
 
 
 def set_rule_enabled(rule_id: str, enabled: bool) -> bool:
-    """设置 UI 规则的启用/禁用状态"""
+    """Set the enabled/disabled state of a UI rule"""
     return update_rule(rule_id, enabled=enabled)
 
 
 def save_all_ui_rules(rules: List[Dict[str, Any]]):
-    """批量保存 UI 规则（从编辑器全量写回）"""
+    """Batch save UI rules (full write-back from the editor)"""
     global _ui_rules_cache
     _ui_rules_cache = rules
     _save_ui_rules(_ui_rules_cache)
 
 
 def reload_rules():
-    """强制重新加载所有规则（清除缓存）"""
+    """Force reload all rules (clears cache)"""
     global _ui_rules_cache
     _ui_rules_cache = None
 
 
 # ============================================================
-# Prompt 注入
+# Prompt injection
 # ============================================================
 
 def get_rules_for_prompt() -> str:
-    """将所有启用的规则合并为一段文本，用 <user_rules> 标签包裹
+    """Merge all enabled rules into a single block wrapped in <user_rules> tags
 
-    返回空字符串表示没有任何启用的规则。
+    Returns an empty string when no rule is enabled.
     """
     all_rules = get_all_rules()
     enabled = [r for r in all_rules if r.get("enabled", True)]
@@ -246,14 +246,14 @@ def get_rules_for_prompt() -> str:
 
 
 # ============================================================
-# 辅助
+# Helpers
 # ============================================================
 
 def get_rules_dir() -> Path:
-    """返回 rules/ 目录路径"""
+    """Return the rules/ directory path"""
     return _RULES_DIR
 
 
 def ensure_rules_dir():
-    """确保 rules/ 目录存在"""
+    """Ensure the rules/ directory exists"""
     _RULES_DIR.mkdir(parents=True, exist_ok=True)

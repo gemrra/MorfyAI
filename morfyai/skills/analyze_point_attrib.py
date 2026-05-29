@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 """Generic geometry attribute analysis skill
 
-Analyze Houdini 节点几何体的属性统计信息, 支持 point/vertex/prim/detail 四种attribute category. 
-不指定属性名时Return属性列表, 指定时Return统计信息 (min/max/mean/std/nan/inf). 
+Analyze attribute statistics on a Houdini node's geometry; supports
+point/vertex/prim/detail attribute categories.
+Without an attribute name, returns the attribute list; with one, returns
+statistics (min/max/mean/std/nan/inf).
 """
 
 SKILL_INFO = {
@@ -40,10 +42,10 @@ def run(node_path, attrib_name=None, attrib_class="point", max_sample=100000):
     """Entry point
 
     Args:
-        node_path: 节点路径
-        attrib_name: 属性名 (None 则Return属性列表)
+        node_path: node path
+        attrib_name: attribute name (None to return the attribute list)
         attrib_class: attribute category - point/vertex/prim/detail
-        max_sample: 最大采样数
+        max_sample: max sample count
     """
     import hou  # type: ignore
     import numpy as np
@@ -56,7 +58,7 @@ def run(node_path, attrib_name=None, attrib_class="point", max_sample=100000):
     if not geo:
         return {"error": "Cannot fetch geometry"}
 
-    # attribute category映射
+    # Attribute category map
     attrib_map = {
         "point": (
             geo.findPointAttrib,
@@ -93,7 +95,7 @@ def run(node_path, attrib_name=None, attrib_class="point", max_sample=100000):
 
     find_func, float_func, int_func, str_func, elem_count = attrib_map[attrib_class]
 
-    # 如果没有指定属性名, Return属性列表
+    # If no attribute name given, return the attribute list
     if attrib_name is None:
         attrib_list_map = {
             "point": geo.pointAttribs,
@@ -116,7 +118,7 @@ def run(node_path, attrib_name=None, attrib_class="point", max_sample=100000):
             ],
         }
 
-    # 查找指定属性
+    # Look up the requested attribute
     attrib = find_func(attrib_name)
     if not attrib:
         return {"error": f"Attribute does not exist: {attrib_name} (category: {attrib_class})"}
@@ -124,7 +126,7 @@ def run(node_path, attrib_name=None, attrib_class="point", max_sample=100000):
     size = attrib.size()
     data_type = str(attrib.dataType()).split(".")[-1]
 
-    # Detail 属性特殊处理
+    # Detail attributes get special-case handling
     if attrib_class == "detail":
         if data_type == "Float":
             val = (
@@ -152,7 +154,7 @@ def run(node_path, attrib_name=None, attrib_class="point", max_sample=100000):
             "value": val,
         }
 
-    # 获取属性值
+    # Fetch attribute values
     if data_type == "Float":
         vals = np.array(float_func(attrib_name))
     elif data_type == "Int":
@@ -169,11 +171,11 @@ def run(node_path, attrib_name=None, attrib_class="point", max_sample=100000):
             "unique_values": unique[:20],
         }
 
-    # 重塑多维属性
+    # Reshape multi-dimensional attributes
     if size > 1:
         vals = vals.reshape((-1, size))
 
-    # 采样 (大数据量时)
+    # Sample (for large datasets)
     max_sample = min(int(max_sample), 500000)
     n = len(vals) if vals.ndim == 1 else vals.shape[0]
     sampled = False
@@ -182,7 +184,7 @@ def run(node_path, attrib_name=None, attrib_class="point", max_sample=100000):
         vals = vals[idx] if vals.ndim == 1 else vals[idx, :]
         sampled = True
 
-    # Return统计信息
+    # Return summary statistics
     result = {
         "node_path": node_path,
         "name": attrib_name,
@@ -196,7 +198,7 @@ def run(node_path, attrib_name=None, attrib_class="point", max_sample=100000):
         "std": vals.std(axis=0).tolist() if size > 1 else float(vals.std()),
     }
 
-    # NaN/Inf 检测 (仅 float)
+    # NaN/Inf detection (float only)
     if data_type == "Float":
         result["nan_count"] = int(np.isnan(vals).sum())
         result["inf_count"] = int(np.isinf(vals).sum())

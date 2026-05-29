@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
 """
-Skill 注册表 & 加载器
+Skill registry & loader.
 
-Skill 是预定义的 Python 代码片段,  in  Houdini 环境中执行. 
-每个 skill 文件放 in  skills/ 目录下, containing:
-  - SKILL_INFO: dict  (name, description, parameters)
-  - run(**kwargs) -> dict  入口函数
+A skill is a predefined Python snippet that runs in the Houdini environment.
+Each skill file lives in skills/ and contains:
+  - SKILL_INFO: dict (name, description, parameters)
+  - run(**kwargs) -> dict   (entry function)
 
-★ v1.3.5+: Skill 自动注册到 ToolRegistry, 可作为独立工具暴露给 AI. 
-★ 支持用户自定义 Skill 目录 (config/houdini_ai.ini → [skills] user_skill_dir)
+★ v1.3.5+: skills are auto-registered to ToolRegistry so they can be exposed
+  to the AI as standalone tools.
+★ Supports a user-defined skill directory (config/houdini_ai.ini → [skills] user_skill_dir)
 """
 
 import os
@@ -24,16 +25,16 @@ except Exception:
     _dbg = lambda *a, **kw: None
 
 
-# 全局注册表: skill_name -> module
+# Global registry: skill_name -> module
 _registry: Dict[str, Any] = {}
 _loaded = False
 
 
 def _skill_info_to_openai_schema(info: dict, skill_name: str) -> dict:
-    """将 SKILL_INFO 转换为 OpenAI function calling schema"""
+    """Convert SKILL_INFO into an OpenAI function-calling schema."""
     properties = {}
     required = []
-    # JSON Schema 不支持 'float', 需映射为 'number'
+    # JSON Schema does not support 'float'; map to 'number'
     _TYPE_MAP = {"float": "number", "int": "integer", "bool": "boolean"}
     for param_name, param_def in info.get("parameters", {}).items():
         raw_type = param_def.get("type", "string")
@@ -52,7 +53,9 @@ def _skill_info_to_openai_schema(info: dict, skill_name: str) -> dict:
     return {
         "type": "function",
         "function": {
-            "name": f"skill:{skill_name}",
+            # NOTE: function names must match ^[a-zA-Z0-9_-]+$ (DeepSeek/OpenAI).
+            # A ':' is illegal, so the skill namespace uses '__' as the separator.
+            "name": f"skill__{skill_name}",
             "description": f"[Skill] {info.get('description', skill_name)}",
             "parameters": {
                 "type": "object",
@@ -64,7 +67,7 @@ def _skill_info_to_openai_schema(info: dict, skill_name: str) -> dict:
 
 
 def _get_user_skill_dir() -> Optional[Path]:
-    """从 config/houdini_ai.ini 读取用户自定义 Skill 目录"""
+    """Read the user-defined skill directory from config/houdini_ai.ini."""
     try:
         import configparser
         config_dir = Path(__file__).resolve().parent.parent.parent / "config"
@@ -86,7 +89,7 @@ def _get_user_skill_dir() -> Optional[Path]:
 
 
 def _load_skills_from_dir(skill_dir: Path, prefix: str = ""):
-    """从指定目录加载 skill 模块"""
+    """Load skill modules from a given directory."""
     if not skill_dir.is_dir():
         return
 
@@ -110,16 +113,16 @@ def _load_skills_from_dir(skill_dir: Path, prefix: str = ""):
 
 
 def _load_all():
-    """扫描 skills/ 目录 (内置 + 用户), 加载所skill 模块"""
+    """Scan the skills/ directory (builtin + user) and load all skill modules."""
     global _registry, _loaded
     if _loaded:
         return
 
-    # 1. 内置 skill 目录
+    # 1. Built-in skill directory
     builtin_dir = Path(__file__).parent
     _load_skills_from_dir(builtin_dir)
 
-    # 2. 用户自定义 skill 目录
+    # 2. User-defined skill directory
     user_dir = _get_user_skill_dir()
     if user_dir:
         _load_skills_from_dir(user_dir, prefix="user_")
@@ -129,12 +132,12 @@ def _load_all():
     if _registry:
         _dbg(f"[Skills] Loaded {len(_registry)} skill(s): {', '.join(_registry.keys())}")
 
-    # ★ 自动注册到 ToolRegistry
+    # ★ Auto-register to ToolRegistry
     _register_skills_to_registry()
 
 
 def _register_skills_to_registry():
-    """将所有已加载 Skill 注册到 ToolRegistry"""
+    """Register every loaded skill into ToolRegistry."""
     try:
         from ..utils.tool_registry import get_tool_registry
         reg = get_tool_registry()
@@ -144,7 +147,7 @@ def _register_skills_to_registry():
             run_fn = getattr(mod, "run", None)
 
             def _make_handler(m):
-                """创建闭包, 避免 lambda 捕获变量问题"""
+                """Build a closure to avoid lambda variable-capture pitfalls."""
                 def handler(args: dict) -> dict:
                     fn = getattr(m, "run", None)
                     if not callable(fn):
@@ -159,13 +162,23 @@ def _register_skills_to_registry():
                         return {"success": False, "error": f"Skill execution failed: {e}"}
                 return handler
 
+            # Classify skill: builders/wrappers MUTATE the scene, so they must NOT
+            # appear in read-only Ask mode. Analysis/discovery skills stay read-only.
+            _mutating = name.startswith(("build_", "wrap_", "create_", "make_"))
+            if _mutating:
+                _tags = {"geometry", "skill", "simulation"}
+                _modes = {"agent", "plan_executing"}
+            else:
+                _tags = {"readonly", "geometry", "skill"}
+                _modes = {"agent", "ask", "plan_executing"}
+
             reg.register(
-                name=f"skill:{name}",
+                name=f"skill__{name}",  # key MUST match the schema function name above
                 schema=schema,
                 handler=_make_handler(mod),
                 source="skill",
-                tags={"readonly", "geometry", "skill"},
-                modes={"agent", "ask", "plan_executing"},
+                tags=_tags,
+                modes=_modes,
             )
         if _registry:
             _dbg(f"[Skills] Registered {len(_registry)} skill(s) to ToolRegistry")
@@ -174,7 +187,7 @@ def _register_skills_to_registry():
 
 
 def list_skills() -> List[Dict[str, Any]]:
-    """Return所有已注册 skill 的元数据"""
+    """Return metadata for every registered skill."""
     _load_all()
     result = []
     for name, mod in _registry.items():
@@ -185,14 +198,14 @@ def list_skills() -> List[Dict[str, Any]]:
 
 
 def run_skill(skill_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
-    """执行指定 skill
+    """Run the specified skill.
 
     Args:
         skill_name: skill name
-        params: 传给 run() 的参数
+        params: kwargs passed to run()
 
     Returns:
-        skill Return的字典,  or containing error 的字典
+        The dict returned by the skill, or a dict containing an error message.
     """
     _load_all()
 
@@ -215,9 +228,9 @@ def run_skill(skill_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def reload_skills():
-    """重新加载所skill (开发调试用)"""
+    """Reload every skill (for development / debugging)."""
     global _registry, _loaded
-    # 先从 ToolRegistry 注销旧的 skill 工具
+    # First, unregister stale skill tools from ToolRegistry
     try:
         from ..utils.tool_registry import get_tool_registry
         get_tool_registry().unregister_by_source("skill")

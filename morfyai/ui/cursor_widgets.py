@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Cursor 风格 UI 组件 - 重构版
-模仿 Cursor 侧边栏的简洁设计
-每次对话形成完整块：思考 → 操作 → 总结
+Cursor-style UI components — refactored version.
+Mimics the Cursor sidebar's minimal design.
+Each conversation turn forms a complete block: thinking → operation → summary.
 """
 
 from morfyai.qt_compat import QtWidgets, QtCore, QtGui
@@ -23,7 +23,7 @@ except Exception:
 
 
 def _fmt_duration(seconds: float) -> str:
-    """格式化时长: <60s -> '18s', >=60s -> '1m43s'"""
+    """formatizationwhenlong: <60s -> '18s', >=60s -> '1m43s'"""
     s = int(seconds)
     if s < 60:
         return f"{s}s"
@@ -31,23 +31,23 @@ def _fmt_duration(seconds: float) -> str:
 
 
 # ============================================================
-# 节点路径 → 可点击链接
+# node path → canclicklink
 # ============================================================
 
-# 匹配 Houdini 节点路径: /obj/..., /out/..., /ch/..., /shop/..., /stage/..., /mat/..., /tasks/...
+# match Houdini node path: /obj/..., /out/..., /ch/..., /shop/..., /stage/..., /mat/..., /tasks/...
 _NODE_PATH_RE = re.compile(
-    r'(?<!["\w/])'                          # 不在引号、字母或 / 之后
-    r'(/(?:obj|out|ch|shop|stage|mat|tasks)(?:/[\w.]+)+)'   # 路径本体
-    r'(?!["\w/])'                           # 不在引号、字母或 / 之前
+    r'(?<!["\w/])'                          # Not preceded by a quote, word char, or /
+    r'(/(?:obj|out|ch|shop|stage|mat|tasks)(?:/[\w.]+)+)'   # paththisbody
+    r'(?!["\w/])'                           # Not followed by a quote, word char, or /
 )
 
 _NODE_LINK_STYLE = "color:#10b981;text-decoration:none;font-family:Consolas,Monaco,monospace;"
 
 
 def _linkify_node_paths(text: str) -> str:
-    """将文本中的 Houdini 节点路径转换为可点击的 <a> 标签
+    """willtextin  Houdini node pathconvertswapascanclick  <a> label
     
-    使用 houdini:// 协议，点击后由 Qt 的 linkActivated 信号处理跳转。
+    Uses the houdini:// scheme; click is dispatched via Qt linkActivated signal.
     """
     return _NODE_PATH_RE.sub(
         lambda m: f'<a href="houdini://{m.group(1)}" style="{_NODE_LINK_STYLE}">{m.group(1)}</a>',
@@ -56,27 +56,27 @@ def _linkify_node_paths(text: str) -> str:
 
 
 def _linkify_node_paths_plain(text: str) -> str:
-    """将纯文本中的节点路径转换为富文本 HTML（含可点击链接）
+    """willpuretextin node pathconvertswapasrichtext HTML (containingcanclicklink) 
     
-    先 html.escape 再 linkify，保证安全。
+    first html.escape again linkify, guaranteesafe. 
     """
     escaped = html.escape(text)
     return _linkify_node_paths(escaped).replace('\n', '<br>')
 
 
 # ============================================================
-# 流光边框 — AI 响应活跃时在左侧显示流动渐变光带
+# streamlightedgebox — AI respondshouldactivewheninleft sideshowstreammovegradualchangelightwith
 # ============================================================
 
 class AuroraBar(QtWidgets.QWidget):
-    """流动渐变光带 — 放在 AIResponse 左侧，AI 回复期间持续流动。
+    """Flowing gradient light strip — placed on the left of AIResponse; flows continuously during the AI reply.
 
-    宽度仅 3px，银白单色系。通过在固定等距停靠点上采样
-    一条虚拟循环色带（带相位偏移），保证停靠点始终递增，
-    消除跳变伪影。停止后凝固为极淡银灰色。
+    3px wide, monochrome silver-white. Samples a virtual color loop at fixed intervals
+    (with phase offset) guaranteeing the stop points always advance,
+    eliminating jump artifacts. Settles to very light silver-gray on stop.
     """
 
-    _NUM_STOPS = 10  # 渐变采样点数量，越多越平滑
+    _NUM_STOPS = 10  # Gradient sample-point count; higher is smoother
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -86,17 +86,17 @@ class AuroraBar(QtWidgets.QWidget):
         self._timer = QtCore.QTimer(self)
         self._timer.setInterval(30)  # ~33 fps
         self._timer.timeout.connect(self._tick)
-        # 循环色带关键色（首尾相同 → 无缝衔接）
+        # Loop color-strip key colors (first == last == seamless wraparound)
         self._key_colors = [
-            QtGui.QColor(226, 232, 240, 200),  # 亮银白
-            QtGui.QColor(100, 116, 139, 100),   # 暗银
-            QtGui.QColor(226, 232, 240, 200),   # 亮银白（循环闭合）
+            QtGui.QColor(226, 232, 240, 200),  # bright silver-white
+            QtGui.QColor(100, 116, 139, 100),   # dark silver
+            QtGui.QColor(226, 232, 240, 200),   # bright silver-white (loop close)
         ]
 
     # -- public API --------------------------------------------------
 
     def start(self):
-        """启动流光动画"""
+        """startstreamlightmovedraw"""
         self._active = True
         self._phase = 0.0
         self.setFixedWidth(3)
@@ -105,7 +105,7 @@ class AuroraBar(QtWidgets.QWidget):
         self.update()
 
     def stop(self):
-        """停止流光动画，收缩为零宽度以保持卡片干净"""
+        """Stop the flowing-light animation; shrink to zero width to keep the card clean."""
         self._active = False
         self._timer.stop()
         self.setFixedWidth(0)
@@ -124,9 +124,9 @@ class AuroraBar(QtWidgets.QWidget):
         self.update()
 
     def _sample(self, t: float) -> QtGui.QColor:
-        """在虚拟循环色带上采样，t ∈ [0, 1]，平滑插值。"""
+        """Sample from the virtual loop color-strip; t in [0, 1], smooth interpolation."""
         keys = self._key_colors
-        n = len(keys) - 1  # 段数（首尾同色 → n 段覆盖一整圈）
+        n = len(keys) - 1  # Segment count (first/last same color = n segments cover the full loop)
         scaled = (t % 1.0) * n
         idx = int(scaled)
         frac = scaled - idx
@@ -146,8 +146,8 @@ class AuroraBar(QtWidgets.QWidget):
         if self._active:
             grad = QtGui.QLinearGradient(0, 0, 0, rect.height())
             for i in range(self._NUM_STOPS + 1):
-                pos = i / self._NUM_STOPS          # 固定递增 0.0 → 1.0
-                color = self._sample(pos + self._phase)  # 相位偏移
+                pos = i / self._NUM_STOPS          # fixfixeddeliveradd 0.0 → 1.0
+                color = self._sample(pos + self._phase)  # phase offset
                 grad.setColorAt(pos, color)
             p.fillRect(rect, grad)
         else:
@@ -156,51 +156,51 @@ class AuroraBar(QtWidgets.QWidget):
 
 
 # ============================================================
-# 颜色主题 (深色主题)
+# colortheme (deepcolortheme)
 # ============================================================
 
 class CursorTheme:
-    """Glassmorphism 深色主题 — 蓝紫底色 + 玻璃质感"""
-    # 背景色（深邃蓝黑）
+    """Glassmorphism dark theme — blue/purple base + glass texture."""
+    # Background colors (deep blue-black)
     BG_PRIMARY = "#0f1019"
     BG_SECONDARY = "#0c0e19"
     BG_TERTIARY = "#101224"
     BG_HOVER = "#1c1e36"
     
-    # 边框色（玻璃边缘）
+    # Border colors (glass edge)
     BORDER = "rgba(255,255,255,12)"
     BORDER_FOCUS = "#3b82f6"
     
-    # 文字色（更明亮）
+    # Text colors (clearer / brighter)
     TEXT_PRIMARY = "#e2e8f0"
     TEXT_SECONDARY = "#94a3b8"
     TEXT_MUTED = "#64748b"
     TEXT_BRIGHT = "#ffffff"
     
-    # 强调色（更鲜艳）
+    # Accent colors (more vivid)
     ACCENT_BLUE = "#3b82f6"
     ACCENT_GREEN = "#10b981"
     ACCENT_ORANGE = "#f59e0b"
     ACCENT_RED = "#ef4444"
     ACCENT_PURPLE = "#a78bfa"
     ACCENT_YELLOW = "#fbbf24"
-    ACCENT_BEIGE = "#f59e0b"       # 强调色（替换原暖色）— 工具调用/折叠区
+    ACCENT_BEIGE = "#f59e0b"       # strongadjustcolor (replaceswaporiginalwarmcolor) — toolcall/collapsesection
     
-    # 消息左边界
-    BORDER_USER = "rgba(148,163,184,120)"   # 用户消息 — 柔和银灰
-    BORDER_AI = "rgba(167,139,250,100)"     # AI 回复 — 淡紫光晕
+    # messageleftedgeboundary
+    BORDER_USER = "rgba(148,163,184,120)"   # User message - soft silver-gray
+    BORDER_AI = "rgba(167,139,250,100)"     # AI reply — lightpurplelighthalo
     
-    # 字体
+    # font
     FONT_BODY = "'Segoe UI', 'Inter', sans-serif"
     FONT_CODE = "'Consolas', 'Monaco', 'Courier New', monospace"
 
 
 # ============================================================
-# 可折叠区块（通用）
+# cancollapsesectionblock (throughuse) 
 # ============================================================
 
 class CollapsibleSection(QtWidgets.QWidget):
-    """可折叠区块 - 点击标题展开/收起"""
+    """cancollapsesectionblock - clicktitleexpand/collectstart"""
     
     def __init__(self, title: str, icon: str = "", collapsed: bool = True, parent=None):
         super().__init__(parent)
@@ -212,7 +212,7 @@ class CollapsibleSection(QtWidgets.QWidget):
         layout.setContentsMargins(0, 2, 0, 2)
         layout.setSpacing(0)
         
-        # 标题栏（可点击）
+        # titlebar (canclick) 
         self.header = QtWidgets.QPushButton()
         self.header.setFlat(True)
         self.header.setCursor(QtCore.Qt.PointingHandCursor)
@@ -221,14 +221,14 @@ class CollapsibleSection(QtWidgets.QWidget):
         self.header.setObjectName("collapseHeader")
         layout.addWidget(self.header)
         
-        # 内容区
+        # contentsection
         self.content_widget = QtWidgets.QWidget()
         self.content_layout = QtWidgets.QVBoxLayout(self.content_widget)
         self.content_layout.setContentsMargins(6, 4, 4, 4)
         self.content_layout.setSpacing(2)
         self.content_widget.setObjectName("collapseContent")
         layout.addWidget(self.content_widget)
-        # ★ 必须在 addWidget 之后再 setVisible，否则无 parent 的 widget 会闪烁为独立窗口
+        # Must call setVisible AFTER addWidget; otherwise a parent-less widget flashes as a standalone window
         self.content_widget.setVisible(not collapsed)
     
     def _update_header(self):
@@ -267,11 +267,11 @@ class CollapsibleSection(QtWidgets.QWidget):
 
 
 # ============================================================
-# 脉冲指示器
+# pulserefershow 
 # ============================================================
 
 class PulseIndicator(QtWidgets.QWidget):
-    """小型脉冲圆点 — 通过 opacity 动画表示"正在进行"状态"""
+    """Small pulse dot - uses opacity animation to indicate an in-progress state."""
 
     def __init__(self, color: str = CursorTheme.ACCENT_PURPLE, size: int = 8, parent=None):
         super().__init__(parent)
@@ -285,7 +285,7 @@ class PulseIndicator(QtWidgets.QWidget):
         self._anim.setStartValue(0.25)
         self._anim.setEndValue(1.0)
         self._anim.setEasingCurve(QtCore.QEasingCurve.InOutSine)
-        self._anim.setLoopCount(-1)  # 无限循环
+        self._anim.setLoopCount(-1)  # nolimitloop
 
     # ---- Qt Property ----
     def _get_opacity(self):
@@ -319,26 +319,27 @@ class PulseIndicator(QtWidgets.QWidget):
 
 
 # ============================================================
-# 思考过程区块（无内置脉冲，动画移至输入框上方）
+# Thinking-process section (no built-in pulse; animation moved above the input box)
 # ============================================================
 
 class ThinkingSection(CollapsibleSection):
-    """思考过程 - 显示 AI 的思考内容（支持多轮思考累计计时）
+    """Thinking process - displays the AI thinking content (supports multi-round cumulative timing).
     
-    脉冲/动画指示器已移至输入框上方的 ThinkingBar，此处仅做内容展示。
-    ★ 使用 QPlainTextEdit(readOnly)，自带滚动条。
-    高度计算采用与 ChatInput 相同的可靠方案：
-      QTimer.singleShot(0) 延迟 + 逐块 block.layout().lineCount() 统计视觉行。
+    The pulse/animation indicator has been moved to the ThinkingBar above the input box; this widget only shows content.
+    ★ use QPlainTextEdit(readOnly), selfwithscrollitem. 
+    Height computation uses the same reliable approach as ChatInput:
+      QTimer.singleShot(0) latency + one by oneblock block.layout().lineCount() statisticsvisualrow. 
     """
     
-    # 最大高度（像素），超过此值则固定高度，内置滚动条自动出现
+    # Max height in pixels; above this we fix the height and the built-in scrollbar appears
     _MAX_HEIGHT_PX = 400
     
     def __init__(self, parent=None):
-        # ★ 默认展开（用户要求不自动折叠）；section 整体初始 setVisible(False)，
-        #   首次收到思考内容时 setVisible(True) 即可，内容区已处于展开状态。
-        super().__init__(tr('thinking.init'), icon="", collapsed=False, parent=parent)
-        # ★ 防止被父布局拉伸 —— 内容多大就多大
+        # ★ Default collapsed — Claude-style. User can manually expand the
+        #   "Thinking ..." header to inspect reasoning. The streaming
+        #   indicator above the input box still shows live status.
+        super().__init__(tr('thinking.init'), icon="", collapsed=True, parent=parent)
+        # Prevent being stretched by the parent layout - only as tall as the content
         self.setSizePolicy(
             QtWidgets.QSizePolicy.Expanding,
             QtWidgets.QSizePolicy.Maximum,
@@ -349,7 +350,7 @@ class ThinkingSection(CollapsibleSection):
         self._round_start = time.time()
         self._round_count = 0
         
-        # ★ 思考内容 — QPlainTextEdit(readOnly)，自带滚动条
+        # ★ thinkingcontent — QPlainTextEdit(readOnly), selfwithscrollitem
         self._text_font = QtGui.QFont(CursorTheme.FONT_BODY)
         self._text_font.setPixelSize(13)
         
@@ -362,19 +363,19 @@ class ThinkingSection(CollapsibleSection):
         self.thinking_label.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
         self.thinking_label.setLineWrapMode(QtWidgets.QPlainTextEdit.WidgetWidth)
         self.thinking_label.setObjectName("thinkLabel")
-        # 初始高度为一行（紧凑），流式输入时会动态增大
+        # initialheightasonerow (compact) , streaminginputwhenwillmovestateaddlarge
         self._line_h = QtGui.QFontMetrics(self._text_font).lineSpacing()
         self.thinking_label.setFixedHeight(self._line_h + 12)
         self.content_layout.addWidget(self.thinking_label)
         
-        # 标题样式
+        # titlestyle
         self.header.setObjectName("thinkHeader")
     
     def _update_height(self):
-        """根据视觉行数（含自动换行）动态调整高度。
+        """based onvisualrowcount (containingautoswaprow) movestateadjustwholeheight. 
         
-        与 ChatInput._adjust_height 相同的可靠方案：
-        逐块遍历 block.layout().lineCount() 统计真实视觉行数。
+        Same reliable approach as ChatInput._adjust_height:
+        one by oneblocktraverse block.layout().lineCount() statisticstruerealvisualrowcount. 
         """
         doc = self.thinking_label.document()
         visual_lines = 0
@@ -392,7 +393,7 @@ class ThinkingSection(CollapsibleSection):
         self.thinking_label.setFixedHeight(min(max(desired, self._line_h + 12), self._MAX_HEIGHT_PX))
     
     def _scroll_to_bottom(self):
-        """滚动到底部"""
+        """scrolltobottompart"""
         vbar = self.thinking_label.verticalScrollBar()
         vbar.setValue(vbar.maximum())
     
@@ -406,7 +407,7 @@ class ThinkingSection(CollapsibleSection):
             text = text.replace('\ufffd', '')
         self._thinking_text += text
         self.thinking_label.setPlainText(self._thinking_text)
-        # ★ 延迟到下一事件循环（确保 Qt 布局完成后再计算高度，和 ChatInput 同策略）
+        # ★ latencytobelowoneeventloop (ensure Qt layoutcompleteafteragaincomputeheight, and ChatInput samestrategy) 
         QtCore.QTimer.singleShot(0, self._update_height)
         QtCore.QTimer.singleShot(0, self._scroll_to_bottom)
     
@@ -427,9 +428,8 @@ class ThinkingSection(CollapsibleSection):
         self.thinking_label.setPlainText(self._thinking_text)
         QtCore.QTimer.singleShot(0, self._update_height)
         self.set_title(tr('thinking.progress', _fmt_duration(self._total_elapsed())))
-        # ★ 始终确保展开
-        self.expand()
-    
+        # ★ keepcurrentcollapsestate — notforceexpand
+
     def finalize(self):
         if self._finalized:
             return
@@ -437,19 +437,18 @@ class ThinkingSection(CollapsibleSection):
         self._accumulated_seconds += (time.time() - self._round_start)
         total = self._accumulated_seconds
         self.set_title(tr('thinking.done', _fmt_duration(total)))
-        # ★ 防御性展开：确保思考区块在任何情况下都保持展开
-        self.expand()
+        # ★ keepcurrentcollapsestate — notforceexpand
 
 
 # ============================================================
-# 输入框上方 "思考中" 指示条（流光动画）
+# inputboxonway "thinkingin" refershowitem (streamlightmovedraw) 
 # ============================================================
 
 class ThinkingBar(QtWidgets.QWidget):
-    """显示在输入框上方的思考状态指示条。
+    """showininputboxonway thinkingstaterefershowitem. 
     
-    文字上有从左到右扫过的高亮流光效果，
-    提示用户 AI 正在推理，替代原 ThinkingSection 内置的脉冲圆点。
+    Has a left-to-right scanning highlight light effect on the text,
+    indicating the AI is reasoning; replaces the original built-in pulse dot in ThinkingSection.
     """
 
     def __init__(self, parent=None):
@@ -457,10 +456,10 @@ class ThinkingBar(QtWidgets.QWidget):
         self.setFixedHeight(18)
         self.setVisible(False)
 
-        self._elapsed = 0.0   # 秒
-        self._phase = 0.0     # 流光相位 [0, 1]
+        self._elapsed = 0.0   # second
+        self._phase = 0.0     # streamlightmutuallybit [0, 1]
 
-        # 流光定时器 ~25fps
+        # streamlightfixedwhen  ~25fps
         self._timer = QtCore.QTimer(self)
         self._timer.setInterval(40)
         self._timer.timeout.connect(self._tick)
@@ -523,13 +522,13 @@ class ThinkingBar(QtWidgets.QWidget):
 
 
 # ============================================================
-# 确认模式 — 内联预览确认控件（替代弹窗）
+# confirmmode — withinassociatepreviewconfirmwidget (replacement forpopupwindow) 
 # ============================================================
 
 class VEXPreviewInline(QtWidgets.QFrame):
-    """嵌入对话流中的工具执行预览卡片。
+    """embedconversationstreamin toolexecutepreviewcard. 
     
-    用户点击 ✓ 确认 或 ✕ 取消后通过 confirmed / cancelled 信号通知。
+    userclick ✓ confirm or ✕ cancelaftervia confirmed / cancelled signalnotify. 
     """
 
     confirmed = QtCore.Signal()
@@ -538,7 +537,7 @@ class VEXPreviewInline(QtWidgets.QFrame):
     def __init__(self, tool_name: str, args: dict, parent=None):
         super().__init__(parent)
         self._decided = False
-        # ★ 卡片整体不允许被父布局拉伸 —— 内容多大就多大
+        # The whole card must NOT be stretched by the parent layout - only as tall as the content
         self.setSizePolicy(
             QtWidgets.QSizePolicy.Expanding,
             QtWidgets.QSizePolicy.Maximum,
@@ -549,13 +548,13 @@ class VEXPreviewInline(QtWidgets.QFrame):
         layout.setContentsMargins(8, 4, 8, 4)
         layout.setSpacing(3)
 
-        # 标题行
+        # titlerow
         title = QtWidgets.QLabel(tr('confirm.title', tool_name))
         title.setObjectName("vexPreviewTitle")
         title.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         layout.addWidget(title)
 
-        # ★ 紧凑参数摘要（只显示关键参数，每个一行，最多 6 行）
+        # ★ compactparametersummary (onlyshowkeyparameter, eachonerow, at most 6 row) 
         summary_lines = []
         for k, v in args.items():
             sv = str(v)
@@ -576,7 +575,7 @@ class VEXPreviewInline(QtWidgets.QFrame):
             )
             layout.addWidget(summary_lbl)
 
-        # 按钮行（右对齐，紧凑）
+        # buttonrow (rightalign, compact) 
         btn_row = QtWidgets.QHBoxLayout()
         btn_row.setContentsMargins(0, 0, 0, 0)
         btn_row.addStretch()
@@ -601,7 +600,7 @@ class VEXPreviewInline(QtWidgets.QFrame):
         if self._decided:
             return
         self._decided = True
-        # ★ 确认后直接隐藏整个卡片，不再显示"已确认执行"内嵌窗口
+        # ★ confirmafterdirectlyhidewholecard, notagainshow"alreadyconfirmexecute"withinembedwindow
         self.setVisible(False)
         self.setFixedHeight(0)
         self.confirmed.emit()
@@ -610,13 +609,13 @@ class VEXPreviewInline(QtWidgets.QFrame):
         if self._decided:
             return
         self._decided = True
-        # ★ 取消也直接隐藏整个卡片（和确认一致），不要内嵌窗口
+        # ★ cancelalsodirectlyhidewholecard (andconfirmconsistent) , don'twithinembedwindow
         self.setVisible(False)
         self.setFixedHeight(0)
         self.cancelled.emit()
 
     def _show_decided(self, text: str, color: str):
-        """决策后将整个卡片替换为简短状态"""
+        """After the decision, swap the entire card to a compact state."""
         layout = self.layout()
         while layout.count():
             item = layout.takeAt(0)
@@ -640,18 +639,18 @@ class VEXPreviewInline(QtWidgets.QFrame):
 
 
 # ============================================================
-# 工具调用项
+# toolcallitem
 # ============================================================
 
 class ToolCallItem(CollapsibleSection):
-    """单个工具调用 — CollapsibleSection 风格（与 Result 折叠一致的灰色风格）
+    """singletoolcall — CollapsibleSection style (with Result collapseconsistent graycolorstyle) 
     
-    标题栏：▶ tool_name            （执行中）
-           ▶ tool_name (1.2s)      （完成）
-    展开后显示完整 result 文本，节点路径可点击跳转。
+    titlebar: ▶ tool_name             (executein) 
+           ▶ tool_name (1.2s)       (complete) 
+    expandaftershowcomplete result text, node pathcanclickjump. 
     """
 
-    nodePathClicked = QtCore.Signal(str)  # 节点路径被点击
+    nodePathClicked = QtCore.Signal(str)  # node pathisclick
 
     def __init__(self, tool_name: str, parent=None):
         super().__init__(tool_name, icon="", collapsed=True, parent=parent)
@@ -662,7 +661,7 @@ class ToolCallItem(CollapsibleSection):
 
         self.header.setObjectName("toolCallHeader")
 
-        # 进度条（嵌入 content_layout 顶部，执行完毕后隐藏）
+        # progressitem (embed content_layout toppart, executefinishfinishafterhide) 
         self.progress_bar = QtWidgets.QProgressBar()
         self.progress_bar.setFixedHeight(2)
         self.progress_bar.setRange(0, 0)  # indeterminate
@@ -673,24 +672,24 @@ class ToolCallItem(CollapsibleSection):
         self._result_label = None
 
     def set_result(self, result: str, success: bool = True):
-        """设置工具执行结果"""
+        """settoolexecuteresult"""
         self._result = result
         self._success = success
         elapsed = time.time() - self._start_time
 
-        # 隐藏进度条
+        # hideprogressitem
         self.progress_bar.setVisible(False)
 
-        # 更新标题：只显示工具名 + 耗时，无图标
+        # updatetitle: onlyshowtoolname + consumewhen, noicon
         self.set_title(f"{self.tool_name} ({elapsed:.1f}s)")
 
-        # 失败时标题用白色（更亮），成功保持灰色
+        # On failure, the title uses white (brighter); on success keep gray
         if not success:
             self.header.setProperty("state", "failed")
             self.header.style().unpolish(self.header)
             self.header.style().polish(self.header)
 
-        # 添加结果文本（灰色，失败时白色）—— 节点路径可点击
+        # addresulttext (graycolor, failedwhenwhitecolor) —— node pathcanclick
         if result.strip():
             rich_html = _linkify_node_paths_plain(result)
             self._result_label = QtWidgets.QLabel(rich_html)
@@ -707,7 +706,7 @@ class ToolCallItem(CollapsibleSection):
             self.content_layout.addWidget(self._result_label)
 
     def _on_result_link(self, url: str):
-        """工具结果中的链接被点击"""
+        """toolresultin linkisclick"""
         if url.startswith('houdini://'):
             self.nodePathClicked.emit(url[len('houdini://'):])
         elif url.startswith(('http://', 'https://')):
@@ -715,24 +714,24 @@ class ToolCallItem(CollapsibleSection):
 
 
 # ============================================================
-# 执行过程区块
+# executeprocesssectionblock
 # ============================================================
 
 class ExecutionSection(CollapsibleSection):
-    """执行过程 - 卡片式工具调用显示（默认折叠，用户手动展开）"""
+    """executeprocess - cardstyletoolcallshow (defaultcollapse, usermanualexpand) """
 
-    nodePathClicked = QtCore.Signal(str)  # 从子 ToolCallItem 冒泡上来
+    nodePathClicked = QtCore.Signal(str)  # Bubbled up from child ToolCallItems
 
     def __init__(self, parent=None):
         super().__init__(tr('exec.running'), icon="", collapsed=True, parent=parent)
         self._tool_calls: List[ToolCallItem] = []
         self._start_time = time.time()
         
-        # 更新标题样式
+        # updatetitlestyle
         self.header.setObjectName("execHeader")
     
     def add_tool_call(self, tool_name: str) -> ToolCallItem:
-        """添加工具调用"""
+        """addtoolcall"""
         item = ToolCallItem(tool_name, self)
         item.nodePathClicked.connect(self.nodePathClicked.emit)
         self._tool_calls.append(item)
@@ -741,8 +740,8 @@ class ExecutionSection(CollapsibleSection):
         return item
     
     def set_tool_result(self, tool_name: str, result: str, success: bool = True):
-        """设置工具结果"""
-        # 找到最后一个匹配的工具调用
+        """settoolresult"""
+        # findtolastonematch toolcall
         for item in reversed(self._tool_calls):
             if item.tool_name == tool_name and item._result is None:
                 item.set_result(result, success)
@@ -750,7 +749,7 @@ class ExecutionSection(CollapsibleSection):
         self._update_title()
     
     def _update_title(self):
-        """更新标题"""
+        """updatetitle"""
         total = len(self._tool_calls)
         done = sum(1 for item in self._tool_calls if item._result is not None)
         if done < total:
@@ -760,17 +759,17 @@ class ExecutionSection(CollapsibleSection):
             self.set_title(tr('exec.done', total, _fmt_duration(elapsed)))
     
     def finalize(self):
-        """完成执行"""
+        """completeexecute"""
         elapsed = time.time() - self._start_time
         total = len(self._tool_calls)
         
-        # ⚠️ 兜底：强制关闭所有残留的进度条
+        # Fallback: force-close any leftover progress bars
         for item in self._tool_calls:
             if item._result is None:
                 item.progress_bar.setVisible(False)
                 item_elapsed = time.time() - item._start_time
                 item.set_title(f"{item.tool_name} ({item_elapsed:.1f}s)")
-                item._result = ""  # 标记已完成，避免被重复处理
+                item._result = ""  # markcompleted, avoidisduplicateprocess
                 item._success = True
         
         success = sum(1 for item in self._tool_calls if item._success)
@@ -783,11 +782,11 @@ class ExecutionSection(CollapsibleSection):
 
 
 # ============================================================
-# 图片预览弹窗（点击缩略图放大查看）
+# imagepreviewpopupwindow (clickthumbnaildiagramzoom inview) 
 # ============================================================
 
 class ImagePreviewDialog(QtWidgets.QDialog):
-    """模态图片预览弹窗 — 点击缩略图后弹出，显示原尺寸/自适应窗口的大图"""
+    """modalimagepreviewpopupwindow — clickthumbnaildiagramafterpopupout, showoriginalsize/selfsuitshouldwindow largediagram"""
 
     def __init__(self, pixmap: QtGui.QPixmap, parent=None):
         super().__init__(parent)
@@ -795,7 +794,7 @@ class ImagePreviewDialog(QtWidgets.QDialog):
         self.setWindowFlags(self.windowFlags() | QtCore.Qt.WindowMaximizeButtonHint)
         self._pixmap = pixmap
 
-        # 根据图片尺寸决定初始窗口大小（不超过屏幕 80%）
+        # Decide initial window size based on image size (max 80% of screen)
         screen = QtWidgets.QApplication.primaryScreen()
         if screen:
             avail = screen.availableGeometry()
@@ -806,13 +805,13 @@ class ImagePreviewDialog(QtWidgets.QDialog):
         init_h = min(pixmap.height() + 40, max_h)
         self.resize(init_w, init_h)
 
-        # 深色背景
+        # deepcolorbackground
         self.setObjectName("imgPreviewDlg")
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        # 可滚动区域
+        # canscrollarea
         scroll = QtWidgets.QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setAlignment(QtCore.Qt.AlignCenter)
@@ -823,7 +822,7 @@ class ImagePreviewDialog(QtWidgets.QDialog):
         scroll.setWidget(self._img_label)
         layout.addWidget(scroll)
 
-        # 底栏：尺寸信息 + 关闭按钮
+        # bottombar: sizeinfo + closebutton
         bar = QtWidgets.QHBoxLayout()
         bar.setContentsMargins(12, 4, 12, 8)
         info = QtWidgets.QLabel(f"{pixmap.width()} × {pixmap.height()} px")
@@ -839,7 +838,7 @@ class ImagePreviewDialog(QtWidgets.QDialog):
         self._update_preview()
 
     def _update_preview(self):
-        """根据窗口大小缩放图片（保持比例）"""
+        """based onwindowlargesmallscaleimage (keepcompareexample) """
         viewport_w = self.width() - 20
         viewport_h = self.height() - 50
         if self._pixmap.width() > viewport_w or self._pixmap.height() > viewport_h:
@@ -861,7 +860,7 @@ class ImagePreviewDialog(QtWidgets.QDialog):
 
 
 class ClickableImageLabel(QtWidgets.QLabel):
-    """可点击的图片缩略图 — 点击后弹出 ImagePreviewDialog 放大查看"""
+    """canclick imagethumbnaildiagram — clickafterpopupout ImagePreviewDialog zoom inview"""
 
     def __init__(self, thumb_pixmap: QtGui.QPixmap, full_pixmap: QtGui.QPixmap, parent=None):
         super().__init__(parent)
@@ -879,25 +878,25 @@ class ClickableImageLabel(QtWidgets.QLabel):
 
 
 # ============================================================
-# 用户消息
+# usermessage
 # ============================================================
 
 class UserMessage(QtWidgets.QWidget):
-    """用户消息 - 支持折叠（超过 2 行时自动折叠，点击展开/收起）"""
+    """usermessage - supportcollapse (exceeds 2 rowwhenautocollapse, clickexpand/collectstart) """
 
-    _COLLAPSED_MAX_LINES = 2  # 折叠时显示的最大行数
+    _COLLAPSED_MAX_LINES = 2  # collapsewhenshow maxrowcount
 
     def __init__(self, text: str, parent=None):
         super().__init__(parent)
         self._full_text = text
-        self._collapsed = False  # 初始状态由 _maybe_collapse 决定
+        self._collapsed = False  # initialstateby _maybe_collapse decidefixed
 
-        # 顶层水平布局：左侧弹簧把气泡推到右边
+        # Top-level horizontal layout: left spring pushes the bubble to the right edge
         layout = QtWidgets.QHBoxLayout(self)
         layout.setContentsMargins(0, 8, 14, 4)
         layout.setSpacing(0)
 
-        # ---- 主容器（圆角气泡） ----
+        # ---- Main container (rounded bubble) ----
         self._container = QtWidgets.QWidget()
         self._container.setObjectName("userMsgContainer")
         self._container.setAttribute(QtCore.Qt.WA_StyledBackground, True)
@@ -929,7 +928,7 @@ class UserMessage(QtWidgets.QWidget):
         container_layout.setContentsMargins(14, 10, 14, 8)
         container_layout.setSpacing(2)
 
-        # ---- 内容标签 ----
+        # ---- contentlabel ----
         self.content = QtWidgets.QLabel(text)
         self.content.setWordWrap(True)
         self.content.setTextFormat(QtCore.Qt.PlainText)
@@ -938,20 +937,20 @@ class UserMessage(QtWidgets.QWidget):
         self.content.setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignTop)
         container_layout.addWidget(self.content)
 
-        # ---- 展开/收起 按钮 ----
+        # ---- expand/collectstart button ----
         self._toggle_btn = QtWidgets.QPushButton()
         self._toggle_btn.setFlat(True)
         self._toggle_btn.setCursor(QtCore.Qt.PointingHandCursor)
         self._toggle_btn.setFixedHeight(20)
         self._toggle_btn.setObjectName("userMsgToggle")
         self._toggle_btn.clicked.connect(self._toggle_collapse)
-        self._toggle_btn.setVisible(False)  # 默认隐藏，_maybe_collapse 决定
+        self._toggle_btn.setVisible(False)  # defaulthide, _maybe_collapse decidefixed
         container_layout.addWidget(self._toggle_btn)
 
         layout.addStretch(1)
         layout.addWidget(self._container, 0, QtCore.Qt.AlignRight | QtCore.Qt.AlignTop)
 
-        # 延迟判断是否需要折叠（等 QLabel 完成布局后再算行数）
+        # latencydecidebreakwhetherneedscollapse (etc. QLabel completelayoutafteragaincalculaterowcount) 
         QtCore.QTimer.singleShot(0, self._maybe_collapse)
 
     def resizeEvent(self, event):
@@ -964,18 +963,18 @@ class UserMessage(QtWidgets.QWidget):
 
     # ------------------------------------------------------------------
     def _maybe_collapse(self):
-        """检查文本是否超过阈值行数，超过则自动折叠"""
+        """checktextwhetherexceedsthresholdvaluerowcount, exceedsthenautocollapse"""
         line_count = self._full_text.count('\n') + 1
         if line_count > self._COLLAPSED_MAX_LINES:
             self._collapsed = True
             self._apply_collapsed()
             self._toggle_btn.setVisible(True)
         else:
-            # 文字不够多，不需要折叠按钮
+            # Text isn't long enough - no collapse button needed
             self._toggle_btn.setVisible(False)
 
     def _apply_collapsed(self):
-        """应用折叠状态：只显示前 N 行 + 省略号"""
+        """Apply collapsed state: only show the first N lines + ellipsis."""
         lines = self._full_text.split('\n')
         preview = '\n'.join(lines[:self._COLLAPSED_MAX_LINES])
         if len(lines) > self._COLLAPSED_MAX_LINES:
@@ -985,7 +984,7 @@ class UserMessage(QtWidgets.QWidget):
         self._toggle_btn.setText(tr('msg.expand', remaining))
 
     def _apply_expanded(self):
-        """应用展开状态：显示完整文本"""
+        """applicationexpandstate: showcompletetext"""
         self.content.setText(self._full_text)
         self._toggle_btn.setText(tr('msg.collapse'))
 
@@ -998,20 +997,20 @@ class UserMessage(QtWidgets.QWidget):
 
 
 # ============================================================
-# AI 回复块（重构版）
+# AI reply block (refactored version)
 # ============================================================
 
 class AIResponse(QtWidgets.QWidget):
-    """AI 回复 - Cursor 风格
+    """AI reply - Cursor style
     
-    结构：
-    +-- 思考过程（可折叠，默认折叠）
-    +-- 执行过程（可折叠，默认折叠）
-    +-- 总结（Markdown 渲染 + 代码块高亮）
+    structure: 
+    +-- thinkingprocess (cancollapse, defaultcollapse) 
+    +-- executeprocess (cancollapse, defaultcollapse) 
+    +-- summary (Markdown render + codeblockhighlight) 
     """
     
     createWrangleRequested = QtCore.Signal(str)  # vex_code
-    nodePathClicked = QtCore.Signal(str)         # 节点路径被点击
+    nodePathClicked = QtCore.Signal(str)         # node pathisclick
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -1019,21 +1018,21 @@ class AIResponse(QtWidgets.QWidget):
         self._content = ""
         self._has_thinking = False
         self._has_execution = False
-        self._shell_count = 0  # Python Shell 执行计数
+        self._shell_count = 0  # Python Shell executecountcount
         
-        # ★ 增量渲染状态
-        self._frozen_segments: list = []    # 已冻结的富文本段落
-        self._pending_text = ""             # 尚未冻结的尾部文本
-        self._in_code_fence = False         # 是否在代码块内
-        self._code_fence_lang = ""          # 代码块语言
-        self._in_table = False              # 是否在表格连续行内
-        self._incremental_enabled = True    # 是否启用增量渲染
+        # ★ incrementalrenderstate
+        self._frozen_segments: list = []    # alreadyfreeze richtextparagraph
+        self._pending_text = ""             # stillnotfreeze tailparttext
+        self._in_code_fence = False         # whetherincodeblockwithin
+        self._code_fence_lang = ""          # codeblocklanguage
+        self._in_table = False              # whetherintablegridconsecutiverowwithin
+        self._incremental_enabled = True    # whetherenableincrementalrender
         self._table_flush_timer = QtCore.QTimer(self)
         self._table_flush_timer.setSingleShot(True)
         self._table_flush_timer.setInterval(600)
         self._table_flush_timer.timeout.connect(self._flush_pending_table)
         
-        # ★ 顶层水平布局：透明 wrapper + card 内部
+        # ★ toplayerhorizontallayout: transparent wrapper + card withinpart
         # Wrapper menjaga right-margin agar card sejajar dengan user bubble.
         wrapper = QtWidgets.QHBoxLayout(self)
         wrapper.setContentsMargins(0, 4, 14, 8)
@@ -1054,61 +1053,65 @@ class AIResponse(QtWidgets.QWidget):
         outer.setContentsMargins(8, 8, 10, 10)
         outer.setSpacing(0)
 
-        # 流光边框（AI 响应活跃时流动）
+        # streamlightedgebox (AI respondshouldactivewhenstreammove) 
         self.aurora_bar = AuroraBar(self._card)
         outer.addWidget(self.aurora_bar)
 
-        # 内容列
+        # contentcolumn
         content_col = QtWidgets.QVBoxLayout()
         content_col.setContentsMargins(8, 0, 0, 0)
         content_col.setSpacing(4)
         outer.addLayout(content_col, 1)
         
-        # 供外部引用（原来直接用 layout 的地方）
+        # forexternalreference (originalcomedirectlyuse layout  placeway) 
         layout = content_col
         
-        # === 思考过程区块 ===
+        # === thinkingprocesssectionblock ===
         self.thinking_section = ThinkingSection(self)
         self.thinking_section.setVisible(False)
         layout.addWidget(self.thinking_section)
         
-        # === 执行过程区块 ===
+        # === executeprocesssectionblock ===
         self.execution_section = ExecutionSection(self)
         self.execution_section.setVisible(False)
         self.execution_section.nodePathClicked.connect(self.nodePathClicked.emit)
         layout.addWidget(self.execution_section)
         
-        # === Python Shell 区块（可折叠，默认折叠）===
+        # === Python Shell sectionblock (cancollapse, defaultcollapse) ===
         self.shell_section = CollapsibleSection("Python Shell", collapsed=True, parent=self)
         self.shell_section.setVisible(False)
         self.shell_section.header.setObjectName("shellHeaderPython")
         layout.addWidget(self.shell_section)
         
-        # === System Shell 区块（可折叠，默认折叠）===
+        # === System Shell sectionblock (cancollapse, defaultcollapse) ===
         self._sys_shell_count = 0
         self.sys_shell_section = CollapsibleSection("System Shell", collapsed=True, parent=self)
         self.sys_shell_section.setVisible(False)
         self.sys_shell_section.header.setObjectName("shellHeaderSystem")
         layout.addWidget(self.sys_shell_section)
         
-        # === 总结/回复区域 ===
+        # === summary/replyarea ===
         self.summary_frame = QtWidgets.QFrame()
         self.summary_frame.setObjectName("aiSummary")
         self._summary_layout = QtWidgets.QVBoxLayout(self.summary_frame)
         self._summary_layout.setContentsMargins(8, 8, 6, 8)
         self._summary_layout.setSpacing(4)
         
-        # 状态行（水平布局：状态文字 + 复制按钮）
+        # staterow (horizontallayout: statetext + copybutton) 
         status_row = QtWidgets.QHBoxLayout()
         status_row.setContentsMargins(0, 0, 0, 0)
         status_row.setSpacing(8)
         
         self.status_label = QtWidgets.QLabel(tr('thinking.init'))
         self.status_label.setObjectName("aiStatusLabel")
+        # Word-wrap makes the label's minimumSizeHint small, so a long status/error
+        # string (a full node path during scene edits, or a long API error) can no
+        # longer force the card — and the whole chat column — wider than the viewport.
+        self.status_label.setWordWrap(True)
         status_row.addWidget(self.status_label)
         status_row.addStretch()
         
-        # 复制全部按钮（完成后才显示）
+        # copyallpartbutton (completeafteronly thenshow) 
         self._copy_btn = QtWidgets.QPushButton(tr('btn.copy'))
         self._copy_btn.setVisible(False)
         self._copy_btn.setCursor(QtCore.Qt.PointingHandCursor)
@@ -1119,39 +1122,39 @@ class AIResponse(QtWidgets.QWidget):
         
         self._summary_layout.addLayout(status_row)
         
-        # ★ 已冻结段落容器 — 增量渲染时冻结的富文本/代码块放在这里
+        # ★ alreadyfreezeparagraphcontain  — incrementalrenderwhenfreeze richtext/codeblockputinthisinside
         self._frozen_container = QtWidgets.QWidget()
         self._frozen_layout = QtWidgets.QVBoxLayout(self._frozen_container)
         self._frozen_layout.setContentsMargins(0, 0, 0, 0)
-        self._frozen_layout.setSpacing(0)  # 段落间距由 HTML margin 控制
+        self._frozen_layout.setSpacing(0)  # paragraphbetweendistanceby HTML margin control
         self._frozen_container.setVisible(False)
         self._summary_layout.addWidget(self._frozen_container)
         
-        # 内容区域 —— 流式阶段使用 QPlainTextEdit（增量追加 O(1)），
-        # finalize 时按需替换为 RichContentWidget（Markdown 渲染）。
-        # ★ 关键：流式阶段的字体和间距必须与渲染后的 richText QLabel 一致，
-        #   以避免 finalize 时产生"跳变"感。
+        # contentarea —— streamingstageuse QPlainTextEdit (incrementalappend O(1)) , 
+        # finalize whenbyneedsreplaceswapas RichContentWidget (Markdown render) . 
+        # ★ key: streamingstage fontandbetweendistancemustwithrenderafter  richText QLabel consistent, 
+        # Avoids producing a jump feeling at finalize time.
         self.content_label = QtWidgets.QPlainTextEdit()
         self.content_label.setReadOnly(True)
         self.content_label.setFrameShape(QtWidgets.QFrame.NoFrame)
         self.content_label.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.content_label.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.content_label.setLineWrapMode(QtWidgets.QPlainTextEdit.WidgetWidth)
-        # 让 size hint 跟随内容自动增长（不设固定高度）
+        # let size hint followcontentautoaddlong (notsetfixfixedheight) 
         self.content_label.setSizePolicy(
             QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum
         )
         self.content_label.setObjectName("aiContentLabel")
-        # ★ 显式设置字体，确保流式和渲染后使用同一字体族和大小
+        # Explicitly set the font so streaming and post-render use the same family and size
         _stream_font = QtGui.QFont()
         _stream_font.setFamilies(['Segoe UI', 'Inter'])
-        _stream_font.setPixelSize(14)  # 与 {FS_MD}=14 一致
+        _stream_font.setPixelSize(14)  # with {FS_MD}=14 consistent
         self.content_label.setFont(_stream_font)
         self.content_label.document().setDefaultFont(_stream_font)
         # ★ Tighter line spacing — kept in sync with HTML line-height (see _text_to_html)
         self.content_label.document().setDocumentMargin(0)
         self._apply_line_spacing(110)  # 110% line height
-        # 初始高度紧凑，流式输入时自动增长
+        # initialheightcompact, streaminginputwhenautoaddlong
         fm = QtGui.QFontMetrics(_stream_font)
         self._content_line_h = int(fm.height() * 1.1)
         self.content_label.setFixedHeight(self._content_line_h + 4)
@@ -1160,31 +1163,30 @@ class AIResponse(QtWidgets.QWidget):
         
         layout.addWidget(self.summary_frame)
         
-        # === 详情区域（可折叠内容等）===
+        # === detailsarea (cancollapsecontentetc.) ===
         self.details_layout = QtWidgets.QVBoxLayout()
         self.details_layout.setSpacing(2)
         layout.addLayout(self.details_layout)
     
     def add_thinking(self, text: str):
-        """添加思考内容"""
+        """addthinkingcontent (sectionblockdefaultcollapse — usermainmoveclickexpandonly thenshowcontent) """
         if not self._has_thinking:
             self._has_thinking = True
             self.thinking_section.setVisible(True)
-            # 确保思考区块处于展开状态
-            self.thinking_section.expand()
+            # Do not auto-expand - keep default collapsed; avoids reasoning content disturbing the conversation flow
         self.thinking_section.append_thinking(text)
     
     def update_thinking_time(self):
-        """更新思考时间（思考结束后不再更新状态标签）"""
+        """updatethinkingwhenbetween (thinkingendafternotagainupdatestatelabel) """
         if self._has_thinking:
             if self.thinking_section._finalized:
-                return  # 思考已结束，不再更新
+                return  # thinkingalreadyend, notagainupdate
             self.thinking_section.update_time()
             total = self.thinking_section._total_elapsed()
             self.status_label.setText(tr('thinking.progress', _fmt_duration(total)))
     
     def add_shell_widget(self, widget: 'PythonShellWidget'):
-        """将 PythonShellWidget 添加到 Python Shell 折叠区块"""
+        """will PythonShellWidget addto Python Shell collapsesectionblock"""
         self._shell_count += 1
         if not self.shell_section.isVisible():
             self.shell_section.setVisible(True)
@@ -1192,7 +1194,7 @@ class AIResponse(QtWidgets.QWidget):
         self.shell_section.add_widget(widget)
     
     def add_sys_shell_widget(self, widget: 'SystemShellWidget'):
-        """将 SystemShellWidget 添加到 System Shell 折叠区块"""
+        """will SystemShellWidget addto System Shell collapsesectionblock"""
         self._sys_shell_count += 1
         if not self.sys_shell_section.isVisible():
             self.sys_shell_section.setVisible(True)
@@ -1200,7 +1202,7 @@ class AIResponse(QtWidgets.QWidget):
         self.sys_shell_section.add_widget(widget)
     
     def add_status(self, text: str):
-        """添加状态（处理工具调用）"""
+        """addstate (processtoolcall) """
         if text.startswith("[tool]"):
             tool_name = text[6:].strip()
             self._add_tool_call(tool_name)
@@ -1208,7 +1210,7 @@ class AIResponse(QtWidgets.QWidget):
             self.status_label.setText(text)
     
     def _add_tool_call(self, tool_name: str):
-        """添加工具调用"""
+        """addtoolcall"""
         if not self._has_execution:
             self._has_execution = True
             self.execution_section.setVisible(True)
@@ -1216,17 +1218,17 @@ class AIResponse(QtWidgets.QWidget):
         self.status_label.setText(tr('exec.tool', tool_name))
     
     def add_tool_result(self, tool_name: str, result: str):
-        """添加工具结果"""
-        success = not result.startswith("[err]") and not result.startswith("错误") and not result.startswith("Error")
+        """addtoolresult"""
+        success = not result.startswith("[err]") and not result.startswith("error") and not result.startswith("Error")
         clean_result = result.removeprefix("[ok] ").removeprefix("[err] ")
         self.execution_section.set_tool_result(tool_name, clean_result, success)
     
     def _apply_line_spacing(self, percent: int = 160):
-        """为 QPlainTextEdit 设置 proportional 行间距。
+        """as QPlainTextEdit set proportional rowbetweendistance. 
         
-        Qt 的 QPlainTextEdit 不直接支持 CSS line-height，
-        需要通过 QTextBlockFormat.setLineHeight 来实现。
-        percent: 160 = 1.6 倍行间距。
+        Qt   QPlainTextEdit notdirectlysupport CSS line-height, 
+        needsvia QTextBlockFormat.setLineHeight comerealnow. 
+        percent: 160 = 1.6x line spacing.
         """
         doc = self.content_label.document()
         cursor = QtGui.QTextCursor(doc)
@@ -1236,16 +1238,16 @@ class AIResponse(QtWidgets.QWidget):
         cursor.mergeBlockFormat(fmt)
 
     def _auto_resize_content(self):
-        """根据 document 的实际渲染高度动态调整 QPlainTextEdit 的高度。
+        """based on document  realboundaryrenderheightmovestateadjustwhole QPlainTextEdit  height. 
         
-        使用 doc.size().height() 获取已布局的真实像素高度，
-        加上一个小的底部边距作为最终高度。
+        Use doc.size().height() to get the actual laid-out pixel height,
+        addononesmall bottompartedgedistanceasfinalheight. 
         """
         doc = self.content_label.document()
-        # 确保布局信息是最新的
+        # ensurelayoutinfoislatest 
         doc.adjustSize()
         doc_height = int(doc.size().height())
-        target = doc_height + 4  # 底部留 4px 余量
+        target = doc_height + 4  # bottompartkeep 4px remainingquantity
         min_h = self._content_line_h + 4
         target = max(target, min_h)
         current_h = self.content_label.height()
@@ -1253,37 +1255,37 @@ class AIResponse(QtWidgets.QWidget):
             self.content_label.setFixedHeight(target)
     
     def append_content(self, text: str):
-        """追加内容（流式场景高频调用，需要高效）
+        """appendcontent (streamingscenehighfrequencycall, needshigheffect) 
         
-        ★ 增量渲染策略（借鉴 markstream-vue）：
-        1. 文本追加到 _pending_text
-        2. 检查是否有已完成的段落（双换行分隔 / 代码块闭合）
-        3. 已完成段落冻结为 RichText Widget，不再变动
-        4. 不完整的尾部保留在 QPlainTextEdit 中继续接收 delta
+        ★ incrementalrenderstrategy (inspired by markstream-vue) : 
+        1. textappendto _pending_text
+        2. Check whether there is a completed paragraph (double-newline separation / code-block close)
+        3. completedparagraphfreezeas RichText Widget, notagainchangemove
+        4. notcomplete tailpartkeepin QPlainTextEdit inresumereceive delta
         """
-        # ★ 修复：不丢弃包含换行符的 chunk
-        # 纯换行符（\n\n）是 Markdown 段落分隔的关键信号，
-        # 丢弃它们会导致多段内容粘连在一起
+        # ★ fix: notdiscardpackagecontainingswaprowsymbol  chunk
+        # pureswaprowsymbol (\n\n) is Markdown paragraphpartinterval keysignal, 
+        # discarditswillcausesmultisegmentcontentpasteconnectinonestart
         if not text.strip() and '\n' not in text:
             return
-        # 清除 U+FFFD 替换符（encoding 异常残留）
+        # clearremove U+FFFD replaceswapsymbol (encoding exceptionresidualkeep) 
         if '\ufffd' in text:
             text = text.replace('\ufffd', '')
         self._content += text
         self._pending_text += text
 
-        # 尝试冻结已完成的段落
+        # tryfreezecompleted paragraph
         if self._incremental_enabled:
             self._try_freeze_completed()
 
-            # 当 pending 中存在未完结的表格时，启动延时冻结定时器；
-            # 如果持续有新行则不断重置，表格停止增长 600ms 后自动冻结
+            # When the pending buffer contains an unfinished table, start the delayed-freeze timer;
+            # if new rows keep arriving, keep resetting; freezes 600ms after table growth stops
             if self._in_table:
                 self._table_flush_timer.start()
             else:
                 self._table_flush_timer.stop()
 
-        # 更新活跃区域显示（只显示未冻结的文本）
+        # updateactiveareashow (onlyshownotfreeze text) 
         self.content_label.setPlainText(self._pending_text)
         self._apply_line_spacing(160)
         cursor = self.content_label.textCursor()
@@ -1293,12 +1295,12 @@ class AIResponse(QtWidgets.QWidget):
     _TABLE_SEP_RE_FREEZE = re.compile(r'^\|?\s*[-:]+[-| :]*$')
 
     def _try_freeze_completed(self):
-        """检测并冻结已完成的段落
+        """detectandfreezecompleted paragraph
 
-        检测规则：
-        - 代码块: ``` 开启 → ``` 关闭，闭合后整个代码块冻结
-        - 文本段落: 两个连续换行 (\\n\\n) 分隔的文本段落冻结
-        - 表格: 表头 + 分隔行 + 数据行，表格后出现非表格行即冻结整段
+        detectrule: 
+        - codeblock: ``` openstart → ``` close, closemergeafterwholecodeblockfreeze
+        - textparagraph: twoconsecutiveswaprow (\\n\\n) partinterval textparagraphfreeze
+        - tablegrid: tablehead + partintervalrow + datarow, tablegridafteroutnownottablegridrowi.e.freezewholesegment
         """
         text = self._pending_text
         if not text:
@@ -1313,7 +1315,7 @@ class AIResponse(QtWidgets.QWidget):
         while i < len(lines):
             stripped = lines[i].strip()
 
-            # --- 代码围栏 ---
+            # --- Code fence ---
             if in_fence:
                 if stripped.startswith('```'):
                     in_fence = False
@@ -1330,7 +1332,7 @@ class AIResponse(QtWidgets.QWidget):
                 i += 1
                 continue
 
-            # --- 表格状态机 ---
+            # --- Table state machine ---
             if in_table:
                 if stripped and '|' in stripped:
                     i += 1
@@ -1340,7 +1342,7 @@ class AIResponse(QtWidgets.QWidget):
                 i += 1
                 continue
 
-            # 检测表格开始: 当前行含 | 且下一行是分隔行
+            # detecttablegridstart: currentrowcontaining | andbelowonerowispartintervalrow
             if (stripped and '|' in stripped
                     and i + 1 < len(lines)
                     and self._TABLE_SEP_RE_FREEZE.match(lines[i + 1].strip())):
@@ -1348,7 +1350,7 @@ class AIResponse(QtWidgets.QWidget):
                 i += 1
                 continue
 
-            # --- 空行 = 段落边界 ---
+            # --- emptyrow = paragraphedgeboundary ---
             if not stripped:
                 if i > 0 and freeze_up_to < i:
                     start_scan = max(0, freeze_up_to + 1 if freeze_up_to >= 0 else 0)
@@ -1369,7 +1371,7 @@ class AIResponse(QtWidgets.QWidget):
             self._pending_text = remaining_text
 
     def _flush_pending_table(self):
-        """定时器触发：表格停止增长后将 pending 中包含表格的内容全部冻结"""
+        """fixedwhen trigger: tablegridstopaddlongafterwill pending inpackagecontainingtablegrid contentallpartfreeze"""
         if not self._pending_text or not self._in_table:
             return
         if not self._pending_text.strip():
@@ -1380,8 +1382,8 @@ class AIResponse(QtWidgets.QWidget):
         self.content_label.setPlainText("")
 
     def _freeze_text(self, text: str):
-        """将一段文本冻结为富文本 Widget"""
-        # 使用 SimpleMarkdown 解析
+        """willonesegmenttextfreezeasrichtext Widget"""
+        # use SimpleMarkdown parse
         segments = SimpleMarkdown.parse_segments(text)
 
         for seg in segments:
@@ -1401,7 +1403,7 @@ class AIResponse(QtWidgets.QWidget):
             elif seg[0] == 'code':
                 cb = CodeBlockWidget(seg[2], seg[1], self)
                 cb.createWrangleRequested.connect(self.createWrangleRequested.emit)
-                # 代码块与前后段落之间需要额外间距
+                # codeblockwithpreviousafterparagraphofbetweenneedsextrabetweendistance
                 cb.setContentsMargins(0, 6, 0, 6)
                 self._frozen_layout.addWidget(cb)
             elif seg[0] == 'image':
@@ -1417,15 +1419,15 @@ class AIResponse(QtWidgets.QWidget):
                 img_lbl.setTextFormat(QtCore.Qt.RichText)
                 self._frozen_layout.addWidget(img_lbl)
 
-        # 显示冻结容器
+        # showfreezecontain 
         if not self._frozen_container.isVisible():
             self._frozen_container.setVisible(True)
         self._frozen_segments.append(text)
     
     def set_content(self, text: str):
-        """设置内容（一次性，非流式场景，如历史恢复）
+        """setcontent (onceproperty, notstreamingscene, such ashistoryrestore) 
         
-        ★ 直接渲染为富文本，避免历史恢复时也出现跳变。
+        ★ directlyrenderasrichtext, avoidhistoryrestorewhenalsooutnowjumpchange. 
         """
         self._content = text
         self._pending_text = ""
@@ -1436,13 +1438,13 @@ class AIResponse(QtWidgets.QWidget):
             self.content_label.setPlainText("")
             return
         
-        # 直接渲染为富文本 Widget，保持一致的外观
+        # Render directly as a rich-text Widget; preserves a consistent look
         self.content_label.setVisible(False)
         self._freeze_text(content)
     
     @staticmethod
     def _clean_content(text: str) -> str:
-        """清理内容中的多余空白（仅在 finalize 时调用一次）"""
+        """cleanupcontentin multiremainingemptywhite (onlyin finalize whencallonce) """
         if not text:
             return ""
         import re
@@ -1450,18 +1452,18 @@ class AIResponse(QtWidgets.QWidget):
         return cleaned.strip()
     
     def add_collapsible(self, title: str, content: str) -> CollapsibleSection:
-        """添加可折叠内容"""
+        """addcancollapsecontent"""
         section = CollapsibleSection(title, collapsed=True, parent=self)
         section.add_text(content, "muted")
         self.details_layout.addWidget(section)
         return section
     
     def _copy_content(self):
-        """复制完整正式回复内容到剪贴板"""
+        """Copy the full reply content to the clipboard."""
         content = self._clean_content(self._content)
         if content:
             QtWidgets.QApplication.clipboard().setText(content)
-            # 临时反馈
+            # Temporary feedback
             self._copy_btn.setText(tr('btn.copied'))
             self._copy_btn.setProperty("state", "copied")
             self._copy_btn.style().unpolish(self._copy_btn)
@@ -1469,28 +1471,28 @@ class AIResponse(QtWidgets.QWidget):
             QtCore.QTimer.singleShot(1500, self._reset_copy_btn)
     
     def _reset_copy_btn(self):
-        """恢复复制按钮样式"""
+        """restorecopybuttonstyle"""
         try:
             self._copy_btn.setText(tr('btn.copy'))
             self._copy_btn.setProperty("state", "")
             self._copy_btn.style().unpolish(self._copy_btn)
             self._copy_btn.style().polish(self._copy_btn)
         except RuntimeError:
-            pass  # widget 已销毁
+            pass  # widget alreadydestroy
     
     def start_aurora(self):
-        """启动左侧流光边框动画"""
+        """startleft sidestreamlightedgeboxmovedraw"""
         self.aurora_bar.start()
 
     def stop_aurora(self):
-        """停止左侧流光边框动画"""
+        """stopleft sidestreamlightedgeboxmovedraw"""
         self.aurora_bar.stop()
 
     def finalize(self):
-        """完成回复 - 提取最终总结
+        """completereply - extractfinalsummary
         
-        ★ 增量渲染模式下，大部分段落已经冻结为 Widget，
-        finalize 只需处理最后的 _pending_text 尾部残留。
+        Under incremental-render mode, most chunks have already been frozen as Widgets,
+        finalize onlyneedsprocesslast  _pending_text tailpartresidualkeep. 
         """
         self.aurora_bar.stop()
         self._table_flush_timer.stop()
@@ -1500,11 +1502,11 @@ class AIResponse(QtWidgets.QWidget):
         if self._has_thinking:
             self.thinking_section.finalize()
         
-        # 完成执行区块
+        # completeexecutesectionblock
         if self._has_execution:
             self.execution_section.finalize()
         
-        # 更新状态
+        # updatestate
         parts = []
         if self._has_thinking:
             parts.append(tr('status.thinking'))
@@ -1518,11 +1520,11 @@ class AIResponse(QtWidgets.QWidget):
         
         self.status_label.setText(status_text)
         
-        # 有内容时显示复制按钮
+        # hascontentwhenshowcopybutton
         if self._clean_content(self._content):
             self._copy_btn.setVisible(True)
         
-        # ★ 增量渲染 finalize: 处理最后残余的 pending_text
+        # ★ incrementalrender finalize: processlastresidualremaining  pending_text
         content = self._clean_content(self._content)
         
         if not content:
@@ -1534,22 +1536,22 @@ class AIResponse(QtWidgets.QWidget):
             self.content_label.style().unpolish(self.content_label)
             self.content_label.style().polish(self.content_label)
         elif self._frozen_segments:
-            # 增量模式：已有冻结段落，只需处理 pending 尾部
+            # incrementalmode: alreadyhasfreezeparagraph, onlyneedsprocess pending tailpart
             remaining = self._clean_content(self._pending_text)
             if remaining:
-                # ★ 始终将残余文本冻结为富文本，避免 finalize 时的跳变
+                # ★ alwayswillresidualremainingtextfreezeasrichtext, avoid finalize when jumpchange
                 self._freeze_text(remaining)
                 self.content_label.setVisible(False)
             else:
-                # 没有残余文本，隐藏 QPlainTextEdit
+                # nothasresidualremainingtext, hide QPlainTextEdit
                 self.content_label.setVisible(False)
         else:
-            # 传统模式（无冻结段落）—— 始终渲染为富文本以保持一致性
+            # passstatsmode (nofreezeparagraph) —— alwaysrenderasrichtextbykeepconsistentproperty
             self.content_label.setVisible(False)
             self._freeze_text(content)
     
     def _on_link_activated(self, url: str):
-        """处理链接点击 — houdini:// 跳转节点，http(s):// 用系统浏览器打开"""
+        """Handle link click - houdini:// jumps to a node; http(s):// opens in the system browser."""
         if url.startswith('houdini://'):
             node_path = url[len('houdini://'):]
             self.nodePathClicked.emit(node_path)
@@ -1558,11 +1560,11 @@ class AIResponse(QtWidgets.QWidget):
 
 
 # ============================================================
-# 简洁状态行
+# concisestaterow
 # ============================================================
 
 class StatusLine(QtWidgets.QLabel):
-    """简洁状态行"""
+    """concisestaterow"""
     
     def __init__(self, text: str = "", parent=None):
         super().__init__(text, parent)
@@ -1571,15 +1573,15 @@ class StatusLine(QtWidgets.QLabel):
 
 
 # ============================================================
-# 节点操作标签
+# nodeoperationlabel
 # ============================================================
 
 class NodeOperationLabel(QtWidgets.QWidget):
-    """节点操作标签 - 显示 +1 node / -2 nodes，带 undo/keep 按钮"""
+    """nodeoperationlabel - show +1 node / -2 nodes, with undo/keep button"""
     
-    nodeClicked = QtCore.Signal(str)      # 发送节点路径（点击节点名跳转）
-    undoRequested = QtCore.Signal()       # 请求撤销此操作
-    decided = QtCore.Signal()             # undo 或 keep 完成后通知（用于更新批量操作栏）
+    nodeClicked = QtCore.Signal(str)      # sendnode path (clicknodenamejump) 
+    undoRequested = QtCore.Signal()       # requestundothisoperation
+    decided = QtCore.Signal()             # undo or keep completeafternotify (used forupdatebatchoperationbar) 
     
     # _BTN_STYLE removed — use objectName-based QSS instead
     
@@ -1588,17 +1590,17 @@ class NodeOperationLabel(QtWidgets.QWidget):
         """
         Args:
             operation: 'create' | 'delete' | 'modify'
-            count: 操作的节点/参数数量
-            node_paths: 节点路径列表
-            detail_text: 简单文本详情 (旧方式, 纯文字)
-            param_diff: 参数 diff 信息 {"param_name": str, "old_value": Any, "new_value": Any}
+            count: operation node/parametercount
+            node_paths: node pathlist
+            detail_text: simpletextdetails (oldway, puretext)
+            param_diff: parameter diff info {"param_name": str, "old_value": Any, "new_value": Any}
         """
         super().__init__(parent)
         self._node_paths = node_paths or []
-        self._decided = False  # 用户是否已做出选择
+        self._decided = False  # userwhetheralreadydooutselect
         
-        # 如果有 param_diff，使用垂直布局（标题行 + diff 区域）
-        # 否则使用原来的水平布局
+        # ifhas param_diff, useverticallayout (titlerow + diff area) 
+        # otherwiseuseoriginalcome horizontallayout
         if param_diff and operation == 'modify':
             self._init_modify_layout(operation, count, param_diff)
             return
@@ -1630,7 +1632,7 @@ class NodeOperationLabel(QtWidgets.QWidget):
         count_label.style().polish(count_label)
         layout.addWidget(count_label)
         
-        # 每个节点名作为可点击按钮
+        # eachnodenameascanclickbutton
         display_paths = self._node_paths[:5]
         for path in display_paths:
             short_name = path.rsplit('/', 1)[-1] if '/' in path else path
@@ -1647,7 +1649,7 @@ class NodeOperationLabel(QtWidgets.QWidget):
             more.setObjectName("nodeOpMore")
             layout.addWidget(more)
         
-        # 简单文本详情（仅在没有 param_diff 时使用）
+        # simpletextdetails (onlyinnothas param_diff whenuse) 
         if detail_text:
             detail_label = QtWidgets.QLabel(detail_text)
             detail_label.setObjectName("nodeOpDetail")
@@ -1656,7 +1658,7 @@ class NodeOperationLabel(QtWidgets.QWidget):
         
         layout.addStretch()
         
-        # ── Undo / Keep 按钮 ──
+        # ── Undo / Keep button ──
         self._undo_btn = QtWidgets.QPushButton(tr('btn.undo'))
         self._undo_btn.setFixedHeight(20)
         self._undo_btn.setCursor(QtCore.Qt.PointingHandCursor)
@@ -1671,21 +1673,21 @@ class NodeOperationLabel(QtWidgets.QWidget):
         self._keep_btn.clicked.connect(self._on_keep)
         layout.addWidget(self._keep_btn)
         
-        # 决定后的状态标签（替代按钮）
+        # decidefixedafter statelabel (replacement forbutton) 
         self._status_label = QtWidgets.QLabel()
         self._status_label.setObjectName("nodeOpStatus")
         self._status_label.setVisible(False)
         layout.addWidget(self._status_label)
     
     def _init_modify_layout(self, operation: str, count: int, param_diff: dict):
-        """modify 操作的专用布局：标题行(黄标签+节点名+undo/keep) + diff 展示区"""
+        """modify operation dedicateduselayout: titlerow(yellowlabel+nodename+undo/keep) + diff expandshowsection"""
         self._decided = False
         
         root = QtWidgets.QVBoxLayout(self)
         root.setContentsMargins(0, 2, 0, 2)
         root.setSpacing(2)
         
-        # ── 第一行：标签 + 节点名 + undo/keep ──
+        # ── firstrow: label + nodename + undo/keep ──
         header = QtWidgets.QHBoxLayout()
         header.setSpacing(4)
         
@@ -1731,7 +1733,7 @@ class NodeOperationLabel(QtWidgets.QWidget):
         
         root.addLayout(header)
         
-        # ── 第二行：Diff 展示 ──
+        # ── secondrow: Diff expandshow ──
         self._diff_widget = ParamDiffWidget(
             param_name=param_diff.get("param_name", ""),
             old_value=param_diff.get("old_value", ""),
@@ -1740,7 +1742,7 @@ class NodeOperationLabel(QtWidgets.QWidget):
         root.addWidget(self._diff_widget)
     
     def collapse_diff(self):
-        """折叠 diff 展示区（Keep All 时调用）"""
+        """collapse diff expandshowsection (Keep All whencall) """
         if hasattr(self, '_diff_widget') and self._diff_widget:
             self._diff_widget.collapse()
     
@@ -1770,14 +1772,14 @@ class NodeOperationLabel(QtWidgets.QWidget):
 
 
 # ============================================================
-# 流式代码预览组件（Streaming VEX Apply）
+# streamingcodepreviewcomponent (Streaming VEX Apply) 
 # ============================================================
 
 class StreamingCodePreview(QtWidgets.QWidget):
-    """流式代码预览 — 像 Cursor Apply 一样逐行显示 AI 正在写的代码
+    """streamingcodepreview — like Cursor Apply onelikeone by onerowshow AI positiveinwrite code
     
-    在 tool_call 参数流式到达时，实时显示 VEX 代码的书写过程。
-    工具执行完毕后，由 ai_tab 将其替换为正式的 ParamDiffWidget。
+    While the tool_call parameter is streaming in, show the VEX code being written in real time.
+    toolexecutefinishfinishafter, by ai_tab willitsreplaceswapaspositivestyle  ParamDiffWidget. 
     """
 
     def __init__(self, tool_name: str, parent=None):
@@ -1789,12 +1791,12 @@ class StreamingCodePreview(QtWidgets.QWidget):
         layout.setContentsMargins(0, 2, 0, 2)
         layout.setSpacing(0)
 
-        # 标题行
+        # titlerow
         self._title = QtWidgets.QLabel("✍ Writing code...")
         self._title.setObjectName("streamingCodeTitle")
         layout.addWidget(self._title)
 
-        # 代码显示区（只读，固定最大高度，自动滚动）
+        # codeshowsection (read-only, fixfixedmaxheight, autoscroll) 
         self._code_area = QtWidgets.QPlainTextEdit()
         self._code_area.setReadOnly(True)
         self._code_area.setObjectName("streamingCodeArea")
@@ -1802,22 +1804,22 @@ class StreamingCodePreview(QtWidgets.QWidget):
         self._code_area.setLineWrapMode(QtWidgets.QPlainTextEdit.NoWrap)
         layout.addWidget(self._code_area)
 
-        # 记录上次已显示的代码长度，只追加增量
+        # recordontimealreadyshow codelength, onlyappendincremental
         self._last_len = 0
 
     def update_code(self, full_code: str):
-        """用完整代码字符串更新显示（增量追加新部分）"""
+        """usecompletecodestringupdateshow (incrementalappendnewpartpart) """
         if len(full_code) > self._last_len:
             delta = full_code[self._last_len:]
             self._last_len = len(full_code)
             self._code_area.moveCursor(QtGui.QTextCursor.End)
             self._code_area.insertPlainText(delta)
-            # 自动滚动到底部
+            # autoscrolltobottompart
             sb = self._code_area.verticalScrollBar()
             sb.setValue(sb.maximum())
 
     def finalize(self):
-        """流式结束，更新标题"""
+        """streamingend, updatetitle"""
         self._title.setText("✓ Code complete")
         self._title.setProperty("state", "done")
         self._title.style().unpolish(self._title)
@@ -1825,26 +1827,26 @@ class StreamingCodePreview(QtWidgets.QWidget):
 
 
 # ============================================================
-# 参数 Diff 展示组件
+# parameter Diff expandshowcomponent
 # ============================================================
 
 class ParamDiffWidget(QtWidgets.QWidget):
-    """参数变更 Diff 展示 — 旧值红框 / 新值绿框
+    """parameterchange Diff expandshow — oldvalueredbox / newvaluegreenbox
     
-    - 标量/短文本: 内联显示  [old_value] → [new_value]
-    - 多行文本(VEX等): 展开式 diff, 红色背景删除行, 绿色背景新增行
+    - Scalar/short text: inline display as [old_value] -> [new_value]
+    - multirowtext(VEXetc.): expandstyle diff, redcolorbackgrounddeleterow, greencolorbackgroundnewaddrow
     """
     
-    # diff 颜色
-    _RED_BG = "#3d1f1f"       # 删除行背景
-    _RED_BORDER = "#6e3030"   # 删除行边框
-    _RED_TEXT = "#f48771"     # 删除行文字
-    _GREEN_BG = "#1f3d1f"     # 新增行背景
-    _GREEN_BORDER = "#2e6e30" # 新增行边框
-    _GREEN_TEXT = "#89d185"   # 新增行文字
-    _GREY_TEXT = "#64748b"    # 上下文行文字
+    # diff color
+    _RED_BG = "#3d1f1f"       # deleterowbackground
+    _RED_BORDER = "#6e3030"   # deleterowedgebox
+    _RED_TEXT = "#f48771"     # deleterowtext
+    _GREEN_BG = "#1f3d1f"     # newaddrowbackground
+    _GREEN_BORDER = "#2e6e30" # newaddrowedgebox
+    _GREEN_TEXT = "#89d185"   # newaddrowtext
+    _GREY_TEXT = "#64748b"    # contextrowtext
     
-    # 行级通用样式（紧凑无间隙，像一个完整代码块）
+    # Row-level shared style (compact, no gaps - like one full code block)
     _LINE_BASE = (
         "font-size: 11px; font-family: {font}; "
         "margin: 0px; padding: 0px 6px; "
@@ -1854,7 +1856,7 @@ class ParamDiffWidget(QtWidgets.QWidget):
 
     def __init__(self, param_name: str, old_value, new_value, parent=None):
         super().__init__(parent)
-        self._collapsed = True  # ★ 默认折叠（露出预览窗口）
+        self._collapsed = True  # ★ defaultcollapse (exposeoutpreviewwindow) 
         
         old_str = self._to_str(old_value)
         new_str = self._to_str(new_value)
@@ -1866,8 +1868,8 @@ class ParamDiffWidget(QtWidgets.QWidget):
         root_layout.setSpacing(0)
         
         if is_multiline:
-            # ── 多行 diff (VEX 等) ──
-            # 标题行: param_name ▶ （默认折叠，露出预览窗口）
+            # ── multirow diff (VEX etc.) ──
+            # titlerow: param_name ▶  (defaultcollapse, exposeoutpreviewwindow) 
             self._title_text = param_name
             self._toggle_btn = QtWidgets.QPushButton(f"▶ {param_name}")
             self._toggle_btn.setFlat(True)
@@ -1876,7 +1878,7 @@ class ParamDiffWidget(QtWidgets.QWidget):
             self._toggle_btn.clicked.connect(self._toggle)
             root_layout.addWidget(self._toggle_btn)
             
-            # diff 内容区（用 QScrollArea 包裹，折叠时露出预览窗口）
+            # diff contentsection (use QScrollArea packagewrap, collapsewhenexposeoutpreviewwindow) 
             self._diff_frame = QtWidgets.QFrame()
             self._diff_frame.setObjectName("diffFrame")
             diff_layout = QtWidgets.QVBoxLayout(self._diff_frame)
@@ -1885,17 +1887,17 @@ class ParamDiffWidget(QtWidgets.QWidget):
             
             _font = CursorTheme.FONT_CODE
             
-            # 使用 difflib 计算行级 diff
+            # use difflib computerowlevel diff
             import difflib
             old_lines = old_str.splitlines(keepends=True)
             new_lines = new_str.splitlines(keepends=True)
             diff = list(difflib.unified_diff(old_lines, new_lines, n=2))
             
-            # 跳过 --- / +++ 头两行, 取实际 diff 行
+            # skip --- / +++ headtworow, fetchrealboundary diff row
             diff_body = diff[2:] if len(diff) > 2 else []
             
             if not diff_body:
-                # 没有实际差异（或 difflib 无法处理）→ 并排显示
+                # nothasrealboundarydifference (or difflib nomethodprocess) → andarrangeshow
                 self._add_block(diff_layout, tr('diff.old'), old_str, is_old=True)
                 self._add_block(diff_layout, tr('diff.new'), new_str, is_old=False)
             else:
@@ -1913,7 +1915,7 @@ class ParamDiffWidget(QtWidgets.QWidget):
                         lbl.setProperty("diffType", "ctx")
                     diff_layout.addWidget(lbl)
             
-            # ★ 用 QScrollArea 包裹 diff_frame，折叠时限制高度而不是完全隐藏
+            # ★ use QScrollArea packagewrap diff_frame, collapsewhenlimitheightandnofinishallhide
             self._scroll_area = QtWidgets.QScrollArea()
             self._scroll_area.setObjectName("diffScrollArea")
             self._scroll_area.setWidgetResizable(True)
@@ -1922,34 +1924,34 @@ class ParamDiffWidget(QtWidgets.QWidget):
             self._scroll_area.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
             self._scroll_area.setWidget(self._diff_frame)
             
-            # 预览高度常量
-            self._PREVIEW_HEIGHT = 120   # 折叠时露出的高度(px)
+            # previewheightconstant
+            self._PREVIEW_HEIGHT = 120   # collapsewhenexposeout height(px)
             
             root_layout.addWidget(self._scroll_area)
-            self._scroll_area.setMaximumHeight(self._PREVIEW_HEIGHT)  # 默认折叠，露出预览窗口
+            self._scroll_area.setMaximumHeight(self._PREVIEW_HEIGHT)  # defaultcollapse, exposeoutpreviewwindow
         else:
-            # ── 内联 diff (标量) ──
+            # ── withinassociate diff (markerquantity) ──
             inline = QtWidgets.QHBoxLayout()
             inline.setContentsMargins(0, 0, 0, 0)
             inline.setSpacing(4)
             
-            # 参数名
+            # parametername
             name_lbl = QtWidgets.QLabel(f"{param_name}:")
             name_lbl.setObjectName("diffParamName")
             inline.addWidget(name_lbl)
             
-            # 旧值 (红框)
+            # oldvalue (redbox)
             old_lbl = QtWidgets.QLabel(self._truncate(old_str, 30))
             old_lbl.setToolTip(f"{tr('diff.old')}: {old_str}")
             old_lbl.setObjectName("diffOldValue")
             inline.addWidget(old_lbl)
             
-            # 箭头
+            # Arrow
             arrow = QtWidgets.QLabel("→")
             arrow.setObjectName("diffArrow")
             inline.addWidget(arrow)
             
-            # 新值 (绿框)
+            # newvalue (greenbox)
             new_lbl = QtWidgets.QLabel(self._truncate(new_str, 30))
             new_lbl.setToolTip(f"{tr('diff.new')}: {new_str}")
             new_lbl.setObjectName("diffNewValue")
@@ -1960,23 +1962,23 @@ class ParamDiffWidget(QtWidgets.QWidget):
     def _toggle(self):
         self._collapsed = not self._collapsed
         if self._collapsed:
-            # 折叠 → 限制高度，露出预览窗口
+            # collapse → limitheight, exposeoutpreviewwindow
             self._scroll_area.setMaximumHeight(self._PREVIEW_HEIGHT)
         else:
-            # 展开 → 取消高度限制
+            # expand → cancelheightlimit
             self._scroll_area.setMaximumHeight(16777215)
         arrow = "▶" if self._collapsed else "▼"
         self._toggle_btn.setText(f"{arrow} {self._title_text}")
     
     def collapse(self):
-        """外部调用：强制折叠 diff（仅对多行 diff 有效）"""
+        """externalcall: forcecollapse diff (onlyformultirow diff valid) """
         if hasattr(self, '_scroll_area') and not self._collapsed:
             self._collapsed = True
             self._scroll_area.setMaximumHeight(self._PREVIEW_HEIGHT)
             self._toggle_btn.setText(f"▶ {self._title_text}")
     
     def _add_block(self, parent_layout, title: str, text: str, is_old: bool):
-        """添加旧值/新值整块（用于 difflib 无差异时的 fallback）"""
+        """addoldvalue/newvaluewholeblock (used for difflib nodifferencewhen  fallback) """
         diff_type = "del" if is_old else "add"
         header = QtWidgets.QLabel(title)
         header.setObjectName("diffLine")
@@ -2002,11 +2004,11 @@ class ParamDiffWidget(QtWidgets.QWidget):
 
 
 # ============================================================
-# 可折叠内容块（兼容旧代码）
+# cancollapsecontentblock (compatible witholdcode) 
 # ============================================================
 
 class CollapsibleContent(QtWidgets.QWidget):
-    """可折叠内容 - 点击标题展开/收起"""
+    """cancollapsecontent - clicktitleexpand/collectstart"""
     
     def __init__(self, title: str, content: str = "", parent=None):
         super().__init__(parent)
@@ -2045,11 +2047,11 @@ class CollapsibleContent(QtWidgets.QWidget):
 
 
 # ============================================================
-# 计划块（兼容旧代码）
+# countplanblock (compatible witholdcode) 
 # ============================================================
 
 class PlanBlock(QtWidgets.QWidget):
-    """执行计划显示"""
+    """executecountplanshow"""
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -2090,25 +2092,25 @@ class PlanBlock(QtWidgets.QWidget):
 
 
 # ============================================================
-# PlanDAGWidget — QPainter 自绘 DAG 流程图
+# PlanDAGWidget — QPainter selfdraw DAG flowdiagram
 # ============================================================
 
 class PlanDAGWidget(QtWidgets.QWidget):
-    """Houdini 节点网络架构蓝图，用 QPainter 自绘。
+    """Houdini nodenetworkarchitecturebluediagram, use QPainter selfdraw. 
 
-    展示 Plan 执行完成后的 **节点网络拓扑**（设计蓝图），
-    而不是执行步骤顺序。
+    expandshow Plan executecompleteafter  **nodenetworktopology** (setcountbluediagram) , 
+    andnoexecutesteporderorder. 
 
-    特性：
-    - 按节点类型着色（SOP=蓝、OBJ=橙、MAT=绿 等）
-    - 分组容器（地形系统、散布系统 等）
-    - 新节点 vs 已有节点 视觉区分
-    - 贝塞尔曲线连线 + 箭头
-    - 自动分层布局
-    - QScrollArea 包裹，窗口窄时横向滚动
+    specialproperty: 
+    - Color by node type (SOP=blue, OBJ=orange, MAT=green, etc.)
+    - groupcontain  (terrainsystem, scattersystem etc.) 
+    - newnode vs alreadyhasnode visualsectionpart
+    - Bezier curve connections + arrowheads
+    - autopartlayerlayout
+    - Wrapped in a QScrollArea; horizontal scroll when the window is narrow
     """
 
-    # 节点类型 → (填充色, 边框色, 文字色)
+    # nodetype → (fillfillcolor, edgeboxcolor, textcolor)
     _TYPE_COLORS = {
         "sop":    ("#0d1f3c", "#4a9eff", "#a3d4ff"),
         "obj":    ("#2d1f0d", "#e8a838", "#ffe0a0"),
@@ -2125,21 +2127,21 @@ class PlanDAGWidget(QtWidgets.QWidget):
         "other":  ("#1e2030", "#4a5068", "#8892a8"),
     }
 
-    # 已有节点的暗化系数
+    # Existing-node dimming factor
     _EXISTING_ALPHA = 0.5
 
     NODE_W = 160
     NODE_H = 42
-    H_GAP = 50       # 层间距（水平，连线区域）
-    V_GAP = 20       # 同层节点间距（垂直）
-    PAD = 30          # 画布内边距
-    GROUP_PAD = 16    # 分组容器内边距
-    GROUP_TITLE_H = 22  # 分组标题高度
+    H_GAP = 50       # layerbetweendistance (horizontal, connectlinearea) 
+    V_GAP = 20       # samelayernodebetweendistance (vertical) 
+    PAD = 30          # Canvas inner padding
+    GROUP_PAD = 16    # groupcontain withinedgedistance
+    GROUP_TITLE_H = 22  # grouptitleheight
 
     def __init__(self, arch_data: dict = None, parent=None):
         """
         Args:
-            arch_data: architecture 字段数据，包含 nodes, connections, groups
+            arch_data: architecture fielddata, packagecontaining nodes, connections, groups
         """
         super().__init__(parent)
         self._arch = arch_data or {}
@@ -2160,7 +2162,7 @@ class PlanDAGWidget(QtWidgets.QWidget):
 
     def _tick(self):
         self._pulse_phase = (self._pulse_phase + 0.04) % (math.pi * 2)
-        # 架构图有新节点标记时微弱脉动
+        # When the architecture diagram has new-node markers, give them a subtle pulse
         has_new = any(n.get("is_new", True) for n in self._nodes)
         if has_new:
             self.update()
@@ -2175,7 +2177,7 @@ class PlanDAGWidget(QtWidgets.QWidget):
         self.update()
 
     def update_architecture(self, arch_data: dict):
-        """更新架构数据并重新布局"""
+        """updatearchitecturedataandrenewlayout"""
         self._arch = arch_data or {}
         self._nodes = self._arch.get("nodes", [])
         self._connections = self._arch.get("connections", [])
@@ -2184,10 +2186,10 @@ class PlanDAGWidget(QtWidgets.QWidget):
         self.update()
 
     # ----------------------------------------------------------
-    # 布局算法
+    # layoutcalculatemethod
     # ----------------------------------------------------------
     def _layout_nodes(self):
-        """Sugiyama 分层布局：按连接拓扑自动分层排列节点。"""
+        """Sugiyama partlayerlayout: byconnecttopologyautopartlayerarrangecolumnnode. """
         if self._collapsed:
             self.setFixedHeight(0)
             self.setMinimumWidth(0)
@@ -2199,7 +2201,7 @@ class PlanDAGWidget(QtWidgets.QWidget):
 
         node_map = {n["id"]: n for n in self._nodes}
 
-        # ── 1) 构建邻接表 ──
+        # ── 1) Build adjacency table ──
         children = {n["id"]: [] for n in self._nodes}      # from → [to, ...]
         parents = {n["id"]: [] for n in self._nodes}        # to   → [from, ...]
         for conn in self._connections:
@@ -2208,14 +2210,14 @@ class PlanDAGWidget(QtWidgets.QWidget):
                 children[f].append(t)
                 parents[t].append(f)
 
-        # ── 2) 计算深度（从源头开始 BFS） ──
+        # ── 2) computedepth (fromsourceheadstart BFS)  ──
         depths = {}
         def get_depth(nid, visited=None):
             if nid in depths:
                 return depths[nid]
             if visited is None:
                 visited = set()
-            if nid in visited:  # 防环
+            if nid in visited:  # Prevent cycles
                 depths[nid] = 0
                 return 0
             visited.add(nid)
@@ -2229,7 +2231,7 @@ class PlanDAGWidget(QtWidgets.QWidget):
         for n in self._nodes:
             get_depth(n["id"])
 
-        # ── 3) 分层 ──
+        # ── 3) partlayer ──
         layers = {}
         for nid, d in depths.items():
             layers.setdefault(d, []).append(nid)
@@ -2237,7 +2239,7 @@ class PlanDAGWidget(QtWidgets.QWidget):
         max_depth = max(layers.keys()) if layers else 0
         max_per_layer = max(len(v) for v in layers.values()) if layers else 1
 
-        # 垂直方向布局（从上到下，更符合 Houdini 节点网络习惯）
+        # verticaldirectionlayout (fromontobelow, moresymbolmerge Houdini nodenetworkhabit) 
         total_w = max_per_layer * (self.NODE_W + self.H_GAP) - self.H_GAP
         total_h = (max_depth + 1) * (self.NODE_H + self.V_GAP + 10) - self.V_GAP
 
@@ -2250,7 +2252,7 @@ class PlanDAGWidget(QtWidgets.QWidget):
                 x = start_x + i * (self.NODE_W + self.H_GAP)
                 self._node_rects[nid] = QtCore.QRectF(x, y, self.NODE_W, self.NODE_H)
 
-        # ── 4) 计算分组容器 ──
+        # ── 4) computegroupcontain  ──
         self._group_rects.clear()
         for grp in self._groups:
             grp_name = grp.get("name", "")
@@ -2268,7 +2270,7 @@ class PlanDAGWidget(QtWidgets.QWidget):
                 grp.get("color", ""),
             )
 
-        # ── 5) 最终尺寸 ──
+        # ── 5) finalsize ──
         all_rects = list(self._node_rects.values())
         all_rects += [r for r, _ in self._group_rects.values()]
         if all_rects:
@@ -2284,10 +2286,10 @@ class PlanDAGWidget(QtWidgets.QWidget):
         self.setFixedHeight(self._content_h)
 
     # ----------------------------------------------------------
-    # 工具方法
+    # toolmethod
     # ----------------------------------------------------------
     def _elide_text(self, painter, text: str, max_width: int) -> str:
-        """按像素宽度截断文字（支持 CJK）"""
+        """Truncate text by pixel width (supports CJK)."""
         fm = painter.fontMetrics()
         if fm.horizontalAdvance(text) <= max_width:
             return text
@@ -2309,7 +2311,7 @@ class PlanDAGWidget(QtWidgets.QWidget):
     }
 
     # ----------------------------------------------------------
-    # 绘制
+    # draw
     # ----------------------------------------------------------
     def paintEvent(self, event):
         if self._collapsed or not self._nodes:
@@ -2319,13 +2321,13 @@ class PlanDAGWidget(QtWidgets.QWidget):
         p.setRenderHint(QtGui.QPainter.Antialiasing)
         p.setRenderHint(QtGui.QPainter.TextAntialiasing)
 
-        # ── 0) 背景 ──
+        # ── 0) background ──
         bg_grad = QtGui.QLinearGradient(0, 0, self.width(), self.height())
         bg_grad.setColorAt(0.0, QtGui.QColor("#0d0f1a"))
         bg_grad.setColorAt(1.0, QtGui.QColor("#111420"))
         p.fillRect(self.rect(), bg_grad)
 
-        # 背景网格点
+        # backgroundnetgridpoint
         grid_color = QtGui.QColor(100, 116, 139, 12)
         p.setPen(QtCore.Qt.NoPen)
         p.setBrush(grid_color)
@@ -2333,15 +2335,15 @@ class PlanDAGWidget(QtWidgets.QWidget):
             for gy in range(0, self.height(), 20):
                 p.drawEllipse(QtCore.QPointF(gx, gy), 0.5, 0.5)
 
-        # ── 1) 分组容器 ──
+        # ── 1) groupcontain  ──
         for grp_name, (grect, color_hint) in self._group_rects.items():
             r, g, b = self._GROUP_HINT_COLORS.get(color_hint, (167, 139, 250))
-            # 半透明填充
+            # Semi-transparent fill
             p.setBrush(QtGui.QColor(r, g, b, 8))
             pen = QtGui.QPen(QtGui.QColor(r, g, b, 40), 1.0, QtCore.Qt.DashLine)
             p.setPen(pen)
             p.drawRoundedRect(grect, 10, 10)
-            # 标题
+            # title
             title_font = QtGui.QFont(CursorTheme.FONT_BODY.split(",")[0].strip("' "), 8)
             title_font.setWeight(QtGui.QFont.Medium)
             p.setFont(title_font)
@@ -2352,7 +2354,7 @@ class PlanDAGWidget(QtWidgets.QWidget):
 
         node_map = {n["id"]: n for n in self._nodes}
 
-        # ── 2) 连线（贝塞尔曲线）──
+        # ── 2) Connections (Bezier curves) ──
         for conn in self._connections:
             src_id = conn.get("from", "")
             dst_id = conn.get("to", "")
@@ -2361,14 +2363,14 @@ class PlanDAGWidget(QtWidgets.QWidget):
             if not src_rect or not dst_rect:
                 continue
 
-            # 连线颜色（取源节点类型色的淡化版）
+            # connectlinecolor (fetchsourcenodetypecolor lightizationversion) 
             src_node = node_map.get(src_id, {})
             ntype = src_node.get("type", "other")
             _, border_c_hex, _ = self._TYPE_COLORS.get(ntype, self._TYPE_COLORS["other"])
             line_color = QtGui.QColor(border_c_hex)
             line_color.setAlpha(80)
 
-            # 从源底部中点 → 目标顶部中点（垂直布局）
+            # fromsourcebottompartinpoint → targettoppartinpoint (verticallayout) 
             x1 = src_rect.center().x()
             y1 = src_rect.bottom()
             x2 = dst_rect.center().x()
@@ -2378,10 +2380,10 @@ class PlanDAGWidget(QtWidgets.QWidget):
             path.moveTo(x1, y1)
             ctrl_v = abs(y2 - y1) * 0.4
             if abs(x2 - x1) < 5:
-                # 纯垂直
+                # purevertical
                 path.cubicTo(x1, y1 + ctrl_v, x2, y2 - ctrl_v, x2, y2)
             else:
-                # S 形曲线
+                # S shapecurve
                 mid_y = (y1 + y2) / 2
                 path.cubicTo(x1, mid_y, x2, mid_y, x2, y2)
 
@@ -2389,7 +2391,7 @@ class PlanDAGWidget(QtWidgets.QWidget):
             p.setBrush(QtCore.Qt.NoBrush)
             p.drawPath(path)
 
-            # 箭头（向下）
+            # Arrow (towardbelow) 
             al = 6
             arr_angle = math.pi / 2
             arr_tip_x, arr_tip_y = x2, y2
@@ -2406,7 +2408,7 @@ class PlanDAGWidget(QtWidgets.QWidget):
             p.setBrush(line_color)
             p.drawPolygon(arrow)
 
-            # 连线标签（如果有）
+            # connectlinelabel (ifhas) 
             conn_label = conn.get("label", "")
             if conn_label:
                 lbl_font = QtGui.QFont(CursorTheme.FONT_BODY.split(",")[0].strip("' "), 7)
@@ -2418,7 +2420,7 @@ class PlanDAGWidget(QtWidgets.QWidget):
                 mid_y_lbl = (y1 + y2) / 2
                 p.drawText(QtCore.QPointF(mid_x + 4, mid_y_lbl), conn_label)
 
-        # ── 3) 节点 ──
+        # ── 3) node ──
         label_font = QtGui.QFont(CursorTheme.FONT_BODY.split(",")[0].strip("' "), 9)
         type_font = QtGui.QFont(CursorTheme.FONT_BODY.split(",")[0].strip("' "), 7)
 
@@ -2432,7 +2434,7 @@ class PlanDAGWidget(QtWidgets.QWidget):
             is_new = n.get("is_new", True)
             fill_c, border_c, text_c = self._TYPE_COLORS.get(ntype, self._TYPE_COLORS["other"])
 
-            # 新节点微弱脉动光晕
+            # New-node subtle pulse halo
             if is_new:
                 pulse = 0.7 + 0.3 * math.sin(self._pulse_phase)
                 glow_color = QtGui.QColor(border_c)
@@ -2442,20 +2444,20 @@ class PlanDAGWidget(QtWidgets.QWidget):
                 p.setBrush(glow_color)
                 p.drawRoundedRect(glow_rect, 10, 10)
 
-            # 节点背景
+            # nodebackground
             bg = QtGui.QColor(fill_c)
             alpha = 220 if is_new else int(220 * self._EXISTING_ALPHA)
             bg.setAlpha(alpha)
             p.setBrush(bg)
 
-            # 边框
+            # edgebox
             bc = QtGui.QColor(border_c)
             if not is_new:
                 bc.setAlpha(int(255 * self._EXISTING_ALPHA))
             p.setPen(QtGui.QPen(bc, 1.5 if is_new else 1.0))
             p.drawRoundedRect(rect, 6, 6)
 
-            # 左侧类型色条
+            # left sidetypecoloritem
             bar_w = 3
             bar_rect = QtCore.QRectF(rect.left() + 2, rect.top() + 4,
                                       bar_w, rect.height() - 8)
@@ -2466,7 +2468,7 @@ class PlanDAGWidget(QtWidgets.QWidget):
             p.setBrush(bar_color)
             p.drawRoundedRect(bar_rect, 1.5, 1.5)
 
-            # 上行：节点标签（label）
+            # onrow: nodelabel (label) 
             p.setFont(label_font)
             label_text = n.get("label", nid)
             label_text = self._elide_text(p, label_text, int(self.NODE_W - 20))
@@ -2478,7 +2480,7 @@ class PlanDAGWidget(QtWidgets.QWidget):
                                         rect.width() - 14, 20)
             p.drawText(label_rect, QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter, label_text)
 
-            # 下行：类型 + 节点名
+            # belowrow: type + nodename
             p.setFont(type_font)
             sub_text = f"{ntype.upper()}: {nid}"
             sub_text = self._elide_text(p, sub_text, int(self.NODE_W - 20))
@@ -2492,7 +2494,7 @@ class PlanDAGWidget(QtWidgets.QWidget):
                                       rect.width() - 14, 16)
             p.drawText(sub_rect, QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter, sub_text)
 
-            # 已有节点标记（虚线边框覆盖）
+            # Existing-node marker (overlaid with a dashed border)
             if not is_new:
                 exist_pen = QtGui.QPen(QtGui.QColor(border_c), 0.8, QtCore.Qt.DotLine)
                 exist_pen.setColor(QtGui.QColor(border_c).darker(150))
@@ -2504,21 +2506,21 @@ class PlanDAGWidget(QtWidgets.QWidget):
 
 
 # ============================================================
-# StreamingPlanCard — 流式 Plan 生成 + 最终交互卡片（二合一）
+# StreamingPlanCard - streaming Plan generation + final interactive card (two in one)
 # ============================================================
 
 class StreamingPlanCard(QtWidgets.QWidget):
-    """流式 Plan 卡片 — 生成阶段逐步构建，完成后原地升级为完整交互卡片。
+    """streaming Plan card — generatestageone by onestepbuild, completeafteroriginalplaceupgradeascompletesubmitmutualcard. 
 
-    生命周期：
-    1. 创建时只有标题骨架 + STREAMING 标签
-    2. on_tool_args_delta 驱动 update_from_accumulated()，逐步渲染标题 → 概述 → 步骤
-    3. 工具执行完毕后，调用 finalize_with_data(plan_data) 原地补充：
-       - 步骤详情（sub_steps, tools, risk, deps, expected, fallback, notes）
-       - DAG 架构图
-       - 进度条
-       - Confirm / Reject 按钮
-    4. 后续 update_step_status / set_confirmed / set_rejected 等方法与旧 PlanViewer 完全兼容
+    Lifecycle:
+    1. On creation, has only the title skeleton + STREAMING label
+    2. on_tool_args_delta drives update_from_accumulated(), step by step rendering title -> overview -> step
+    3. toolexecutefinishfinishafter, call finalize_with_data(plan_data) originalplacesupplementfill: 
+       - stepdetails (sub_steps, tools, risk, deps, expected, fallback, notes) 
+       - DAG architecturediagram
+       - progressitem
+       - Confirm / Reject button
+    4. aftercontinue update_step_status / set_confirmed / set_rejected etc.methodwithold PlanViewer finishallcompatible with
     """
 
     planConfirmed = QtCore.Signal(dict)
@@ -2547,7 +2549,7 @@ class StreamingPlanCard(QtWidgets.QWidget):
         self._card_lay.setContentsMargins(14, 10, 14, 10)
         self._card_lay.setSpacing(6)
 
-        # ── 标题行 ──
+        # ── titlerow ──
         header = QtWidgets.QHBoxLayout()
         header.setSpacing(8)
         icon_lbl = QtWidgets.QLabel("📋")
@@ -2567,33 +2569,33 @@ class StreamingPlanCard(QtWidgets.QWidget):
         header.addWidget(self._status_badge)
         self._card_lay.addLayout(header)
 
-        # ── 概述 ──
+        # ── overview ──
         self._overview_lbl = QtWidgets.QLabel("")
         self._overview_lbl.setObjectName("planOverview")
         self._overview_lbl.setWordWrap(True)
         self._overview_lbl.setVisible(False)
         self._card_lay.addWidget(self._overview_lbl)
 
-        # ── 分隔线 ──
+        # ── partintervalline ──
         sep = QtWidgets.QFrame()
         sep.setFrameShape(QtWidgets.QFrame.HLine)
         sep.setObjectName("planSeparator")
         self._card_lay.addWidget(sep)
 
-        # ── 步骤容器（流式填充） ──
+        # ── stepcontain  (streamingfillfill)  ──
         self._steps_container = QtWidgets.QWidget()
         self._steps_lay = QtWidgets.QVBoxLayout(self._steps_container)
         self._steps_lay.setContentsMargins(0, 0, 0, 0)
         self._steps_lay.setSpacing(2)
         self._card_lay.addWidget(self._steps_container)
 
-        # ── 正在生成指示器 ──
+        # ── positiveingeneraterefershow  ──
         self._loading_lbl = QtWidgets.QLabel("  ⋯ generating steps...")
         self._loading_lbl.setObjectName("planStepDep")
         self._card_lay.addWidget(self._loading_lbl)
 
-        # ── 以下区域在 finalize_with_data 时动态添加 ──
-        # DAG, 进度条, 按钮 → 预留 placeholder
+        # ── or lessareain finalize_with_data whenmovestateadd ──
+        # DAG, progressitem, button → pre-keep placeholder
         self._dag_widget = None
         self._dag_scroll = None
         self._dag_toggle = None
@@ -2604,35 +2606,35 @@ class StreamingPlanCard(QtWidgets.QWidget):
 
         outer.addWidget(self._card)
 
-        # ── 流式跟踪状态 ──
+        # ── streamingtrackstate ──
         self._rendered_step_count = 0
         self._current_title = ""
         self._current_overview = ""
 
     # ==================================================================
-    # 流式阶段 API — 由 on_tool_args_delta 驱动
+    # Streaming-stage API - driven by on_tool_args_delta
     # ==================================================================
 
     def update_from_accumulated(self, accumulated: str):
-        """从 create_plan 的不完整 JSON 中增量提取并渲染内容。"""
+        """from create_plan  notcomplete JSON inincrementalextractandrendercontent. """
         if self._finalized:
             return
         import re as _re
 
-        # 提取 title
+        # extract title
         m_title = _re.search(r'"title"\s*:\s*"((?:[^"\\]|\\.)*)"', accumulated)
         if m_title and m_title.group(1) != self._current_title:
             self._current_title = m_title.group(1)
             self._title_lbl.setText(self._current_title)
 
-        # 提取 overview
+        # extract overview
         m_ov = _re.search(r'"overview"\s*:\s*"((?:[^"\\]|\\.)*)"', accumulated)
         if m_ov and m_ov.group(1) != self._current_overview:
             self._current_overview = m_ov.group(1)
             self._overview_lbl.setText(self._current_overview)
             self._overview_lbl.setVisible(True)
 
-        # 匹配 steps 数组中的每个 step 对象
+        # match steps countgroupin each step object
         steps_match = _re.search(r'"steps"\s*:\s*\[', accumulated)
         if not steps_match:
             return
@@ -2644,18 +2646,18 @@ class StreamingPlanCard(QtWidgets.QWidget):
         )
         all_steps = list(step_pattern.finditer(accumulated, steps_json_start))
 
-        # 仅渲染新出现的 step
+        # onlyrendernewoutnow  step
         for i in range(self._rendered_step_count, len(all_steps)):
             m = all_steps[i]
             self._add_streaming_step(m.group(1), m.group(2))
             self._rendered_step_count += 1
 
-        # 检查是否进入 architecture 部分
+        # checkwhetherenter architecture partpart
         if '"architecture"' in accumulated:
             self._loading_lbl.setText("  ⋯ generating architecture...")
 
     def _add_streaming_step(self, step_id: str, text: str):
-        """流式阶段：添加一行简化版步骤"""
+        """Streaming stage: add a single simplified-version step row."""
         row = QtWidgets.QHBoxLayout()
         row.setSpacing(6)
         row.setContentsMargins(4, 2, 0, 0)
@@ -2680,34 +2682,34 @@ class StreamingPlanCard(QtWidgets.QWidget):
         w.setLayout(row)
         self._steps_lay.addWidget(w)
 
-        # 记录引用以便 finalize 时更新
+        # recordreferenceso that finalize whenupdate
         self._step_labels[step_id] = (icon_w, title_lbl)
 
     # ==================================================================
-    # 完成阶段 API — 工具执行结束后调用
+    # completestage API — toolexecuteendaftercall
     # ==================================================================
 
     def finalize_with_data(self, plan_data: dict):
-        """用完整的 plan_data 原地升级卡片 — 补充详情、DAG、进度条、按钮。
+        """usecomplete  plan_data originalplaceupgradecard — supplementfilldetails, DAG, progressitem, button. 
 
-        此方法只会被调用一次。调用后卡片与旧 PlanViewer 功能完全等价。
+        This method is called only once. After the call, the card is functionally equivalent to the old PlanViewer.
         """
         if self._finalized:
             return
         self._finalized = True
         self._plan = plan_data
 
-        # 隐藏加载指示器
+        # hideloadrefershow 
         self._loading_lbl.setVisible(False)
 
-        # 用完整数据刷新标题 + 概述（覆盖流式阶段的可能不完整内容）
+        # usecompletedataflushnewtitle + overview (overridestreamingstage maynotcompletecontent) 
         self._title_lbl.setText(plan_data.get("title", self._current_title or "Plan"))
         overview = plan_data.get("overview", "")
         if overview:
             self._overview_lbl.setText(overview)
             self._overview_lbl.setVisible(True)
 
-        # ── 清空流式步骤，用完整步骤重建（含详情、deps 等） ──
+        # ── clearemptystreamingstep, usecompletesteprebuild (containingdetails, deps etc.)  ──
         while self._steps_lay.count():
             item = self._steps_lay.takeAt(0)
             if item.widget():
@@ -2725,7 +2727,7 @@ class StreamingPlanCard(QtWidgets.QWidget):
         for s in steps:
             step_id = s.get("id", "")
 
-            # Phase 标题
+            # Phase title
             phase_name = step_phase_map.get(step_id, "")
             if phase_name and phase_name not in rendered_phases:
                 rendered_phases.add(phase_name)
@@ -2737,7 +2739,7 @@ class StreamingPlanCard(QtWidgets.QWidget):
                 phase_lbl.setObjectName("planPhaseHeader")
                 self._steps_lay.addWidget(phase_lbl)
 
-            # 步骤主行
+            # stepmainrow
             step_row = QtWidgets.QHBoxLayout()
             step_row.setSpacing(6)
             step_row.setContentsMargins(4, 2, 0, 0)
@@ -2760,7 +2762,7 @@ class StreamingPlanCard(QtWidgets.QWidget):
             title_lbl.setWordWrap(True)
             step_row.addWidget(title_lbl, 1)
 
-            # 风险标记
+            # Risk marker
             risk = s.get("risk", "")
             if risk and risk != "low":
                 risk_lbl = QtWidgets.QLabel(f"⚠ {risk.upper()}")
@@ -2768,7 +2770,7 @@ class StreamingPlanCard(QtWidgets.QWidget):
                 risk_lbl.setProperty("risk", risk)
                 step_row.addWidget(risk_lbl)
 
-            # 依赖标记
+            # depend onmark
             deps = s.get("depends_on", [])
             if deps:
                 short_deps = [d.replace("step-", "s") for d in deps]
@@ -2781,7 +2783,7 @@ class StreamingPlanCard(QtWidgets.QWidget):
             row_w.setLayout(step_row)
             self._steps_lay.addWidget(row_w)
 
-            # 步骤详情
+            # stepdetails
             detail_w = QtWidgets.QWidget()
             detail_w.setObjectName("planStepDetail")
             detail_lay = QtWidgets.QVBoxLayout(detail_w)
@@ -2820,7 +2822,7 @@ class StreamingPlanCard(QtWidgets.QWidget):
 
             self._step_labels[step_id] = (icon_w, title_lbl)
 
-        # ── DAG 架构图 ──
+        # ── DAG architecturediagram ──
         sep2 = QtWidgets.QFrame()
         sep2.setFrameShape(QtWidgets.QFrame.HLine)
         sep2.setObjectName("planSeparator")
@@ -2856,13 +2858,13 @@ class StreamingPlanCard(QtWidgets.QWidget):
         self._dag_scroll.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self._dag_scroll.setFrameShape(QtWidgets.QFrame.NoFrame)
         self._dag_scroll.setWidget(self._dag_widget)
-        # ★ 高度完全跟随 DAG 内容，不设上限，确保架构图完整显示
+        # ★ heightfinishallfollow DAG content, notsetonlimit, ensurearchitecturediagramcompleteshow
         h = self._dag_widget._content_h
-        scrollbar_h = 14  # 横向滚动条高度预留
+        scrollbar_h = 14  # horizontaltowardscrollitemheightpre-keep
         self._dag_scroll.setFixedHeight((h + scrollbar_h) if h > 0 else 200)
         self._card_lay.addWidget(self._dag_scroll)
 
-        # ── 进度条 ──
+        # ── progressitem ──
         self._progress_bar = QtWidgets.QProgressBar()
         self._progress_bar.setObjectName("planProgress")
         self._progress_bar.setFixedHeight(8)
@@ -2871,7 +2873,7 @@ class StreamingPlanCard(QtWidgets.QWidget):
         self._progress_bar.setValue(0)
         self._card_lay.addWidget(self._progress_bar)
 
-        # ── Confirm / Reject 按钮 ──
+        # ── Confirm / Reject button ──
         self._btn_row = QtWidgets.QWidget()
         btn_lay = QtWidgets.QHBoxLayout(self._btn_row)
         btn_lay.setContentsMargins(0, 4, 0, 0)
@@ -2896,11 +2898,11 @@ class StreamingPlanCard(QtWidgets.QWidget):
 
         self._card_lay.addWidget(self._btn_row)
 
-        # 刷新状态
+        # flushnewstate
         self._refresh_ui()
 
     # ==================================================================
-    # PlanViewer 兼容 API — finalize 后可直接使用
+    # PlanViewer compatible with API — finalize aftercandirectlyuse
     # ==================================================================
 
     def set_confirmed(self):
@@ -2948,7 +2950,7 @@ class StreamingPlanCard(QtWidgets.QWidget):
         return self._plan
 
     # ==================================================================
-    # 内部方法
+    # withinpartmethod
     # ==================================================================
 
     def _do_confirm(self):
@@ -2972,7 +2974,7 @@ class StreamingPlanCard(QtWidgets.QWidget):
         if collapsed:
             self._dag_scroll.setFixedHeight(0)
         else:
-            # ★ 高度完全跟随 DAG 内容，不设上限
+            # ★ heightfinishallfollow DAG content, notsetonlimit
             h = self._dag_widget._content_h
             scrollbar_h = 14
             self._dag_scroll.setFixedHeight((h + scrollbar_h) if h > 0 else 200)
@@ -3008,22 +3010,22 @@ class StreamingPlanCard(QtWidgets.QWidget):
 
 
 # ============================================================
-# PlanViewer — Plan 模式交互卡片（嵌入聊天流）
+# PlanViewer — Plan modesubmitmutualcard (embedchatstream) 
 # ============================================================
 
 class PlanViewer(QtWidgets.QWidget):
-    """Plan 执行计划交互卡片。
+    """Plan executecountplansubmitmutualcard. 
 
-    在聊天流中渲染为可折叠的卡片，包含：
-    - 标题 + 状态
-    - 概述
-    - 步骤列表（含状态图标）
-    - DAG 流程图（可展开/收起）
-    - 进度条
-    - Confirm / Reject 按钮（仅在 awaiting_confirmation 状态可见）
+    inchatstreaminrenderascancollapse card, packagecontaining: 
+    - title + state
+    - overview
+    - steplist (containingstateicon) 
+    - DAG flowdiagram (canexpand/collectstart) 
+    - progressitem
+    - Confirm / Reject button (onlyin awaiting_confirmation statecansee) 
     """
 
-    planConfirmed = QtCore.Signal(dict)   # 发射 plan_data
+    planConfirmed = QtCore.Signal(dict)   # Emits plan_data
     planRejected = QtCore.Signal()
 
     _STATUS_ICONS = {
@@ -3045,14 +3047,14 @@ class PlanViewer(QtWidgets.QWidget):
         outer.setContentsMargins(0, 6, 0, 6)
         outer.setSpacing(0)
 
-        # ── 卡片容器 ──
+        # ── cardcontain  ──
         self._card = QtWidgets.QFrame(self)
         self._card.setObjectName("planViewerCard")
         card_lay = QtWidgets.QVBoxLayout(self._card)
         card_lay.setContentsMargins(14, 10, 14, 10)
         card_lay.setSpacing(6)
 
-        # ── 标题行 ──
+        # ── titlerow ──
         header = QtWidgets.QHBoxLayout()
         header.setSpacing(8)
 
@@ -3074,7 +3076,7 @@ class PlanViewer(QtWidgets.QWidget):
 
         card_lay.addLayout(header)
 
-        # ── 概述 ──
+        # ── overview ──
         overview = plan_data.get("overview", "")
         if overview:
             ov_lbl = QtWidgets.QLabel(overview)
@@ -3082,7 +3084,7 @@ class PlanViewer(QtWidgets.QWidget):
             ov_lbl.setWordWrap(True)
             card_lay.addWidget(ov_lbl)
 
-        # ── 复杂度 & 预估操作数 ──
+        # ── complexdegree & pre-estimateoperationcount ──
         complexity = plan_data.get("complexity", "")
         est_ops = plan_data.get("estimated_total_operations", 0)
         if complexity or est_ops:
@@ -3095,17 +3097,17 @@ class PlanViewer(QtWidgets.QWidget):
             meta_lbl.setObjectName("planMetaInfo")
             card_lay.addWidget(meta_lbl)
 
-        # ── 分隔线 ──
+        # ── partintervalline ──
         sep1 = QtWidgets.QFrame()
         sep1.setFrameShape(QtWidgets.QFrame.HLine)
         sep1.setObjectName("planSeparator")
         card_lay.addWidget(sep1)
 
-        # ── 步骤列表（增强版：支持 phases 分组 + 子步骤 + 详情）──
+        # ── steplist (addstrongversion: support phases group + substep + details) ──
         steps = plan_data.get("steps", [])
         phases = plan_data.get("phases", [])
 
-        # 构建 step_id → phase 映射
+        # build step_id → phase mapping
         step_phase_map = {}
         for phase in phases:
             for sid in phase.get("step_ids", []):
@@ -3115,7 +3117,7 @@ class PlanViewer(QtWidgets.QWidget):
         for s in steps:
             step_id = s.get("id", "")
 
-            # 如果此步骤属于某个 phase，且 phase 还未渲染过 → 插入 phase 标题
+            # If this step belongs to a phase and the phase has not been rendered yet -> insert the phase title
             phase_name = step_phase_map.get(step_id, "")
             if phase_name and phase_name not in rendered_phases:
                 rendered_phases.add(phase_name)
@@ -3127,7 +3129,7 @@ class PlanViewer(QtWidgets.QWidget):
                 phase_lbl.setObjectName("planPhaseHeader")
                 card_lay.addWidget(phase_lbl)
 
-            # ── 步骤标题行 ──
+            # ── steptitlerow ──
             step_row = QtWidgets.QHBoxLayout()
             step_row.setSpacing(6)
             step_row.setContentsMargins(4, 2, 0, 0)
@@ -3146,14 +3148,14 @@ class PlanViewer(QtWidgets.QWidget):
             sid_lbl.setFixedWidth(50)
             step_row.addWidget(sid_lbl)
 
-            # 使用 title 作为步骤列表显示文本，description 放在详情中
+            # use title assteplistshowtext, description putindetailsin
             title_text = s.get("title", s.get("description", ""))
             title_lbl = QtWidgets.QLabel(title_text)
             title_lbl.setObjectName("planStepTitle")
             title_lbl.setWordWrap(True)
             step_row.addWidget(title_lbl, 1)
 
-            # 风险标记
+            # Risk marker
             risk = s.get("risk", "")
             if risk and risk != "low":
                 risk_lbl = QtWidgets.QLabel(f"⚠ {risk.upper()}")
@@ -3161,10 +3163,10 @@ class PlanViewer(QtWidgets.QWidget):
                 risk_lbl.setProperty("risk", risk)
                 step_row.addWidget(risk_lbl)
 
-            # 依赖标记（紧凑格式）
+            # depend onmark (compactformat) 
             deps = s.get("depends_on", [])
             if deps:
-                # 将 "step-1" 缩写为 "s1"，节省空间
+                # Shorten "step-1" to "s1" to save space
                 short_deps = [d.replace("step-", "s") for d in deps]
                 dep_lbl = QtWidgets.QLabel(f"← {','.join(short_deps)}")
                 dep_lbl.setObjectName("planStepDep")
@@ -3175,14 +3177,14 @@ class PlanViewer(QtWidgets.QWidget):
             row_w.setLayout(step_row)
             card_lay.addWidget(row_w)
 
-            # ── 步骤详情区域（sub_steps + tools + expected + fallback）──
+            # ── stepdetailsarea (sub_steps + tools + expected + fallback) ──
             detail_w = QtWidgets.QWidget()
             detail_w.setObjectName("planStepDetail")
             detail_lay = QtWidgets.QVBoxLayout(detail_w)
             detail_lay.setContentsMargins(24, 0, 4, 4)
             detail_lay.setSpacing(2)
 
-            # 子步骤
+            # substep
             sub_steps = s.get("sub_steps", [])
             for sub in sub_steps:
                 sub_lbl = QtWidgets.QLabel(f"  ├ {sub}")
@@ -3190,14 +3192,14 @@ class PlanViewer(QtWidgets.QWidget):
                 sub_lbl.setWordWrap(True)
                 detail_lay.addWidget(sub_lbl)
 
-            # 工具列表
+            # toollist
             tools = s.get("tools", [])
             if tools:
                 tools_lbl = QtWidgets.QLabel(f"Tools: {', '.join(tools)}")
                 tools_lbl.setObjectName("planStepTools")
                 detail_lay.addWidget(tools_lbl)
 
-            # 预期结果
+            # pre-periodresult
             expected = s.get("expected_result", "")
             if expected:
                 exp_lbl = QtWidgets.QLabel(f"Expected: {expected}")
@@ -3205,7 +3207,7 @@ class PlanViewer(QtWidgets.QWidget):
                 exp_lbl.setWordWrap(True)
                 detail_lay.addWidget(exp_lbl)
 
-            # 回退策略
+            # fall backstrategy
             fallback = s.get("fallback", "")
             if fallback:
                 fb_lbl = QtWidgets.QLabel(f"Fallback: {fallback}")
@@ -3213,7 +3215,7 @@ class PlanViewer(QtWidgets.QWidget):
                 fb_lbl.setWordWrap(True)
                 detail_lay.addWidget(fb_lbl)
 
-            # 备注
+            # Fallback note
             notes = s.get("notes", "")
             if notes:
                 notes_lbl = QtWidgets.QLabel(f"Note: {notes}")
@@ -3226,7 +3228,7 @@ class PlanViewer(QtWidgets.QWidget):
 
             self._step_labels[step_id] = (icon_w, title_lbl)
 
-        # ── DAG 流程图区域 ──
+        # ── DAG flowdiagramarea ──
         sep2 = QtWidgets.QFrame()
         sep2.setFrameShape(QtWidgets.QFrame.HLine)
         sep2.setObjectName("planSeparator")
@@ -3234,12 +3236,12 @@ class PlanViewer(QtWidgets.QWidget):
 
         dag_header_row = QtWidgets.QHBoxLayout()
 
-        # 根据数据类型决定标题
+        # based ondatatypedecidefixedtitle
         arch_data = plan_data.get("architecture", {})
         has_real_arch = bool(arch_data and arch_data.get("nodes"))
 
         if not has_real_arch:
-            # ── 回退：从 steps 的 depends_on 自动生成步骤依赖图 ──
+            # ── fall back: from steps   depends_on autogeneratestepdepend ondiagram ──
             arch_data = self._build_step_dag(steps)
 
         dag_title = "Architecture" if has_real_arch else "Flow"
@@ -3259,21 +3261,21 @@ class PlanViewer(QtWidgets.QWidget):
         self._dag_widget = PlanDAGWidget(arch_data, self)
         self._dag_widget.set_collapsed(False)
 
-        # ★ 用 QScrollArea 包裹 DAG，窗口窄时自动出横向滚动条
+        # Wrap the DAG in a QScrollArea; horizontal scroll appears automatically when the window is narrow
         self._dag_scroll = QtWidgets.QScrollArea()
         self._dag_scroll.setObjectName("planDAGScroll")
-        self._dag_scroll.setWidgetResizable(False)  # 保持 DAG 原始尺寸
+        self._dag_scroll.setWidgetResizable(False)  # keep DAG originalsize
         self._dag_scroll.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
         self._dag_scroll.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self._dag_scroll.setFrameShape(QtWidgets.QFrame.NoFrame)
         self._dag_scroll.setWidget(self._dag_widget)
-        # ★ 高度完全跟随 DAG 内容，不设上限，确保架构图完整显示
+        # ★ heightfinishallfollow DAG content, notsetonlimit, ensurearchitecturediagramcompleteshow
         h = self._dag_widget._content_h
-        scrollbar_h = 14  # 横向滚动条高度预留
+        scrollbar_h = 14  # horizontaltowardscrollitemheightpre-keep
         self._dag_scroll.setFixedHeight((h + scrollbar_h) if h > 0 else 200)
         card_lay.addWidget(self._dag_scroll)
 
-        # ── 进度条 ──
+        # ── progressitem ──
         self._progress_bar = QtWidgets.QProgressBar()
         self._progress_bar.setObjectName("planProgress")
         self._progress_bar.setFixedHeight(8)
@@ -3282,7 +3284,7 @@ class PlanViewer(QtWidgets.QWidget):
         self._progress_bar.setValue(0)
         card_lay.addWidget(self._progress_bar)
 
-        # ── 按钮行 ──
+        # ── buttonrow ──
         self._btn_row = QtWidgets.QWidget()
         btn_lay = QtWidgets.QHBoxLayout(self._btn_row)
         btn_lay.setContentsMargins(0, 4, 0, 0)
@@ -3311,11 +3313,11 @@ class PlanViewer(QtWidgets.QWidget):
         self._refresh_ui()
 
     # ----------------------------------------------------------
-    # 公共方法
+    # Shared methods
     # ----------------------------------------------------------
 
     def set_confirmed(self):
-        """确认后禁用按钮"""
+        """confirmafterdisablebutton"""
         self._confirmed = True
         self._plan["status"] = "confirmed"
         self._btn_confirm.setEnabled(False)
@@ -3324,7 +3326,7 @@ class PlanViewer(QtWidgets.QWidget):
         self._refresh_ui()
 
     def set_rejected(self):
-        """拒绝后禁用按钮"""
+        """rejectafterdisablebutton"""
         self._rejected = True
         self._plan["status"] = "rejected"
         self._btn_confirm.setEnabled(False)
@@ -3333,8 +3335,8 @@ class PlanViewer(QtWidgets.QWidget):
         self._refresh_ui()
 
     def update_step_status(self, step_id: str, status: str, result_summary: str = ""):
-        """实时更新某个步骤的状态（执行阶段调用）"""
-        # 更新内部数据
+        """realwhenupdatesomestep state (executestagecall) """
+        # updatewithinpartdata
         for s in self._plan.get("steps", []):
             if s["id"] == step_id:
                 s["status"] = status
@@ -3342,7 +3344,7 @@ class PlanViewer(QtWidgets.QWidget):
                     s["result_summary"] = result_summary
                 break
 
-        # 更新步骤列表 UI
+        # updatesteplist UI
         if step_id in self._step_labels:
             icon_w, desc_lbl = self._step_labels[step_id]
             icon = self._STATUS_ICONS.get(status, "○")
@@ -3351,13 +3353,13 @@ class PlanViewer(QtWidgets.QWidget):
             icon_w.style().unpolish(icon_w)
             icon_w.style().polish(icon_w)
 
-        # 架构图为静态蓝图，步骤状态变更时无需更新
-        # self._dag_widget 展示的是最终节点网络拓扑
+        # Architecture diagram is a static blueprint; step-state changes do not need to update it
+        # self._dag_widget expandshow isfinalnodenetworktopology
 
-        # 更新进度条
+        # updateprogressitem
         self._update_progress()
 
-        # 检查是否全部完成
+        # checkwhetherallpartcomplete
         all_done = all(
             s.get("status") in ("done", "error")
             for s in self._plan.get("steps", [])
@@ -3370,7 +3372,7 @@ class PlanViewer(QtWidgets.QWidget):
         return self._plan
 
     # ----------------------------------------------------------
-    # 内部方法
+    # withinpartmethod
     # ----------------------------------------------------------
 
     def _do_confirm(self):
@@ -3387,35 +3389,35 @@ class PlanViewer(QtWidgets.QWidget):
 
     @staticmethod
     def _build_step_dag(steps: list) -> dict:
-        """从 steps 的 depends_on 关系自动构建步骤依赖 DAG 数据。
+        """from steps   depends_on relationautobuildstepdepend on DAG data. 
 
-        当 plan 没有 architecture 字段时作为回退方案，
-        将步骤列表转换为 PlanDAGWidget 可接受的 architecture 格式。
+        when plan nothas architecture fieldwhenasfall backapproach, 
+        willsteplistconvertswapas PlanDAGWidget canaccept  architecture format. 
         """
         nodes = []
         connections = []
 
-        # 收集所有 depends_on 关系
+        # collectsetall depends_on relation
         has_any_deps = any(s.get("depends_on") for s in steps)
 
         for s in steps:
             sid = s.get("id", "")
             title = s.get("title", s.get("description", sid))
-            # 截取前 20 字符作为 label
+            # cutfetchprevious 20 characteras label
             label = title[:20] + ("…" if len(title) > 20 else "")
             nodes.append({
                 "id": sid,
                 "label": label,
-                "type": "sop",   # 默认类型
+                "type": "sop",   # defaulttype
                 "is_new": True,
                 "params": ", ".join(s.get("tools", [])[:2]) if s.get("tools") else "",
             })
 
-            # 依赖关系 → 连线
+            # depend onrelation → connectline
             for dep_id in (s.get("depends_on") or []):
                 connections.append({"from": dep_id, "to": sid})
 
-        # 没有依赖关系时，自动生成线性链
+        # nothasdepend onrelationwhen, autogeneratelinepropertychain
         if not has_any_deps and len(steps) > 1:
             for i in range(len(steps) - 1):
                 connections.append({
@@ -3423,7 +3425,7 @@ class PlanViewer(QtWidgets.QWidget):
                     "to": steps[i + 1]["id"],
                 })
 
-        # 尝试从 phases 构建分组（如果有的话不会到这里，但兼容）
+        # Try to build from phases (if any - usually not reached here, but kept for compatibility)
         return {
             "nodes": nodes,
             "connections": connections,
@@ -3434,13 +3436,13 @@ class PlanViewer(QtWidgets.QWidget):
         collapsed = not self._dag_widget._collapsed
         self._dag_widget.set_collapsed(collapsed)
         self._dag_toggle.setText("▸ Expand" if collapsed else "▾ Collapse")
-        # ★ 同步滚动区域高度
+        # ★ syncscrollareaheight
         if collapsed:
             self._dag_scroll.setFixedHeight(0)
         else:
-            # DAG 内容高度 + 滚动条可能占用的空间
+            # DAG contentheight + scrollitemmayoccupyuse emptybetween
             h = self._dag_widget._content_h
-            scrollbar_h = 14  # 横向滚动条高度预留
+            scrollbar_h = 14  # horizontaltowardscrollitemheightpre-keep
             self._dag_scroll.setFixedHeight(h + scrollbar_h)
             self._dag_scroll.setMinimumHeight(h)
 
@@ -3465,30 +3467,30 @@ class PlanViewer(QtWidgets.QWidget):
             f"border: 1px solid {color}; border-radius: 4px; "
             f"font-size: 10px; padding: 1px 8px; font-weight: bold;"
         )
-        # 按钮可见性
+        # buttoncanseeproperty
         show_buttons = status in ("draft", "confirmed") and not self._confirmed and not self._rejected
         self._btn_row.setVisible(show_buttons and status == "draft")
         self._update_progress()
 
 
 # ============================================================
-# AskQuestionCard — AI 主动提问交互卡片（Plan 规划阶段）
+# AskQuestionCard — AI mainmoveasksubmitmutualcard (Plan ruleplanstage) 
 # ============================================================
 
 class AskQuestionCard(QtWidgets.QFrame):
-    """嵌入聊天流中的 AI 提问卡片。
+    """embedchatstreamin  AI askcard. 
 
-    AI 在 Plan 规划阶段需要澄清信息时，通过 ask_question 工具发起提问。
-    用户通过单选/多选/自由文本回答后，点击提交按钮。
-    答案通过 answered 信号返回给后台线程。
+    When the AI needs to clarify info during the Plan planning stage, it sends a question via the ask_question tool.
+    userviasingleselect/multiselect/selfbytextanswerafter, clickraisesubmitbutton. 
+    Answers are returned to the background thread via the answered signal.
 
-    questions 结构示例:
+    questions structureexample:
         [
             {
                 "id": "q1",
-                "prompt": "你想用 HeightField 还是 Grid？",
+                "prompt": "Do you want to use HeightField or Grid?",
                 "options": [
-                    {"id": "hf", "label": "HeightField (推荐)"},
+                    {"id": "hf", "label": "HeightField (recommended)"},
                     {"id": "grid", "label": "Grid"}
                 ],
                 "allow_multiple": false,
@@ -3497,8 +3499,8 @@ class AskQuestionCard(QtWidgets.QFrame):
         ]
     """
 
-    answered = QtCore.Signal(dict)    # 发射答案 dict: {q_id: [selected_option_ids], ...}
-    cancelled = QtCore.Signal()       # 用户取消
+    answered = QtCore.Signal(dict)    # Emits the answer dict: {q_id: [selected_option_ids], ...}
+    cancelled = QtCore.Signal()       # usercancel
 
     def __init__(self, questions: list, parent=None):
         super().__init__(parent)
@@ -3513,7 +3515,7 @@ class AskQuestionCard(QtWidgets.QFrame):
         main_lay.setContentsMargins(14, 10, 14, 10)
         main_lay.setSpacing(8)
 
-        # ── 标题 ──
+        # ── title ──
         title_row = QtWidgets.QHBoxLayout()
         title_row.setSpacing(6)
         icon_lbl = QtWidgets.QLabel("❓")
@@ -3525,7 +3527,7 @@ class AskQuestionCard(QtWidgets.QFrame):
         title_row.addWidget(title_lbl, 1)
         main_lay.addLayout(title_row)
 
-        # ── 各问题 ──
+        # ── eachissue ──
         for q in questions:
             q_id = q.get("id", "")
             prompt = q.get("prompt", "")
@@ -3533,19 +3535,19 @@ class AskQuestionCard(QtWidgets.QFrame):
             allow_multiple = q.get("allow_multiple", False)
             allow_free_text = q.get("allow_free_text", False)
 
-            # 问题分隔线
+            # issuepartintervalline
             sep = QtWidgets.QFrame()
             sep.setFrameShape(QtWidgets.QFrame.HLine)
             sep.setObjectName("askQuestionSep")
             main_lay.addWidget(sep)
 
-            # 问题文本
+            # issuetext
             q_lbl = QtWidgets.QLabel(f"{q_id.upper()}: {prompt}")
             q_lbl.setObjectName("askQuestionPrompt")
             q_lbl.setWordWrap(True)
             main_lay.addWidget(q_lbl)
 
-            # 选项
+            # selectitem
             btn_group = None
             buttons = []
             if not allow_multiple:
@@ -3565,7 +3567,7 @@ class AskQuestionCard(QtWidgets.QFrame):
                 main_lay.addWidget(btn)
                 buttons.append(btn)
 
-            # 自由文本输入
+            # selfbytextinput
             free_text = None
             if allow_free_text:
                 free_text = QtWidgets.QLineEdit()
@@ -3580,7 +3582,7 @@ class AskQuestionCard(QtWidgets.QFrame):
                 "allow_multiple": allow_multiple,
             }
 
-        # ── 按钮行 ──
+        # ── buttonrow ──
         btn_row = QtWidgets.QHBoxLayout()
         btn_row.setContentsMargins(0, 6, 0, 0)
         btn_row.addStretch()
@@ -3604,14 +3606,14 @@ class AskQuestionCard(QtWidgets.QFrame):
         main_lay.addLayout(btn_row)
 
     def _collect_answers(self) -> dict:
-        """收集用户的回答"""
+        """collectsetuser answer"""
         answers = {}
         for q_id, w_info in self._widgets.items():
             selected = []
             for btn in w_info["buttons"]:
                 if btn.isChecked():
                     selected.append(btn.property("opt_id"))
-            # 自由文本
+            # selfbytext
             free_text = w_info.get("free_text")
             if free_text and free_text.text().strip():
                 selected.append(f"__free_text__:{free_text.text().strip()}")
@@ -3639,49 +3641,49 @@ class AskQuestionCard(QtWidgets.QFrame):
 
 
 # ============================================================
-# Markdown 解析器（专业版）
+# Markdown parser (specialized version)
 # ============================================================
 
 class SimpleMarkdown:
-    """将 Markdown 转换为 Qt Rich Text HTML（增强版）
+    """will Markdown convertswapas Qt Rich Text HTML (addstrongversion) 
 
-    支持特性：
-    - 标题 (# ~ ####)
-    - 粗体 / 斜体 / 删除线 / 行内代码
-    - 无序列表 / 有序列表 / 任务列表 / 嵌套列表
-    - 引用块（多行合并，支持渐变背景）
-    - 表格（居中 / 左对齐 / 右对齐）
-    - 水平分割线
-    - 链接 [text](url) / 自动 URL 检测
-    - 图片 ![alt](url)
-    - 脚注 [^id] / [^id]: ...
-    - 转义字符 \\* \\` 等
-    - 围栏代码块（交给 CodeBlockWidget）
+    supportspecialproperty: 
+    - title (# ~ ####)
+    - Bold / italic / strikethrough / inline code
+    - noorderlist / hasorderlist / tasklist / nestedlist
+    - referenceblock (multirowmerge, supportgradualchangebackground) 
+    - Tables (center / left-align / right-align)
+    - Horizontal rule
+    - link [text](url) / auto URL detect
+    - image ![alt](url)
+    - footnote [^id] / [^id]: ...
+    - convertmeaningcharacter \\* \\` etc.
+    - Fenced code blocks (handed to CodeBlockWidget)
     """
 
     _CODE_BLOCK_RE = re.compile(r'```(\w*)\n(.*?)```', re.DOTALL)
-    _TABLE_SEP_RE = re.compile(r'^\|?\s*[-:]+[-| :]*$')  # 表头分割行
-    # 自动检测裸 URL
+    _TABLE_SEP_RE = re.compile(r'^\|?\s*[-:]+[-| :]*$')  # Table header separator row
+    # autodetectbare URL
     _AUTO_URL_RE = re.compile(
-        r'(?<!["\w/=])(?<!\]\()(?<!\[)'       # 不在引号、字母、=、](、[ 之后
-        r'(https?://[^\s<>\)\]\"\'`]+)'        # URL 本体
+        r'(?<!["\w/=])(?<!\]\()(?<!\[)'       # Not preceded by quote, word char, =, ](, or [
+        r'(https?://[^\s<>\)\]\"\'`]+)'        # URL thisbody
     )
-    # 脚注引用
+    # footnotereference
     _FOOTNOTE_REF_RE = re.compile(r'\[\^(\w+)\](?!:)')
-    # 脚注定义
+    # footnotefixedmeaning
     _FOOTNOTE_DEF_RE = re.compile(r'^\[\^(\w+)\]:\s*(.*)')
-    # 图片语法
+    # imagesyntax
     _IMAGE_RE = re.compile(r'!\[([^\]]*)\]\(([^)]+)\)')
-    # 列表缩进检测
+    # listindentationdetect
     _LIST_ITEM_RE = re.compile(r'^(\s*)([-*]|\d+\.)\s+(.*)')
-    # 任务列表
+    # tasklist
     _TASK_ITEM_RE = re.compile(r'^(\s*)[-*]\s+\[([ xX])\]\s+(.*)')
 
-    # -------- 公共接口 --------
+    # -------- Public interface --------
 
     @classmethod
     def parse_segments(cls, text: str) -> list:
-        """将文本拆分为 ('text', html), ('code', lang, raw_code), ('image', url, alt) 段落"""
+        """willtextsplitas ('text', html), ('code', lang, raw_code), ('image', url, alt) paragraph"""
         segments: list = []
         last = 0
         for m in cls._CODE_BLOCK_RE.finditer(text):
@@ -3699,10 +3701,10 @@ class SimpleMarkdown:
 
     @classmethod
     def _parse_text_with_images(cls, text: str, segments: list):
-        """将文本段落进一步拆分出独立的 image segment
+        """willtextparagraphenteronestepsplitoutindependentstand  image segment
         
-        只有独占一行的 ![alt](url) 才作为独立 image segment，
-        行内的图片语法仍按行内格式处理。
+        onlyhasindependentoccupyonerow  ![alt](url) only thenasindependentstand image segment, 
+        rowwithin imagesyntaxstillbyrowwithinformatprocess. 
         """
         lines = text.split('\n')
         buf_lines: list = []
@@ -3726,7 +3728,7 @@ class SimpleMarkdown:
 
     @classmethod
     def has_rich_content(cls, text: str) -> bool:
-        """判断文本是否包含 Markdown 格式"""
+        """decidebreaktextwhetherpackagecontaining Markdown format"""
         if '```' in text:
             return True
         if re.search(r'^#{1,4}\s', text, re.MULTILINE):
@@ -3745,11 +3747,11 @@ class SimpleMarkdown:
             return True
         return False
 
-    # -------- 块级解析 --------
+    # -------- blocklevelparse --------
 
     @classmethod
     def _get_indent(cls, line: str) -> int:
-        """返回行的缩进空格数"""
+        """returnrow indentationemptygridcount"""
         return len(line) - len(line.lstrip())
 
     @classmethod
@@ -3759,14 +3761,14 @@ class SimpleMarkdown:
         i = 0
         n = len(lines)
 
-        # 嵌套列表状态栈: [(tag, indent_level), ...]
+        # Nested-list state stack: [(tag, indent_level), ...]
         list_stack: list = []
-        # 引用块缓冲
+        # referenceblockbuffer
         quote_buf: list = []
-        # 脚注定义收集
+        # footnotefixedmeaningcollectset
         footnotes: dict = {}
 
-        # 第一遍：收集脚注定义
+        # firstall: collectsetfootnotefixedmeaning
         remaining_lines: list = []
         for line in lines:
             fn_match = cls._FOOTNOTE_DEF_RE.match(line.strip())
@@ -3783,7 +3785,7 @@ class SimpleMarkdown:
                 out.append(f'</{ltag}>')
 
         def _flush_lists_to_indent(target_indent: int):
-            """关闭所有缩进大于 target_indent 的列表层级"""
+            """closeallindentationgreater than target_indent  listlayerlevel"""
             while list_stack and list_stack[-1][0] > target_indent:
                 _, ltag = list_stack.pop()
                 out.append(f'</{ltag}>')
@@ -3855,7 +3857,7 @@ class SimpleMarkdown:
                 i += 1
                 continue
 
-            # ---- blockquote (合并连续行) ----
+            # ---- blockquote (mergeconsecutiverow) ----
             if s.startswith('> '):
                 _flush_all_lists()
                 quote_buf.append(s[2:])
@@ -3905,7 +3907,7 @@ class SimpleMarkdown:
                 _flush_lists_to_indent(indent)
 
                 if not list_stack or list_stack[-1][0] < indent:
-                    # 开启新的嵌套层级
+                    # openstartnewnestedlayerlevel
                     if is_ordered:
                         out.append(
                             '<ol style="margin:4px 0;padding-left:22px;color:#94a3b8;">'
@@ -3917,7 +3919,7 @@ class SimpleMarkdown:
                         )
                     list_stack.append((indent, new_tag))
                 elif list_stack[-1][1] != new_tag:
-                    # 同层级但类型切换
+                    # samelayerlevelbuttypeswitch
                     old_indent, old_tag = list_stack.pop()
                     out.append(f'</{old_tag}>')
                     if is_ordered:
@@ -3949,7 +3951,7 @@ class SimpleMarkdown:
         _flush_quote()
         _flush_all_lists()
 
-        # 渲染脚注定义区域（如果有）
+        # renderfootnotefixedmeaningarea (ifhas) 
         if footnotes:
             out.append(
                 '<hr style="border:none;border-top:1px solid rgba(255,255,255,8);'
@@ -3965,17 +3967,17 @@ class SimpleMarkdown:
 
         return '\n'.join(out)
 
-    # -------- 表格解析 --------
+    # -------- tablegridparse --------
 
     @classmethod
     def _parse_table(cls, lines: list, start: int) -> tuple:
-        """解析 Markdown 表格，返回 (html, next_line_index)"""
+        """parse Markdown tablegrid, return (html, next_line_index)"""
         header_line = lines[start].strip()
         if start + 1 >= len(lines):
             return None
         sep_line = lines[start + 1].strip()
 
-        # 解析对齐方式
+        # parsealignway
         sep_cells = [c.strip() for c in sep_line.strip('|').split('|')]
         aligns = []
         for c in sep_cells:
@@ -3995,10 +3997,10 @@ class SimpleMarkdown:
                 line = line[:-1]
             return [c.strip() for c in line.split('|')]
 
-        # 表头
+        # tablehead
         headers = _parse_row(header_line)
 
-        # 表体
+        # tablebody
         rows = []
         j = start + 2
         while j < len(lines):
@@ -4008,7 +4010,7 @@ class SimpleMarkdown:
             rows.append(_parse_row(row_s))
             j += 1
 
-        # 生成 HTML（现代极简：无外边框、无斑马纹、仅底线分隔）
+        # Generate HTML (very minimal: no outer border, no zebra stripes, only bottom-line separators)
         tbl = [
             '<table style="border-collapse:collapse;'
             'margin:10px 0;width:100%;font-size:0.92em;">'
@@ -4026,7 +4028,7 @@ class SimpleMarkdown:
             )
         tbl.append('</tr>')
 
-        # tbody — 统一背景，仅底线分隔
+        # tbody — statsonebackground, onlybottomlinepartinterval
         for ri, row in enumerate(rows):
             tbl.append('<tr>')
             for ci, cell in enumerate(row):
@@ -4045,28 +4047,28 @@ class SimpleMarkdown:
         tbl.append('</table>')
         return ('\n'.join(tbl), j)
 
-    # -------- 行内解析 --------
+    # -------- rowwithinparse --------
 
     @classmethod
     def _inline(cls, text: str, footnotes: dict = None) -> str:
-        """行内格式: **粗体**, *斜体*, ~~删除线~~, `代码`, [链接](url),
-        ![图片](url), [^脚注], 自动URL, 转义字符, 节点路径"""
-        # 1. 处理转义字符：先将 \X 替换为占位符，最后再还原
+        """Inline format: **bold**, *italic*, ~~strikethrough~~, `code`, [link](url),
+        ![image](url), [^footnote], autoURL, convertmeaningcharacter, node path"""
+        # 1. processconvertmeaningcharacter: firstwill \X replaceswapasoccupybitsymbol, lastagainstilloriginal
         _ESC_MAP = {}
         _esc_counter = [0]
 
         def _replace_escape(m):
             key = f'\x00ESC{_esc_counter[0]}\x00'
-            _ESC_MAP[key] = m.group(1)  # 被转义的字符
+            _ESC_MAP[key] = m.group(1)  # isconvertmeaning character
             _esc_counter[0] += 1
             return key
 
         text = re.sub(r'\\([\\`*_~\[\]()#>!|])', _replace_escape, text)
 
-        # 2. HTML 转义
+        # 2. HTML convertmeaning
         text = html.escape(text)
 
-        # 3. 行内图片 ![alt](url)（行内级别，不独占行）
+        # 3. Inline image ![alt](url) (inline-level, not its own line)
         text = re.sub(
             r'!\[([^\]]*)\]\(([^)]+)\)',
             r'<img src="\2" alt="\1" style="max-width:100%;max-height:200px;'
@@ -4074,7 +4076,7 @@ class SimpleMarkdown:
             text,
         )
 
-        # 4. 链接 [text](url)
+        # 4. link [text](url)
         text = re.sub(
             r'\[([^\]]+?)\]\(([^)]+?)\)',
             r'<a href="\2" style="color:#818cf8;text-decoration:none;'
@@ -4082,7 +4084,7 @@ class SimpleMarkdown:
             text,
         )
 
-        # 5. 脚注引用 [^id]
+        # 5. footnotereference [^id]
         if footnotes:
             def _fn_ref(m):
                 fid = m.group(1)
@@ -4095,13 +4097,13 @@ class SimpleMarkdown:
                 return m.group(0)
             text = cls._FOOTNOTE_REF_RE.sub(_fn_ref, text)
 
-        # 6. 粗体
+        # 6. Bold
         text = re.sub(r'\*\*(.+?)\*\*', r'<b style="color:#f1f5f9;font-weight:600;">\1</b>', text)
-        # 7. 删除线
+        # 7. deleteline
         text = re.sub(r'~~(.+?)~~', r'<s style="color:#64748b;">\1</s>', text)
-        # 8. 斜体
+        # 8. Italic
         text = re.sub(r'(?<!\*)\*([^*]+?)\*(?!\*)', r'<i style="color:#cbd5e1;">\1</i>', text)
-        # 9. 行内代码
+        # 9. rowwithincode
         text = re.sub(
             r'`([^`]+?)`',
             r'<code style="background:rgba(255,255,255,8);padding:2px 7px;border-radius:5px;'
@@ -4109,15 +4111,15 @@ class SimpleMarkdown:
             r'font-size:0.88em;border:1px solid rgba(255,255,255,5);">\1</code>',
             text,
         )
-        # 10. 自动 URL 检测（裸链接）
+        # 10. auto URL detect (barelink) 
         text = cls._AUTO_URL_RE.sub(
             r'<a href="\1" style="color:#818cf8;text-decoration:none;">\1</a>',
             text,
         )
-        # 11. Houdini 节点路径 → 可点击链接
+        # 11. Houdini node path → canclicklink
         text = _linkify_node_paths(text)
 
-        # 12. 还原转义字符
+        # 12. stilloriginalconvertmeaningcharacter
         for key, char in _ESC_MAP.items():
             text = text.replace(key, html.escape(char))
 
@@ -4125,13 +4127,13 @@ class SimpleMarkdown:
 
 
 # ============================================================
-# 语法高亮器
+# syntaxhighlight 
 # ============================================================
 
 class SyntaxHighlighter:
-    """代码语法高亮 — 基于 token 的着色
+    """Code syntax highlighting - token-based coloring.
     
-    支持语言: VEX, Python, JSON, YAML, Bash/Shell, JavaScript/TypeScript,
+    supportlanguage: VEX, Python, JSON, YAML, Bash/Shell, JavaScript/TypeScript,
     HScript, GLSL, Markdown
     """
 
@@ -4267,16 +4269,16 @@ class SyntaxHighlighter:
 
     @classmethod
     def highlight_json(cls, code: str) -> str:
-        """JSON 高亮：key 和 value 区分着色"""
+        """JSON highlighting: color keys and value sections."""
         parts: list = []
         i, n = 0, len(code)
-        # 简单状态：上一个非空白字符是 { 或 , 或行首 → 下一个字符串是 key
+        # simplestate: ononenotemptywhitecharacteris { or , orrowfirst → belowonestringis key
         expect_key = True
 
         while i < n:
             c = code[i]
 
-            # 空白
+            # emptywhite
             if c in (' ', '\t', '\n', '\r'):
                 parts.append(c)
                 if c == '\n':
@@ -4284,7 +4286,7 @@ class SyntaxHighlighter:
                 i += 1
                 continue
 
-            # 字符串
+            # string
             if c == '"':
                 j = i + 1
                 while j < n and code[j] != '"':
@@ -4294,8 +4296,8 @@ class SyntaxHighlighter:
                 if j < n:
                     j += 1
                 s = code[i:j]
-                # 判断是 key 还是 value
-                # key 后面（跳过空白）应该是 :
+                # decidebreakis key stillis value
+                # key afterface (skipemptywhite) shouldthisis :
                 rest = code[j:].lstrip()
                 if expect_key and rest.startswith(':'):
                     parts.append(cls._span('key', s))
@@ -4305,21 +4307,21 @@ class SyntaxHighlighter:
                 i = j
                 continue
 
-            # 冒号
+            # Colon
             if c == ':':
                 parts.append(html.escape(c))
                 expect_key = False
                 i += 1
                 continue
 
-            # 逗号
+            # Comma
             if c == ',':
                 parts.append(html.escape(c))
                 expect_key = True
                 i += 1
                 continue
 
-            # 大括号 / 方括号
+            # largeincludenumber / wayincludenumber
             if c in ('{', '['):
                 parts.append(html.escape(c))
                 expect_key = True
@@ -4330,7 +4332,7 @@ class SyntaxHighlighter:
                 i += 1
                 continue
 
-            # 数字
+            # countcharacter
             if c.isdigit() or (c == '-' and i + 1 < n and code[i + 1].isdigit()):
                 j = i + 1 if c == '-' else i
                 while j < n and (code[j].isdigit() or code[j] in ('.', 'e', 'E', '+', '-')):
@@ -4353,7 +4355,7 @@ class SyntaxHighlighter:
 
     @classmethod
     def highlight_yaml(cls, code: str) -> str:
-        """YAML 高亮：key-value 区分、注释、列表标记"""
+        """YAML highlighting: key-value sections, comments, list markers."""
         parts: list = []
         lines = code.split('\n')
         for li, line in enumerate(lines):
@@ -4362,25 +4364,25 @@ class SyntaxHighlighter:
 
             stripped = line.lstrip()
 
-            # 注释
+            # Comments
             if stripped.startswith('#'):
                 parts.append(cls._span('comment', line))
                 continue
 
-            # 文档分隔符 ---
+            # documentpartintervalsymbol ---
             if stripped in ('---', '...'):
                 parts.append(cls._span('directive', line))
                 continue
 
-            # 列表项 - xxx: value
+            # listitem - xxx: value
             indent = line[:len(line) - len(stripped)]
             if indent:
                 parts.append(html.escape(indent))
 
-            # 检查 key: value 格式
+            # check key: value format
             colon_pos = stripped.find(':')
             if colon_pos > 0 and (colon_pos + 1 >= len(stripped) or stripped[colon_pos + 1] == ' '):
-                # 处理列表标记
+                # processlistmark
                 key_part = stripped[:colon_pos]
                 if key_part.startswith('- '):
                     parts.append(html.escape('- '))
@@ -4391,7 +4393,7 @@ class SyntaxHighlighter:
 
                 value_part = stripped[colon_pos + 1:]
                 if value_part:
-                    # 检查 value 中的注释
+                    # Check value-side comment
                     comment_pos = value_part.find(' #')
                     if comment_pos >= 0:
                         val = value_part[:comment_pos]
@@ -4401,7 +4403,7 @@ class SyntaxHighlighter:
                     else:
                         parts.append(cls._highlight_yaml_value(value_part))
             else:
-                # 列表项或纯值
+                # listitemorpurevalue
                 if stripped.startswith('- '):
                     parts.append(html.escape('- '))
                     parts.append(cls._highlight_yaml_value(stripped[2:]))
@@ -4412,22 +4414,22 @@ class SyntaxHighlighter:
 
     @classmethod
     def _highlight_yaml_value(cls, value: str) -> str:
-        """高亮 YAML 值"""
+        """highlight YAML value"""
         v = value.strip()
         if not v:
             return html.escape(value)
 
-        # 保留前导空格
+        # keeppreviousimportemptygrid
         leading = value[:len(value) - len(value.lstrip())]
         result = html.escape(leading) if leading else ''
 
-        # 字符串（带引号）
+        # string (withguidenumber) 
         if (v.startswith('"') and v.endswith('"')) or (v.startswith("'") and v.endswith("'")):
             return result + cls._span('string', v)
-        # 布尔 / null
+        # boolean / null
         if v.lower() in ('true', 'false', 'yes', 'no', 'on', 'off', 'null', '~'):
             return result + cls._span('constant', v)
-        # 数字
+        # countcharacter
         try:
             float(v)
             return result + cls._span('number', v)
@@ -4548,18 +4550,18 @@ class SyntaxHighlighter:
 
 
 # ============================================================
-# 可折叠 Shell 输出区域（Python Shell / System Shell 共用）
+# cancollapse Shell outputarea (Python Shell / System Shell shareduse) 
 # ============================================================
 
 class _CollapsibleShellOutput(QtWidgets.QWidget):
-    """可折叠的 Shell 输出区域
+    """cancollapse  Shell outputarea
     
-    - 默认折叠：只显示 4 行，滚轮穿透到父窗口
-    - 展开后：显示全部内容，滚轮可滚动内联区域
+    - Default collapsed: only show 4 rows; scroll passes through to parent window
+    - expandafter: showallpartcontent, scrollroundcanscrollwithinassociatearea
     """
 
     _COLLAPSED_LINES = 4
-    _MAX_EXPANDED_H = 400  # 展开后最大高度
+    _MAX_EXPANDED_H = 400  # expandaftermaxheight
 
     def __init__(self, content_html: str, bg_color: str = "#141428",
                  parent=None):
@@ -4567,14 +4569,14 @@ class _CollapsibleShellOutput(QtWidgets.QWidget):
         self._collapsed = True
         self._full_h = 0
         self._collapsed_h = 0
-        # 根据背景色推断 variant（python / system）
+        # Infer variant (python / system) based on background color
         self._variant = "system" if bg_color == "#141414" else "python"
 
         lay = QtWidgets.QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(0)
 
-        # ── QTextEdit（输出内容）──
+        # ── QTextEdit (outputcontent) ──
         self._text = QtWidgets.QTextEdit()
         self._text.setReadOnly(True)
         self._text.setLineWrapMode(QtWidgets.QTextEdit.NoWrap)
@@ -4586,34 +4588,34 @@ class _CollapsibleShellOutput(QtWidgets.QWidget):
         )
         lay.addWidget(self._text)
 
-        # 计算尺寸
+        # computesize
         doc = self._text.document()
         doc.setDocumentMargin(4)
         self._full_h = int(doc.size().height()) + 16
 
-        # 计算折叠高度（4 行）
+        # computecollapseheight (4 row) 
         fm = self._text.fontMetrics()
         line_h = fm.lineSpacing() if fm.lineSpacing() > 0 else 17
         self._collapsed_h = self._COLLAPSED_LINES * line_h + 16  # 16 = padding
 
-        # 判断是否需要折叠（内容不足 4 行则不折叠）
+        # Decide whether to collapse (skip if content is fewer than 4 rows)
         self._needs_collapse = self._full_h > self._collapsed_h + line_h
 
         if self._needs_collapse:
-            # 初始折叠状态
+            # initialcollapsestate
             self._text.setFixedHeight(self._collapsed_h)
             self._text.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
             self._text.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
-            # 安装事件过滤器拦截滚轮
+            # installeventfilter interceptcutscrollround
             self._text.viewport().installEventFilter(self)
 
-            # 计算总行数
+            # computetotalrowcount
             total_lines = content_html.count('<br>') + content_html.count('\n') + 1
             remaining = max(0, total_lines - self._COLLAPSED_LINES)
 
-            # ── 展开/收起 toggle bar ──
+            # ── expand/collectstart toggle bar ──
             self._toggle = QtWidgets.QLabel(
-                f"  ▼ 展开 ({remaining} 更多行)"
+                f"  ▼ expand ({remaining} moremultirow)"
             )
             self._toggle.setCursor(QtCore.Qt.PointingHandCursor)
             self._toggle.setObjectName("shellToggle")
@@ -4623,24 +4625,24 @@ class _CollapsibleShellOutput(QtWidgets.QWidget):
             lay.addWidget(self._toggle)
             self._remaining = remaining
         else:
-            # 内容较短，不需要折叠，直接显示全部
+            # Content is short - no collapse needed; show in full
             h = min(self._full_h, self._MAX_EXPANDED_H)
             self._text.setFixedHeight(h)
             self._text.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
             self._text.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
 
     def _toggle_collapse(self):
-        """切换折叠/展开"""
+        """switchcollapse/expand"""
         self._collapsed = not self._collapsed
         if self._collapsed:
-            # 折叠
+            # collapse
             self._text.setFixedHeight(self._collapsed_h)
             self._text.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
             self._text.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
             self._text.verticalScrollBar().setValue(0)
             self._toggle.setText(f"  ▼ Expand ({self._remaining} more lines)")
         else:
-            # 展开
+            # expand
             h = min(self._full_h, self._MAX_EXPANDED_H)
             self._text.setFixedHeight(h)
             if self._full_h > self._MAX_EXPANDED_H:
@@ -4651,26 +4653,26 @@ class _CollapsibleShellOutput(QtWidgets.QWidget):
             self._toggle.setText("  ▲ Collapse")
 
     def eventFilter(self, obj, event):
-        """折叠状态下，滚轮事件穿透到父窗口"""
+        """When collapsed, scroll-wheel events pass through to the parent window."""
         if (event.type() == QtCore.QEvent.Wheel
                 and self._collapsed and self._needs_collapse):
-            # 把滚轮事件转发给父 ScrollArea
+            # Forward the scroll event to the parent ScrollArea
             parent = self.parent()
             while parent:
                 if isinstance(parent, QtWidgets.QScrollArea):
                     QtWidgets.QApplication.sendEvent(parent.viewport(), event)
                     return True
                 parent = parent.parent()
-            return True  # 即使没找到也吃掉，避免内联滚动
+            return True  # Swallow even if not found, to avoid inner scroll
         return super().eventFilter(obj, event)
 
 
 # ============================================================
-# Python Shell 执行窗口
+# Python Shell executewindow
 # ============================================================
 
 class PythonShellWidget(QtWidgets.QFrame):
-    """Python Shell 执行结果 — 显示代码 + 输出 + 错误"""
+    """Python Shell executeresult — showcode + output + error"""
     
     def __init__(self, code: str, output: str = "", error: str = "",
                  exec_time: float = 0.0, success: bool = True, parent=None):
@@ -4683,7 +4685,7 @@ class PythonShellWidget(QtWidgets.QFrame):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         
-        # ---- header: Python Shell + 执行时间 ----
+        # ---- header: Python Shell + executewhenbetween ----
         header = QtWidgets.QWidget()
         header.setObjectName("pyShellHeader")
         hl = QtWidgets.QHBoxLayout(header)
@@ -4707,7 +4709,7 @@ class PythonShellWidget(QtWidgets.QFrame):
         
         layout.addWidget(header)
         
-        # ---- 代码区域 ----
+        # ---- codearea ----
         code_widget = QtWidgets.QTextEdit()
         code_widget.setReadOnly(True)
         code_widget.setLineWrapMode(QtWidgets.QTextEdit.NoWrap)
@@ -4715,18 +4717,18 @@ class PythonShellWidget(QtWidgets.QFrame):
         code_widget.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
         code_widget.setObjectName("shellCodeEdit")
         
-        # Python 语法高亮
+        # Python syntaxhighlight
         highlighted_code = SyntaxHighlighter.highlight_python(code)
         code_widget.setHtml(f'<pre style="margin:0;white-space:pre;">{highlighted_code}</pre>')
         
-        # 代码区高度自适应 (最高 200px)
+        # codesectionheightselfsuitshould (mosthigh 200px)
         doc = code_widget.document()
         doc.setDocumentMargin(4)
         code_h = min(int(doc.size().height()) + 16, 200)
         code_widget.setFixedHeight(code_h)
         layout.addWidget(code_widget)
         
-        # ---- 输出区域（可折叠）----
+        # ---- outputarea (cancollapse) ----
         has_output = bool(output and output.strip())
         has_error = bool(error and error.strip())
         
@@ -4748,7 +4750,7 @@ class PythonShellWidget(QtWidgets.QFrame):
 
 
 class SystemShellWidget(QtWidgets.QFrame):
-    """System Shell 执行结果 — 显示命令 + stdout/stderr + 退出码"""
+    """System Shell executeresult — showcommandcommand + stdout/stderr + exitcode"""
 
     def __init__(self, command: str, output: str = "", error: str = "",
                  exit_code: int = 0, exec_time: float = 0.0,
@@ -4762,7 +4764,7 @@ class SystemShellWidget(QtWidgets.QFrame):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # ---- header: SHELL + cwd + 执行时间 + 退出码 ----
+        # ---- header: SHELL + cwd + executewhenbetween + exitcode ----
         header = QtWidgets.QWidget()
         header.setObjectName("sysShellHeader")
         hl = QtWidgets.QHBoxLayout(header)
@@ -4774,7 +4776,7 @@ class SystemShellWidget(QtWidgets.QFrame):
         hl.addWidget(title_lbl)
 
         if cwd:
-            # 只显示最后两层目录
+            # onlyshowlasttwolayerdirectory
             parts = cwd.replace('\\', '/').rstrip('/').split('/')
             short_cwd = '/'.join(parts[-2:]) if len(parts) >= 2 else cwd
             cwd_lbl = QtWidgets.QLabel(short_cwd)
@@ -4794,7 +4796,7 @@ class SystemShellWidget(QtWidgets.QFrame):
 
         layout.addWidget(header)
 
-        # ---- 命令区域 ----
+        # ---- commandcommandarea ----
         cmd_widget = QtWidgets.QTextEdit()
         cmd_widget.setReadOnly(True)
         cmd_widget.setLineWrapMode(QtWidgets.QTextEdit.NoWrap)
@@ -4802,7 +4804,7 @@ class SystemShellWidget(QtWidgets.QFrame):
         cmd_widget.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
         cmd_widget.setObjectName("shellCmdEdit")
 
-        # 命令显示：带 $ 或 > 前缀
+        # commandcommandshow: with $ or > prefix
         import html as _html
         prefix = "&gt;" if "win" in __import__('sys').platform else "$"
         cmd_html = (
@@ -4818,7 +4820,7 @@ class SystemShellWidget(QtWidgets.QFrame):
         cmd_widget.setFixedHeight(cmd_h)
         layout.addWidget(cmd_widget)
 
-        # ---- 输出区域（可折叠）----
+        # ---- outputarea (cancollapse) ----
         has_output = bool(output and output.strip())
         has_error = bool(error and error.strip())
 
@@ -4840,16 +4842,16 @@ class SystemShellWidget(QtWidgets.QFrame):
 
 
 # ============================================================
-# 代码块组件
+# codeblockcomponent
 # ============================================================
 
 class CodeBlockWidget(QtWidgets.QFrame):
-    """代码块 — 语法高亮 + 行号 + 复制 + 折叠 + 创建 Wrangle（VEX 专属）
+    """Code block - syntax highlighting + line numbers + copy + collapse + create Wrangle (VEX-specific).
     
-    ★ Phase 6 增强:
-    - 大于 5 行时自动显示行号
-    - 超过 15 行默认折叠，点击展开
-    - 语言标签显示在 header
+    ★ Phase 6 addstrong:
+    - greater than 5 rowwhenautoshowrownumber
+    - exceeds 15 rowdefaultcollapse, clickexpand
+    - languagelabelshowin header
     """
 
     createWrangleRequested = QtCore.Signal(str)  # vex_code
@@ -4861,9 +4863,9 @@ class CodeBlockWidget(QtWidgets.QFrame):
         'vector ', 'float ', '#include',
     )
 
-    _COLLAPSE_THRESHOLD = 15   # 超过此行数默认折叠
-    _LINE_NUM_THRESHOLD = 5    # 超过此行数显示行号
-    _MAX_HEIGHT = 400          # 最大高度
+    _COLLAPSE_THRESHOLD = 15   # exceedsthisrowcountdefaultcollapse
+    _LINE_NUM_THRESHOLD = 5    # exceedsthisrowcountshowrownumber
+    _MAX_HEIGHT = 400          # maxheight
 
     def __init__(self, code: str, language: str = "", parent=None):
         super().__init__(parent)
@@ -4887,22 +4889,22 @@ class CodeBlockWidget(QtWidgets.QFrame):
         hl.setSpacing(4)
 
         lang_text = self._lang.upper() or ("VEX" if self._is_vex() else "CODE")
-        # 语言标签 + 行数信息
+        # languagelabel + rowcountinfo
         lang_info = f"{lang_text}"
         if self._line_count > 1:
-            lang_info += f"  ({self._line_count} 行)"
+            lang_info += f"  ({self._line_count} row)"
         lang_lbl = QtWidgets.QLabel(lang_info)
         lang_lbl.setObjectName("codeBlockLang")
         hl.addWidget(lang_lbl)
         hl.addStretch()
 
-        # 操作按钮列表（hover 时显示）
+        # operationbuttonlist (hover whenshow) 
         self._action_btns: list = []
 
-        # 折叠/展开按钮（仅在超过阈值时显示，始终可见）
+        # collapse/expandbutton (onlyinexceedsthresholdvaluewhenshow, alwayscansee) 
         if self._line_count > self._COLLAPSE_THRESHOLD:
             self._toggle_btn = QtWidgets.QPushButton(
-                f"展开 ({self._line_count} 行)" if self._collapsed else "收起"
+                f"expand ({self._line_count} row)" if self._collapsed else "collectstart"
             )
             self._toggle_btn.setCursor(QtCore.Qt.PointingHandCursor)
             self._toggle_btn.setObjectName("codeBlockBtn")
@@ -4946,7 +4948,7 @@ class CodeBlockWidget(QtWidgets.QFrame):
         doc.setDocumentMargin(4)
         self._full_h = int(doc.size().height()) + 20
 
-        # 计算折叠高度（COLLAPSE_THRESHOLD 行）
+        # computecollapseheight (COLLAPSE_THRESHOLD row) 
         fm = self._code_edit.fontMetrics()
         line_h = fm.lineSpacing() if fm.lineSpacing() > 0 else 17
         self._collapsed_h = self._COLLAPSE_THRESHOLD * line_h + 20
@@ -4960,12 +4962,12 @@ class CodeBlockWidget(QtWidgets.QFrame):
         layout.addWidget(self._code_edit)
 
     def _add_line_numbers(self, highlighted_code: str) -> str:
-        """为高亮代码添加行号（使用 HTML table 布局）"""
+        """ashighlightcodeaddrownumber (use HTML table layout) """
         lines = highlighted_code.split('\n')
         width = len(str(len(lines)))
         result: list = []
-        num_color = '#4a5568'  # 暗灰色行号
-        sep_color = 'rgba(255,255,255,6)'  # 分隔线
+        num_color = '#4a5568'  # Dark-gray line numbers
+        sep_color = 'rgba(255,255,255,6)'  # partintervalline
 
         for i, line in enumerate(lines, 1):
             num = str(i).rjust(width)
@@ -4977,7 +4979,7 @@ class CodeBlockWidget(QtWidgets.QFrame):
         return '\n'.join(result)
 
     def _toggle_collapse(self):
-        """切换代码块折叠/展开"""
+        """switchcodeblockcollapse/expand"""
         self._collapsed = not self._collapsed
         if self._collapsed:
             self._code_edit.setFixedHeight(min(self._collapsed_h, self._MAX_HEIGHT))
@@ -4998,7 +5000,7 @@ class CodeBlockWidget(QtWidgets.QFrame):
 
     def _highlight(self) -> str:
         lang = self._lang
-        # VEX 自动检测
+        # VEX autodetect
         if lang in ('vex', 'vfl') or (not lang and self._is_vex()):
             return SyntaxHighlighter.highlight_vex(self._code)
         # Python
@@ -5052,21 +5054,21 @@ class CodeBlockWidget(QtWidgets.QFrame):
 
 
 # ============================================================
-# 富文本内容组件
+# richtextcontentcomponent
 # ============================================================
 
 class RichContentWidget(QtWidgets.QWidget):
-    """渲染 Markdown 文本 + 交互式代码块
+    """render Markdown text + submitmutualstylecodeblock
 
-    采用与 Cursor / GitHub Copilot Chat 类似的排版风格：
-    - 文本段落紧凑、行高舒适
-    - 代码块与正文之间有清晰分隔
-    - 表格、链接、列表等完整支持
-    - Houdini 节点路径自动变为可点击链接
+    Layout style similar to Cursor / GitHub Copilot Chat:
+    - Text paragraphs compact, comfortable line height
+    - Clear separation between code blocks and body text
+    - tablegrid, link, listetc.completesupport
+    - Houdini node pathautochangeascanclicklink
     """
 
     createWrangleRequested = QtCore.Signal(str)
-    nodePathClicked = QtCore.Signal(str)  # 节点路径被点击
+    nodePathClicked = QtCore.Signal(str)  # node pathisclick
 
     # _TEXT_STYLE removed — use objectName-based QSS instead
 
@@ -5074,7 +5076,7 @@ class RichContentWidget(QtWidgets.QWidget):
         super().__init__(parent)
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)  # 段落间距由 HTML margin 控制
+        layout.setSpacing(0)  # paragraphbetweendistanceby HTML margin control
 
         segments = SimpleMarkdown.parse_segments(text)
 
@@ -5083,7 +5085,7 @@ class RichContentWidget(QtWidgets.QWidget):
                 lbl = QtWidgets.QLabel()
                 lbl.setWordWrap(True)
                 lbl.setTextFormat(QtCore.Qt.RichText)
-                lbl.setOpenExternalLinks(False)  # 我们自己处理链接
+                lbl.setOpenExternalLinks(False)  # Isselfselfprocesslink
                 lbl.setTextInteractionFlags(
                     QtCore.Qt.TextSelectableByMouse
                     | QtCore.Qt.LinksAccessibleByMouse
@@ -5115,20 +5117,20 @@ class RichContentWidget(QtWidgets.QWidget):
                 layout.addWidget(img_lbl)
 
     def _on_link(self, url: str):
-        """处理链接点击"""
+        """processlinkclick"""
         if url.startswith('houdini://'):
             self.nodePathClicked.emit(url[len('houdini://'):])
         else:
-            # 外部链接用浏览器打开
+            # External links open in the browser
             QtGui.QDesktopServices.openUrl(QtCore.QUrl(url))
 
 
 # ============================================================
-# 节点上下文栏 (Houdini 专属)
+# Node context bar (Houdini-specific)
 # ============================================================
 
 class NodeContextBar(QtWidgets.QFrame):
-    """显示当前 Houdini 网络路径 / 选中节点"""
+    """showcurrent Houdini network path / selectednode"""
 
     refreshRequested = QtCore.Signal()
 
@@ -5175,11 +5177,11 @@ class NodeContextBar(QtWidgets.QFrame):
 
 
 # ============================================================
-# 工具执行状态栏
+# toolexecutestatebar
 # ============================================================
 
 class ToolStatusBar(QtWidgets.QFrame):
-    """底部工具状态栏 — 显示当前正在执行的工具名 + 脉冲指示器"""
+    """bottomparttoolstatebar — showcurrentpositiveinexecute toolname + pulserefershow """
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -5200,30 +5202,30 @@ class ToolStatusBar(QtWidgets.QFrame):
         self.setVisible(False)
 
     def show_tool(self, tool_name: str):
-        """显示正在执行的工具"""
+        """showpositiveinexecute tool"""
         self._label.setText(f"⚡ {tool_name}")
         self._pulse.start()
         self.setVisible(True)
 
     def hide_tool(self):
-        """隐藏工具状态"""
+        """hidetoolstate"""
         self._pulse.stop()
         self.setVisible(False)
         self._label.setText("")
 
 
 # ============================================================
-# 统一状态指示栏（合并 ThinkingBar + ToolStatusBar）
+# statsonestaterefershowbar (merge ThinkingBar + ToolStatusBar) 
 # ============================================================
 
 class UnifiedStatusBar(QtWidgets.QWidget):
-    """统一状态指示栏 — 合并思考状态、生成状态和工具执行状态为一条指示条。
+    """statsonestaterefershowbar — mergethinkingstate, generatestateandtoolexecutestateasoneitemrefershowitem. 
 
-    提供四个接口：
-        start()                 显示思考中 + 流光动画
-        show_generating()       显示生成中 + 流光动画（API 迭代等待）
-        show_tool(tool_name)    显示工具执行中 + 脉冲动画
-        stop()                  隐藏状态栏
+    Exposes four hooks:
+        start()                 showthinkingin + streamlightmovedraw
+        show_generating()       showgeneratein + streamlightmovedraw (API iterateetc.pending) 
+        show_tool(tool_name)    showtoolexecutein + pulsemovedraw
+        stop()                  hidestatebar
     """
 
     def __init__(self, parent=None):
@@ -5236,17 +5238,17 @@ class UnifiedStatusBar(QtWidgets.QWidget):
         self._elapsed = 0.0
         self._phase = 0.0
 
-        # 流光定时器 ~25fps
+        # streamlightfixedwhen  ~25fps
         self._timer = QtCore.QTimer(self)
         self._timer.setInterval(40)
         self._timer.timeout.connect(self._tick)
 
         self.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
 
-    # ---- 公共 API ----
+    # ---- Public API ----
 
     def start(self):
-        """启动思考模式（兼容旧 ThinkingBar.start）"""
+        """startthinkingmode (compatible withold ThinkingBar.start) """
         self._mode = 'thinking'
         self._elapsed = 0.0
         self._phase = 0.0
@@ -5255,21 +5257,21 @@ class UnifiedStatusBar(QtWidgets.QWidget):
         self.update()
 
     def stop(self):
-        """停止所有状态（兼容旧 ThinkingBar.stop）"""
+        """stopallstate (compatible withold ThinkingBar.stop) """
         self._mode = None
         self._timer.stop()
         self.setVisible(False)
 
     def set_elapsed(self, seconds: float):
-        """更新思考耗时（兼容旧 ThinkingBar.set_elapsed）"""
+        """updatethinkingconsumewhen (compatible withold ThinkingBar.set_elapsed) """
         self._elapsed = seconds
         self.update()
 
     def show_generating(self):
-        """切换到生成模式 — API 请求等待中
+        """switchtogeneratemode — API requestetc.pendingin
 
-        在工具执行完毕后、下一轮 LLM 响应开始前显示，
-        填补"思考结束 → 下轮内容到达"之间的视觉空白期。
+        intoolexecutefinishfinishafter, belowoneround LLM respondshouldstartpreviousshow, 
+        fillsupplement"thinkingend → belowroundcontenttoreach"ofbetween visualemptywhiteperiod. 
         """
         self._mode = 'generating'
         self._phase = 0.0
@@ -5279,10 +5281,10 @@ class UnifiedStatusBar(QtWidgets.QWidget):
         self.update()
 
     def show_planning(self, progress: str = ""):
-        """切换到规划模式 — 显示 Plan 生成进度
+        """switchtoruleplanmode — show Plan generateprogress
 
         Args:
-            progress: 进度文本，如 "step 3" 或空字符串
+            progress: progresstext, such as "step 3" oremptystring
         """
         self._mode = 'planning'
         self._planning_progress = progress
@@ -5292,7 +5294,7 @@ class UnifiedStatusBar(QtWidgets.QWidget):
         self.update()
 
     def show_tool(self, tool_name: str):
-        """切换到工具执行模式"""
+        """switchtotoolexecutemode"""
         self._mode = 'tool'
         self._tool_name = tool_name
         self._phase = 0.0
@@ -5302,12 +5304,12 @@ class UnifiedStatusBar(QtWidgets.QWidget):
         self.update()
 
     def hide_tool(self):
-        """隐藏工具状态 → 自动切换到 generating 模式（等待下轮 API 响应）"""
+        """hidetoolstate → autoswitchto generating mode (etc.pendingbelowround API respondshould) """
         if self._mode == 'tool':
-            # 不完全隐藏，切换到 generating 模式以填补视觉空白
+            # notfinishallhide, switchto generating modebyfillsupplementvisualemptywhite
             self.show_generating()
 
-    # ---- 内部 ----
+    # ---- withinpart ----
 
     def _tick(self):
         self._phase += 0.025
@@ -5326,7 +5328,7 @@ class UnifiedStatusBar(QtWidgets.QWidget):
             self._paint_tool(event)
 
     def _paint_thinking(self, event):
-        """绘制思考状态 — 流光文字"""
+        """drawthinkingstate — streamlighttext"""
         p = QtGui.QPainter(self)
         p.setRenderHint(QtGui.QPainter.Antialiasing)
         w, h = self.width(), self.height()
@@ -5337,10 +5339,10 @@ class UnifiedStatusBar(QtWidgets.QWidget):
         tw = fm.horizontalAdvance(text)
         x = (w - tw) // 2
         y = (h + fm.ascent() - fm.descent()) // 2
-        # 底色文字
+        # bottomcolortext
         p.setPen(QtGui.QColor(100, 116, 139, 120))
         p.drawText(x, y, text)
-        # 流光高亮（扫过效果）
+        # Streaming-light highlight (scan effect)
         grad = QtGui.QLinearGradient(x, 0, x + tw, 0)
         pos = self._phase
         before = max(0.0, pos - 0.15)
@@ -5357,7 +5359,7 @@ class UnifiedStatusBar(QtWidgets.QWidget):
         p.end()
 
     def _paint_generating(self, event):
-        """绘制生成状态 — 流光文字（与 thinking 相似但使用暖色调 + 不同文本）"""
+        """drawgeneratestate — streamlighttext (with thinking similarbutusewarmcoloradjust + differenttext) """
         p = QtGui.QPainter(self)
         p.setRenderHint(QtGui.QPainter.Antialiasing)
         w, h = self.width(), self.height()
@@ -5368,10 +5370,10 @@ class UnifiedStatusBar(QtWidgets.QWidget):
         tw = fm.horizontalAdvance(text)
         x = (w - tw) // 2
         y = (h + fm.ascent() - fm.descent()) // 2
-        # 底色文字（暖灰色）
+        # bottomcolortext (warmgraycolor) 
         p.setPen(QtGui.QColor(139, 116, 100, 120))
         p.drawText(x, y, text)
-        # 流光高亮（暖白色扫过）
+        # streamlighthighlight (warmwhitecolorscanpassed) 
         grad = QtGui.QLinearGradient(x, 0, x + tw, 0)
         pos = self._phase
         before = max(0.0, pos - 0.15)
@@ -5388,7 +5390,7 @@ class UnifiedStatusBar(QtWidgets.QWidget):
         p.end()
 
     def _paint_planning(self, event):
-        """绘制规划状态 — 紫色调流光 + 进度文本"""
+        """drawruleplanstate — purplecoloradjuststreamlight + progresstext"""
         p = QtGui.QPainter(self)
         p.setRenderHint(QtGui.QPainter.Antialiasing)
         w, h = self.width(), self.height()
@@ -5400,10 +5402,10 @@ class UnifiedStatusBar(QtWidgets.QWidget):
         tw = fm.horizontalAdvance(text)
         x = (w - tw) // 2
         y = (h + fm.ascent() - fm.descent()) // 2
-        # 底色文字（紫灰色）
+        # bottomcolortext (purplegraycolor) 
         p.setPen(QtGui.QColor(139, 120, 160, 120))
         p.drawText(x, y, text)
-        # 流光高亮（紫白色扫过）
+        # streamlighthighlight (purplewhitecolorscanpassed) 
         grad = QtGui.QLinearGradient(x, 0, x + tw, 0)
         pos = self._phase
         before = max(0.0, pos - 0.15)
@@ -5420,7 +5422,7 @@ class UnifiedStatusBar(QtWidgets.QWidget):
         p.end()
 
     def _paint_tool(self, event):
-        """绘制工具执行状态 — 流光文字（金色调，与 Thinking/Generating 统一风格）"""
+        """Draw the tool-execution state - streaming-light text (gold accent, unified with Thinking/Generating style)."""
         p = QtGui.QPainter(self)
         p.setRenderHint(QtGui.QPainter.Antialiasing)
         w, h = self.width(), self.height()
@@ -5432,10 +5434,10 @@ class UnifiedStatusBar(QtWidgets.QWidget):
         tw = fm.horizontalAdvance(text)
         x = (w - tw) // 2
         y = (h + fm.ascent() - fm.descent()) // 2
-        # 底色文字（暗金色）
+        # Base color text (dark gold)
         p.setPen(QtGui.QColor(170, 145, 100, 120))
         p.drawText(x, y, text)
-        # 流光高亮（金色扫过）
+        # Streaming highlight (gold scan)
         grad = QtGui.QLinearGradient(x, 0, x + tw, 0)
         pos = self._phase
         before = max(0.0, pos - 0.15)
@@ -5453,11 +5455,11 @@ class UnifiedStatusBar(QtWidgets.QWidget):
 
 
 # ============================================================
-# VEX 预览确认对话框
+# VEX previewconfirmconversationbox
 # ============================================================
 
 class VEXPreviewDialog(QtWidgets.QDialog):
-    """VEX 代码预览对话框 — 用户确认后才执行创建操作"""
+    """VEX codepreviewconversationbox — userconfirmafteronly thenexecutecreateoperation"""
 
     def __init__(self, tool_name: str, args: dict, parent=None):
         super().__init__(parent)
@@ -5470,32 +5472,32 @@ class VEXPreviewDialog(QtWidgets.QDialog):
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
 
-        # 工具名称
+        # toolname
         title = QtWidgets.QLabel(f"Tool: {tool_name}")
         title.setObjectName("vexDlgTitle")
         layout.addWidget(title)
 
-        # 参数摘要
+        # parametersummary
         summary_parts = []
         if 'node_name' in args:
-            summary_parts.append(f"节点名: {args['node_name']}")
+            summary_parts.append(f"nodename: {args['node_name']}")
         if 'wrangle_type' in args:
-            summary_parts.append(f"类型: {args['wrangle_type']}")
+            summary_parts.append(f"type: {args['wrangle_type']}")
         if 'run_over' in args:
             summary_parts.append(f"Run Over: {args['run_over']}")
         if 'parent_path' in args:
-            summary_parts.append(f"父路径: {args['parent_path']}")
+            summary_parts.append(f"parentpath: {args['parent_path']}")
         if 'node_type' in args:
-            summary_parts.append(f"节点类型: {args['node_type']}")
+            summary_parts.append(f"nodetype: {args['node_type']}")
         if 'node_path' in args:
-            summary_parts.append(f"节点路径: {args['node_path']}")
+            summary_parts.append(f"node path: {args['node_path']}")
         if summary_parts:
             info = QtWidgets.QLabel("  |  ".join(summary_parts))
             info.setObjectName("vexDlgInfo")
             info.setWordWrap(True)
             layout.addWidget(info)
 
-        # VEX 代码 / 主要参数
+        # VEX code / mainneedparameter
         vex_code = args.get('vex_code', '')
         param_value = args.get('value', '')
         code_text = vex_code or param_value or str(args)
@@ -5506,7 +5508,7 @@ class VEXPreviewDialog(QtWidgets.QDialog):
         code_edit.setObjectName("vexDlgCode")
         layout.addWidget(code_edit, 1)
 
-        # 按钮行
+        # buttonrow
         btn_row = QtWidgets.QHBoxLayout()
         btn_row.addStretch()
 
@@ -5526,13 +5528,13 @@ class VEXPreviewDialog(QtWidgets.QDialog):
 
 
 # ============================================================
-# 节点路径补全弹出框
+# node pathsupplementallpopupoutbox
 # ============================================================
 
 class NodeCompleterPopup(QtWidgets.QListWidget):
-    """节点路径自动补全弹出窗 — 在输入 @ 时显示场景节点列表"""
+    """node pathautosupplementallpopupoutwindow — ininput @ whenshowscenenodelist"""
 
-    pathSelected = QtCore.Signal(str)  # 用户选中了一个节点路径
+    pathSelected = QtCore.Signal(str)  # userselectedonenode path
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -5545,11 +5547,11 @@ class NodeCompleterPopup(QtWidgets.QListWidget):
         self._all_paths: list = []
 
     def set_node_paths(self, paths: list):
-        """设置可选的节点路径列表"""
+        """setoptional node pathlist"""
         self._all_paths = paths
 
     def show_filtered(self, prefix: str, anchor_widget: QtWidgets.QWidget, cursor_rect):
-        """根据前缀过滤并显示"""
+        """based onprefixfilterandshow"""
         self.clear()
         lower_prefix = prefix.lower()
         matches = [p for p in self._all_paths if lower_prefix in p.lower()][:30]
@@ -5558,7 +5560,7 @@ class NodeCompleterPopup(QtWidgets.QListWidget):
             return
         for p in matches:
             self.addItem(p)
-        # 定位到光标下方
+        # fixedbittocursorbelowway
         global_pos = anchor_widget.mapToGlobal(cursor_rect.bottomLeft())
         self.move(global_pos.x(), global_pos.y() + 4)
         self.setVisible(True)
@@ -5582,45 +5584,45 @@ class NodeCompleterPopup(QtWidgets.QListWidget):
 
 
 # ============================================================
-# 斜杠命令弹出框
+# slashcommandcommandpopupoutbox
 # ============================================================
 
-# ── 斜杠命令注册表 ──
-# 每条: (command, icon, label_zh, label_en, description_zh, description_en, category)
+# ── slashcommandcommandregistertable ──
+# each: (command, icon, label_zh, label_en, description_zh, description_en, category)
 SLASH_COMMANDS = [
-    # ── 会话管理 ──
-    ("clear",     "🗑",  "清空对话",     "Clear Chat",      "清空当前对话历史",           "Clear current conversation",   "session"),
-    ("new",       "✨",  "新建会话",     "New Chat",         "创建一个新的对话",           "Create a new conversation",    "session"),
-    # ── 记忆系统 ──
-    ("memory",    "🧠",  "记忆状态",     "Memory Status",    "查看长期记忆统计和核心记忆", "View memory stats & core memories", "memory"),
-    ("remember",  "📌",  "记住偏好",     "Remember",         "将内容写入核心记忆",         "Save content to core memory",  "memory"),
-    ("forget",    "🧹",  "清除记忆",     "Forget",           "搜索并删除指定记忆",         "Search and delete a memory",   "memory"),
-    ("search_mem","🔍",  "搜索记忆",     "Search Memory",    "在长期记忆中搜索",           "Search long-term memory",      "memory"),
-    ("memories",  "📚",  "记忆库",       "Memory Library",   "打开记忆管理窗口",         "Open memory manager (full CRUD)", "memory"),
-    # ── Houdini 场景 ──
-    ("network",   "🌐",  "读取网络",     "Read Network",     "读取当前网络结构",           "Read current network structure","scene"),
-    ("selection", "👆",  "读取选中",     "Read Selection",   "读取当前选中节点信息",       "Read selected node info",      "scene"),
-    ("skills",    "⚡",  "技能列表",     "List Skills",      "列出所有可用 Skill",         "List all available skills",    "scene"),
-    # ── 工具 ──
-    ("status",    "📊",  "系统状态",     "System Status",    "查看记忆/成长/上下文统计",   "View memory/growth/context stats", "tool"),
-    ("export",    "💾",  "导出训练",     "Export Training",  "导出对话为训练数据",         "Export conversation as training data", "tool"),
-    ("image",     "🖼",  "附加图片",     "Attach Image",     "从文件选择图片附加到消息",   "Select image to attach",       "tool"),
-    ("help",      "❓",  "帮助",         "Help",             "显示所有可用斜杠命令",       "Show all available commands",   "tool"),
+    # ── sessionmanage ──
+    ("clear",     "🗑",  "clearemptyconversation",     "Clear Chat",      "clearemptycurrentconversationhistory",           "Clear current conversation",   "session"),
+    ("new",       "✨",  "createsession",     "New Chat",         "createonenewconversation",           "Create a new conversation",    "session"),
+    # ── memorysystem ──
+    ("memory",    "🧠",  "memorystate",     "Memory Status",    "viewlong-termmemorystatisticsandcorememory", "View memory stats & core memories", "memory"),
+    ("remember",  "📌",  "rememberpreference",     "Remember",         "willcontentwritecorememory",         "Save content to core memory",  "memory"),
+    ("forget",    "🧹",  "clearremovememory",     "Forget",           "searchanddeletespecifiedmemory",         "Search and delete a memory",   "memory"),
+    ("search_mem","🔍",  "searchmemory",     "Search Memory",    "inlong-termmemoryinsearch",           "Search long-term memory",      "memory"),
+    ("memories",  "📚",  "memorylibrary",       "Memory Library",   "openmemory managementwindow",         "Open memory manager (full CRUD)", "memory"),
+    # ── Houdini scene ──
+    ("network",   "🌐",  "readnetwork",     "Read Network",     "readcurrentnetworkstructure",           "Read current network structure","scene"),
+    ("selection", "👆",  "readselected",     "Read Selection",   "readcurrentselectednodeinfo",       "Read selected node info",      "scene"),
+    ("skills",    "⚡",  "skillcanlist",     "List Skills",      "columnoutallcanuse Skill",         "List all available skills",    "scene"),
+    # ── tool ──
+    ("status",    "📊",  "systemstate",     "System Status",    "viewmemory/growth/contextstatistics",   "View memory/growth/context stats", "tool"),
+    ("export",    "💾",  "importouttraining",     "Export Training",  "importoutconversationastrainingdata",         "Export conversation as training data", "tool"),
+    ("image",     "🖼",  "attachimage",     "Attach Image",     "fromfileselectimageattachtomessage",   "Select image to attach",       "tool"),
+    ("help",      "❓",  "help",         "Help",             "showallcanuseslashcommandcommand",       "Show all available commands",   "tool"),
 ]
 
-# 按分类分组的标题
+# bypartclassgroup title
 _SLASH_CATEGORY_LABELS = {
-    "session": ("── 会话 ──", "── Session ──"),
-    "memory":  ("── 记忆 ──", "── Memory ──"),
-    "scene":   ("── 场景 ──", "── Scene ──"),
-    "tool":    ("── 工具 ──", "── Tools ──"),
+    "session": ("── session ──", "── Session ──"),
+    "memory":  ("── memory ──", "── Memory ──"),
+    "scene":   ("── scene ──", "── Scene ──"),
+    "tool":    ("── tool ──", "── Tools ──"),
 }
 
 
 class SlashCommandPopup(QtWidgets.QListWidget):
-    """斜杠命令弹出窗 — 在输入 / 时显示可用命令"""
+    """slashcommandcommandpopupoutwindow — ininput / whenshowcanusecommandcommand"""
 
-    commandSelected = QtCore.Signal(str)  # 用户选中了一个命令名
+    commandSelected = QtCore.Signal(str)  # userselectedonecommandcommandname
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -5633,7 +5635,7 @@ class SlashCommandPopup(QtWidgets.QListWidget):
 
     def show_filtered(self, prefix: str, anchor_widget: QtWidgets.QWidget,
                       cursor_rect, lang: str = 'zh'):
-        """根据前缀过滤并显示命令列表"""
+        """based onprefixfilterandshowcommandcommandlist"""
         if not self._flags_applied:
             self._flags_applied = True
             self.setWindowFlags(QtCore.Qt.ToolTip | QtCore.Qt.FramelessWindowHint)
@@ -5642,27 +5644,27 @@ class SlashCommandPopup(QtWidgets.QListWidget):
         lower_prefix = prefix.lower()
         is_zh = (lang == 'zh')
 
-        # 按分类分组
+        # bypartclassgroup
         last_cat = None
         match_count = 0
         for cmd, icon, lbl_zh, lbl_en, desc_zh, desc_en, cat in SLASH_COMMANDS:
             label = lbl_zh if is_zh else lbl_en
             desc = desc_zh if is_zh else desc_en
-            # 匹配命令名、标签、描述
+            # matchcommandcommandname, label, description
             if lower_prefix and not any(lower_prefix in s.lower() for s in (cmd, label, desc)):
                 continue
-            # 分类标题
+            # partclasstitle
             if cat != last_cat:
                 last_cat = cat
                 cat_label = _SLASH_CATEGORY_LABELS.get(cat, ("──", "──"))
                 header_item = QtWidgets.QListWidgetItem(cat_label[0] if is_zh else cat_label[1])
-                header_item.setFlags(QtCore.Qt.NoItemFlags)  # 不可选
+                header_item.setFlags(QtCore.Qt.NoItemFlags)  # notoptional
                 font = header_item.font()
                 font.setPointSize(max(7, font.pointSize() - 1))
                 header_item.setFont(font)
                 header_item.setForeground(QtGui.QColor(120, 130, 160))
                 self.addItem(header_item)
-            # 命令项
+            # commandcommanditem
             display_text = f"{icon}  /{cmd}    {desc}"
             item = QtWidgets.QListWidgetItem(display_text)
             item.setData(QtCore.Qt.UserRole, cmd)
@@ -5673,15 +5675,15 @@ class SlashCommandPopup(QtWidgets.QListWidget):
             self.setVisible(False)
             return
 
-        # 定位到光标下方
+        # fixedbittocursorbelowway
         global_pos = anchor_widget.mapToGlobal(cursor_rect.bottomLeft())
         self.move(global_pos.x(), global_pos.y() + 4)
-        # 动态调整高度
+        # movestateadjustwholeheight
         row_h = 24
         total_h = min(320, (self.count()) * row_h + 12)
         self.setFixedHeight(max(80, total_h))
         self.setVisible(True)
-        # 选中第一个非标题项
+        # selectedfirstnottitleitem
         for i in range(self.count()):
             if self.item(i).flags() & QtCore.Qt.ItemIsSelectable:
                 self.setCurrentRow(i)
@@ -5694,7 +5696,7 @@ class SlashCommandPopup(QtWidgets.QListWidget):
             self.setVisible(False)
 
     def select_next(self):
-        """选中下一个可选项"""
+        """selectedbelowoneoptionalitem"""
         row = self.currentRow()
         for i in range(row + 1, self.count()):
             if self.item(i).flags() & QtCore.Qt.ItemIsSelectable:
@@ -5702,7 +5704,7 @@ class SlashCommandPopup(QtWidgets.QListWidget):
                 return
 
     def select_prev(self):
-        """选中上一个可选项"""
+        """selectedononeoptionalitem"""
         row = self.currentRow()
         for i in range(row - 1, -1, -1):
             if self.item(i).flags() & QtCore.Qt.ItemIsSelectable:
@@ -5710,7 +5712,7 @@ class SlashCommandPopup(QtWidgets.QListWidget):
                 return
 
     def confirm_current(self) -> bool:
-        """确认当前选中项，返回是否成功"""
+        """confirmcurrentselecteditem, returnwhethersucceeded"""
         current = self.currentItem()
         if current:
             cmd = current.data(QtCore.Qt.UserRole)
@@ -5731,21 +5733,21 @@ class SlashCommandPopup(QtWidgets.QListWidget):
 
 
 # ============================================================
-# 输入区域
+# inputarea
 # ============================================================
 
 class ChatInput(QtWidgets.QPlainTextEdit):
-    """聊天输入框 — 自适应高度，支持自动换行、多行输入、图片粘贴/拖拽
+    """chatinputbox — selfsuitshouldheight, supportautoswaprow, multirowinput, imagepaste/drag
     
-    核心逻辑：统计文档中所有视觉行（含软换行），按行高计算目标高度，
-    使输入框向上扩展而非隐藏已有行。
-    支持 @节点路径 补全和从 Network Editor 拖拽节点。
+    Core logic: count all visible lines in the document (including soft-wrap lines) and compute target height from line height,
+    so the input box grows upward without hiding existing rows.
+    support @node path supplementallandfrom Network Editor dragnode. 
     """
     
     sendRequested = QtCore.Signal()
-    imageDropped = QtCore.Signal(QtGui.QImage)  # 粘贴或拖拽图片时触发
-    atTriggered = QtCore.Signal(str, QtCore.QRect)  # @ 触发补全: (当前前缀, 光标矩形)
-    slashTriggered = QtCore.Signal(str, QtCore.QRect)  # / 触发补全: (当前前缀, 光标矩形)
+    imageDropped = QtCore.Signal(QtGui.QImage)  # pasteordragimagewhentrigger
+    atTriggered = QtCore.Signal(str, QtCore.QRect)  # @ triggersupplementall: (currentprefix, cursorrectangle)
+    slashTriggered = QtCore.Signal(str, QtCore.QRect)  # / triggersupplementall: (currentprefix, cursorrectangle)
     
     _MIN_H = 44
     _MAX_H = 220
@@ -5753,72 +5755,72 @@ class ChatInput(QtWidgets.QPlainTextEdit):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setPlaceholderText(tr('placeholder'))
-        # 确保自动换行
+        # ensureautoswaprow
         self.setLineWrapMode(QtWidgets.QPlainTextEdit.WidgetWidth)
         self.setWordWrapMode(QtGui.QTextOption.WrapAtWordBoundaryOrAnywhere)
-        # 隐藏滚动条（高度不够时才出现）
+        # Hide scrollbar (only appears when height is insufficient)
         self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
         self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
-        # 启用拖拽
+        # enabledrag
         self.setAcceptDrops(True)
         self.setObjectName("chatInput")
         self.setMinimumHeight(self._MIN_H)
         self.setMaximumHeight(self._MAX_H)
         
-        # ★ PySide2 / PySide6 全平台 IME 支持（中文/日文/韩文）
+        # ★ PySide2 / PySide6 cross-platform IME support (Chinese / Japanese / Korean)
         # ------------------------------------------------------------------
-        # 问题背景：
-        #   PySide2 嵌入 Houdini 时，macOS / Windows 上输入法可能不激活。
-        #   macOS 的 NSTextInputClient 协议尤其依赖 inputMethodQuery 返回
-        #   正确的光标矩形/周围文本/光标位置等信息，否则 IME 候选窗口
-        #   无法定位甚至不会弹出。
+        # issuebackground: 
+        #   PySide2 embed Houdini when, macOS / Windows oninputmethodmaynotactivate. 
+        #   macOS NSTextInputClient protocol depends heavily on inputMethodQuery return values
+        #   correct cursorrectangle/surroundingtext/cursorpositionetc.info, otherwise IME waitselectwindow
+        #   cannot be positioned correctly — or worse, the popup never appears.
         # ------------------------------------------------------------------
-        # 1. 显式启用输入法
+        # 1. explicitenableinputmethod
         self.setAttribute(QtCore.Qt.WA_InputMethodEnabled, True)
-        # 2. 显式设置焦点策略，确保 Tab/Click 都能获取焦点
+        # 2. explicitsetfocuspointstrategy, ensure Tab/Click allcangetfocuspoint
         self.setFocusPolicy(QtCore.Qt.StrongFocus)
-        # 3. 设置输入法提示：自由文本
+        # 3. setinputmethodhint: selfbytext
         try:
             self.setInputMethodHints(QtCore.Qt.ImhNone)
         except Exception:
-            pass  # 极少数 PySide2 版本不支持此调用
-        # 4. macOS 特有：确保焦点矩形可见（某些嵌入场景下默认关闭）
+            pass  # A few PySide2 versions do not support this call
+        # 4. macOS specialhas: ensurefocuspointrectanglecansee (someembedscenebelowdefaultclose) 
         try:
             self.setAttribute(QtCore.Qt.WA_MacShowFocusRect, True)
         except Exception:
             pass
         
-        # 使用 textChanged，并延迟到下一事件循环执行（确保布局先完成）
+        # use textChanged, andlatencytobelowoneeventloopexecute (ensurelayoutfirstcomplete) 
         self.textChanged.connect(self._schedule_adjust)
         self.textChanged.connect(self._check_at_trigger)
         self.textChanged.connect(self._check_slash_trigger)
-        # @ 补全状态
+        # @ supplementallstate
         self._at_active = False
         self._at_start_pos = -1
         self._completer_popup: 'NodeCompleterPopup | None' = None
-        # / 斜杠命令补全状态
+        # / slashcommandcommandsupplementallstate
         self._slash_active = False
         self._slash_start_pos = -1
         self._slash_popup: 'SlashCommandPopup | None' = None
-        # ★ IME 预编辑状态追踪
+        # ★ IME pre-editstatetrace
         self._ime_composing = False
     
     def set_completer_popup(self, popup: 'NodeCompleterPopup'):
-        """设置节点补全弹出框引用，用于键盘导航和自动关闭"""
+        """Set node-completion popup reference, used for keyboard navigation and auto-close."""
         self._completer_popup = popup
 
     def set_slash_popup(self, popup: 'SlashCommandPopup'):
-        """设置斜杠命令弹出框引用"""
+        """setslashcommandcommandpopupoutboxreference"""
         self._slash_popup = popup
     
     def _schedule_adjust(self):
-        """延迟调整高度，确保文档布局已更新"""
+        """latencyadjustwholeheight, ensuredocumentlayoutalreadyupdate"""
         QtCore.QTimer.singleShot(0, self._adjust_height)
     
     def _adjust_height(self):
-        """根据视觉行数（含软换行）自动调整高度——向上扩展"""
+        """Auto-adjust height based on visual line count (including soft-wraps) — growing upward."""
         doc = self.document()
-        # 统计所有视觉行（包括 word-wrap 产生的软换行）
+        # Count all visible lines (including soft-wrap lines from word-wrap)
         visual_lines = 0
         block = doc.begin()
         while block.isValid():
@@ -5828,14 +5830,14 @@ class ChatInput(QtWidgets.QPlainTextEdit):
             else:
                 visual_lines += 1
             block = block.next()
-        # 空文档至少算 1 行
+        # Empty document still counts as at least 1 row
         visual_lines = max(1, visual_lines)
         
-        # 行高
+        # rowhigh
         line_h = self.fontMetrics().lineSpacing()
-        # 内容高度 = 行数 * 行高
+        # contentheight = rowcount * rowhigh
         content_h = visual_lines * line_h
-        # 加上 padding(8*2) + border(1*2) + 额外余量
+        # addon padding(8*2) + border(1*2) + extraremainingquantity
         margins = self.contentsMargins()
         frame_w = self.frameWidth()
         padding = margins.top() + margins.bottom() + frame_w * 2 + 18
@@ -5844,16 +5846,16 @@ class ChatInput(QtWidgets.QPlainTextEdit):
         h = max(self._MIN_H, min(self._MAX_H, total))
         if h != self.height():
             self.setFixedHeight(h)
-            # 通知父布局重新分配空间
+            # notifyparentlayoutrenewpartmatchemptybetween
             self.updateGeometry()
     
     def _hide_completer(self):
-        """隐藏补全弹出框"""
+        """hidesupplementallpopupoutbox"""
         if self._completer_popup and self._completer_popup.isVisible():
             self._completer_popup.setVisible(False)
 
     def _check_at_trigger(self):
-        """检测输入中的 @ 字符，触发节点路径补全"""
+        """detectinputin  @ character, triggernode pathsupplementall"""
         cursor = self.textCursor()
         pos = cursor.position()
         text = self.toPlainText()
@@ -5863,7 +5865,7 @@ class ChatInput(QtWidgets.QPlainTextEdit):
                 self._hide_completer()
             return
 
-        # 查找光标前最近的 @
+        # lookupcursorpreviousrecent  @
         left = text[:pos]
         at_idx = left.rfind('@')
         if at_idx == -1:
@@ -5872,7 +5874,7 @@ class ChatInput(QtWidgets.QPlainTextEdit):
                 self._hide_completer()
             return
 
-        # @ 后面的内容不能包含空格（否则认为已结束）
+        # Content after @ cannot contain whitespace (otherwise treated as end of mention)
         prefix_after_at = left[at_idx + 1:]
         if ' ' in prefix_after_at or '\n' in prefix_after_at:
             if self._at_active:
@@ -5882,23 +5884,23 @@ class ChatInput(QtWidgets.QPlainTextEdit):
 
         self._at_active = True
         self._at_start_pos = at_idx
-        # 发射信号，由外部(ai_tab)提供节点列表
+        # Emit signal so the outer ai_tab can supply the node list
         crect = self.cursorRect(cursor)
         self.atTriggered.emit(prefix_after_at, crect)
 
     def cancel_at_completion(self):
-        """取消当前 @ 补全并隐藏弹出框"""
+        """cancelcurrent @ supplementallandhidepopupoutbox"""
         self._at_active = False
         self._at_start_pos = -1
         self._hide_completer()
 
     def insert_at_completion(self, path: str):
-        """将补全结果插入文本，替换 @前缀"""
+        """willsupplementallresultinserttext, replaceswap @prefix"""
         if self._at_start_pos < 0:
             return
         cursor = self.textCursor()
         pos = cursor.position()
-        # 选中从 @ 到当前位置的文本并替换
+        # selectedfrom @ tocurrentposition textandreplaceswap
         cursor.setPosition(self._at_start_pos)
         cursor.setPosition(pos, QtGui.QTextCursor.KeepAnchor)
         cursor.insertText(path + " ")
@@ -5907,15 +5909,15 @@ class ChatInput(QtWidgets.QPlainTextEdit):
         self._at_start_pos = -1
 
     def _is_completer_visible(self) -> bool:
-        """补全弹出框是否可见"""
+        """supplementallpopupoutboxwhethercansee"""
         return (self._completer_popup is not None
                 and self._completer_popup.isVisible()
                 and self._completer_popup.count() > 0)
 
-    # ---- 斜杠命令补全 ----
+    # ---- slashcommandcommandsupplementall ----
 
     def _check_slash_trigger(self):
-        """检测输入中的 / 字符，触发斜杠命令补全（仅在行首或纯 / 开头时触发）"""
+        """detectinputin  / character, triggerslashcommandcommandsupplementall (onlyinrowfirstorpure / startwhentrigger) """
         cursor = self.textCursor()
         pos = cursor.position()
         text = self.toPlainText()
@@ -5926,16 +5928,16 @@ class ChatInput(QtWidgets.QPlainTextEdit):
                 self._hide_slash()
             return
 
-        # 仅当 / 在文本最开头时触发（整个输入为 /xxx）
+        # onlywhen / intextmoststartwhentrigger (wholeinputas /xxx) 
         if not text.startswith('/'):
             if self._slash_active:
                 self._slash_active = False
                 self._hide_slash()
             return
 
-        # 提取 / 之后到光标位置的内容
+        # extract / aftertocursorposition content
         prefix_after_slash = text[1:pos]
-        # 如果包含空格或换行，说明已超出命令名范围
+        # ifpackagecontainingemptygridorswaprow, descriptionalreadyexceedoutcommandcommandnamerange
         if ' ' in prefix_after_slash or '\n' in prefix_after_slash:
             if self._slash_active:
                 self._slash_active = False
@@ -5948,47 +5950,47 @@ class ChatInput(QtWidgets.QPlainTextEdit):
         self.slashTriggered.emit(prefix_after_slash, crect)
 
     def _hide_slash(self):
-        """隐藏斜杠命令弹出框"""
+        """hideslashcommandcommandpopupoutbox"""
         if self._slash_popup and self._slash_popup.isVisible():
             self._slash_popup.setVisible(False)
 
     def cancel_slash_completion(self):
-        """取消当前斜杠命令补全"""
+        """cancelcurrentslashcommandcommandsupplementall"""
         self._slash_active = False
         self._slash_start_pos = -1
         self._hide_slash()
 
     def insert_slash_completion(self, command: str):
-        """斜杠命令被选中后，清空输入框（命令将直接执行，不需要保留文字）"""
+        """slashcommandcommandisselectedafter, clearemptyinputbox (commandcommandwilldirectlyexecute, notneedskeeptext) """
         self.clear()
         self._slash_active = False
         self._slash_start_pos = -1
 
     def _is_slash_visible(self) -> bool:
-        """斜杠命令弹出框是否可见"""
+        """slashcommandcommandpopupoutboxwhethercansee"""
         return (self._slash_popup is not None
                 and self._slash_popup.isVisible()
                 and self._slash_popup.count() > 0)
 
     def inputMethodQuery(self, query):
-        """★ macOS IME 关键修复：为输入法提供光标位置和周围文本信息
+        """★ macOS IME keyfix: asinputmethodraiseforcursorpositionandsurroundingtextinfo
         
-        macOS 的输入法框架（NSTextInputClient 协议）通过此方法查询：
-          - ImEnabled       → 此控件是否接受输入法输入
-          - ImCursorRectangle → 光标在控件中的矩形区域（用于定位候选框）
-          - ImSurroundingText → 光标周围的文本（辅助联想/智能选词）
-          - ImCursorPosition  → 光标在周围文本中的位置
-          - ImFont           → 当前字体信息
-          - ImHints          → 输入法提示
+        The macOS input-method framework (NSTextInputClient protocol) queries this method:
+          - ImEnabled       → thiswidgetwhetheracceptinputmethodinput
+          - ImCursorRectangle → cursorinwidgetin rectanglearea (used forfixedbitwaitselectbox) 
+          - ImSurroundingText -> text around the cursor (helps association / smart word picking)
+          - ImCursorPosition  → cursorinsurroundingtextin position
+          - ImFont           → currentfontinfo
+          - ImHints          → inputmethodhint
         
-        如果不覆写此方法，PySide2 嵌入 Houdini 时（尤其 macOS）
-        可能返回错误值或零矩形，导致 IME 不激活或候选框位置异常。
+        If we do not override this method, PySide2 embedded in Houdini (especially on macOS)
+        may return wrong values or zero rectangles, causing the IME to not activate or the candidate box position to be wrong.
         """
         qt = QtCore.Qt
         if query == qt.ImEnabled:
             return True
         if query == qt.ImCursorRectangle:
-            # 返回光标在控件坐标系中的矩形
+            # Return the cursor rectangle in the widget coordinate system
             cursor_rect = self.cursorRect()
             return cursor_rect
         if query == qt.ImFont:
@@ -6009,42 +6011,42 @@ class ChatInput(QtWidgets.QPlainTextEdit):
                 return qt.ImhNone
         except Exception:
             pass
-        # 其他查询交给父类
+        # otherquerysubmitgiveparentclass
         return super().inputMethodQuery(query)
 
     def inputMethodEvent(self, event):
-        """★ IME 输入法事件处理（中文/日文/韩文等）— 全平台增强版
+        """★ IME input-method event handling (Chinese / Japanese / Korean etc.) — cross-platform hardened version.
         
-        PySide2 在 Houdini 环境下需要显式处理 inputMethodEvent，
-        否则中文输入法的预编辑（composing）和提交（commit）可能无法正常工作。
+        PySide2 in Houdini environmentbelowneedsexplicitprocess inputMethodEvent, 
+        otherwiseintextinputmethod pre-edit (composing) andraisesubmit (commit) maynomethodnormalwork. 
         
-        IME 工作流程：
-        1. 用户开始输入拼音 → preeditString 不为空（composing 状态）
-        2. 用户选择候选词 → commitString 不为空，preeditString 清空
-        3. 用户按 Esc 取消 → preeditString 清空，commitString 为空
+        IME workflow: 
+        1. User starts entering pinyin -> preeditString non-empty (composing state)
+        2. userselectwaitselectword → commitString non-empty, preeditString clearempty
+        3. userby Esc cancel → preeditString clearempty, commitString asempty
         
-        macOS 特别注意：
-        - 某些 PySide2 版本在 macOS 上不会正确传递 commit 事件
-        - 需要确保 commitString 被手动插入文本光标
+        macOS special note:
+        - some PySide2 versionin macOS onnotwillcorrectpassdeliver commit event
+        - needsensure commitString ismanualinserttextcursor
         """
         preedit = event.preeditString()
         commit = event.commitString()
         
-        # 更新 composing 状态
+        # update composing state
         self._ime_composing = bool(preedit)
         
-        # 先让父类处理（标准路径）
+        # firstletparentclassprocess (standardpath) 
         super().inputMethodEvent(event)
         
-        # macOS PySide2 修补：如果父类没有正确处理 commitString，
-        # 手动将已确认的文字插入光标位置。
-        # 通过检查：如果有 commit 文字，但当前文本中找不到它（说明父类漏了），
-        # 则手动插入。
+        # macOS PySide2 fixsupplement: ifparentclassnothascorrectprocess commitString, 
+        # manualwillalreadyconfirm textinsertcursorposition. 
+        # Sanity check: if there is commit text but it cannot be found in the current text (meaning the parent class missed it),
+        # thenmanualinsert. 
         if commit and not preedit:
             tc = self.textCursor()
             current_text = self.toPlainText()
-            # 简单检查：如果 commit 的文字在光标位置之前不存在，手动插入
-            # 注意：这是一个保守检查，只有在父类确实没有处理时才介入
+            # simplecheck: if commit  textincursorpositionbeforedoes not exist, manualinsert
+            # Note: this is a conservative check — only kicks in when the parent class certainly did not handle the event
             pos = tc.position()
             before = current_text[:pos]
             if not before.endswith(commit):
@@ -6054,38 +6056,38 @@ class ChatInput(QtWidgets.QPlainTextEdit):
     def keyPressEvent(self, event):
         key = event.key()
         
-        # ★ IME composing 中：不拦截任何按键，全部交给输入法处理
-        # 当用户正在输入拼音/选择候选词时，Enter/Esc 等键应由 IME 处理，
-        # 而不是触发"发送消息"或"取消补全"
+        # ★ IME composing in: notinterceptcutanybykey, allpartsubmitgiveinputmethodprocess
+        # While the user is composing pinyin / selecting candidates, Enter/Esc etc. should be handled by the IME,
+        # andnotrigger"sendmessage"or"cancelsupplementall"
         if self._ime_composing:
             super().keyPressEvent(event)
             return
         
-        # ── @ 补全活跃时的键盘处理 ──
+        # ── @ supplementallactivewhen keydiskprocess ──
         if self._at_active and self._is_completer_visible():
             popup = self._completer_popup
             
             if key == QtCore.Qt.Key_Escape:
-                # Escape: 取消补全 + 隐藏弹窗
+                # Escape: cancelsupplementall + hidepopupwindow
                 self.cancel_at_completion()
                 return
             
             if key == QtCore.Qt.Key_Up:
-                # Up: 在列表中上移
+                # Up: inlistinonmove
                 row = popup.currentRow()
                 if row > 0:
                     popup.setCurrentRow(row - 1)
                 return
             
             if key == QtCore.Qt.Key_Down:
-                # Down: 在列表中下移
+                # Down: inlistinbelowmove
                 row = popup.currentRow()
                 if row < popup.count() - 1:
                     popup.setCurrentRow(row + 1)
                 return
             
             if key in (QtCore.Qt.Key_Return, QtCore.Qt.Key_Enter) and not (event.modifiers() & QtCore.Qt.ShiftModifier):
-                # Enter: 选中当前项（而非发送消息）
+                # Enter: selectedcurrentitem (andnotsendmessage) 
                 current = popup.currentItem()
                 if current:
                     self.insert_at_completion(current.text())
@@ -6093,7 +6095,7 @@ class ChatInput(QtWidgets.QPlainTextEdit):
                 return
             
             if key == QtCore.Qt.Key_Tab:
-                # Tab: 也可以选中当前项
+                # Tab: alsocanselectedcurrentitem
                 current = popup.currentItem()
                 if current:
                     self.insert_at_completion(current.text())
@@ -6101,11 +6103,11 @@ class ChatInput(QtWidgets.QPlainTextEdit):
                 return
         
         elif self._at_active and key == QtCore.Qt.Key_Escape:
-            # 补全活跃但弹窗不可见（如无匹配结果）：仍允许 Escape 取消
+            # supplementallactivebutpopupwindownotcansee (such asnomatchresult) : stillallow Escape cancel
             self.cancel_at_completion()
             return
 
-        # ── / 斜杠命令补全活跃时的键盘处理 ──
+        # ── / slashcommandcommandsupplementallactivewhen keydiskprocess ──
         if self._slash_active and self._is_slash_visible():
             popup = self._slash_popup
 
@@ -6133,7 +6135,7 @@ class ChatInput(QtWidgets.QPlainTextEdit):
             self.cancel_slash_completion()
             return
 
-        # ── 常规键盘处理 ──
+        # ── commonrulekeydiskprocess ──
         if key in (QtCore.Qt.Key_Return, QtCore.Qt.Key_Enter):
             if event.modifiers() & QtCore.Qt.ShiftModifier:
                 super().keyPressEvent(event)
@@ -6144,7 +6146,7 @@ class ChatInput(QtWidgets.QPlainTextEdit):
         super().keyPressEvent(event)
     
     def mousePressEvent(self, event):
-        """点击文本区域时，如果补全弹窗可见则关闭"""
+        """clicktextareawhen, ifsupplementallpopupwindowcanseethenclose"""
         if self._is_completer_visible():
             self.cancel_at_completion()
         if self._is_slash_visible():
@@ -6152,27 +6154,27 @@ class ChatInput(QtWidgets.QPlainTextEdit):
         super().mousePressEvent(event)
 
     def focusInEvent(self, event):
-        """★ 获焦时确保 IME 正确激活（macOS 关键修复）
+        """★ On focus-in, ensure the IME activates correctly (macOS key fix).
         
-        macOS 上，当 QPlainTextEdit 嵌入 Houdini 等宿主应用时，
-        获焦时 IME 可能不会自动激活。通过显式调用 update() 和
-        重新设置 WA_InputMethodEnabled，强制系统重新检查 IME 状态。
+        On macOS, when QPlainTextEdit is embedded in a host application like Houdini,
+        the IME may not auto-activate on focus-in. By explicitly calling update() and
+        renewset WA_InputMethodEnabled, forcesystemrenewcheck IME state. 
         """
         super().focusInEvent(event)
-        # 确保 IME 标志仍然有效
+        # ensure IME flagstillthenvalid
         self.setAttribute(QtCore.Qt.WA_InputMethodEnabled, True)
-        # 触发控件重绘，间接通知系统重新查询 inputMethodQuery
+        # triggerwidgetredraw, betweenconnectnotifysystemrenewquery inputMethodQuery
         self.update()
 
     def focusOutEvent(self, event):
-        """失焦时关闭补全弹窗并重置 IME 状态"""
-        self._ime_composing = False  # 重置 IME 状态
-        # 延迟关闭：如果焦点转移到弹窗本身（用户点击弹窗），不关闭
+        """On focus-out, close the completion popup and reset IME state."""
+        self._ime_composing = False  # replace IME state
+        # Delayed close: if focus shifted to the popup itself (user clicked the popup), do not close
         QtCore.QTimer.singleShot(100, self._check_focus_dismiss)
         super().focusOutEvent(event)
 
     def _check_focus_dismiss(self):
-        """检查是否需要因失焦而关闭弹窗"""
+        """Check whether to close the popup due to focus-out."""
         if not self.hasFocus():
             if self._is_completer_visible():
                 if self._completer_popup and not self._completer_popup.hasFocus():
@@ -6182,31 +6184,31 @@ class ChatInput(QtWidgets.QPlainTextEdit):
                     self.cancel_slash_completion()
 
     def resizeEvent(self, event):
-        """窗口宽度变化时重新计算高度（自动换行可能改变行数）"""
+        """Recompute height when window width changes (auto-wrap may change the row count)."""
         super().resizeEvent(event)
         self._schedule_adjust()
 
-    # ---- 拖拽节点支持 ----
+    # ---- dragnodesupport ----
     
     def dragEnterEvent(self, event):
-        """接受来自 Houdini Network Editor 的节点路径拖拽"""
+        """acceptcomeself Houdini Network Editor  node pathdrag"""
         mime = event.mimeData()
         if mime.hasText():
             text = mime.text().strip()
-            # 检查是否像 Houdini 节点路径
+            # checkwhetherlike Houdini node path
             if text.startswith('/') and '/' in text[1:]:
                 event.acceptProposedAction()
                 return
-        # 也接受图片拖拽（原有逻辑）
+        # alsoacceptimagedrag (originalhaslogic) 
         if mime.hasImage() or mime.hasUrls():
             event.acceptProposedAction()
             return
         super().dragEnterEvent(event)
 
     def dropEvent(self, event):
-        """拖拽释放：优先检查节点路径，其次处理图片"""
+        """dragreleaseput: preferredchecknode path, itstimeprocessimage"""
         mime = event.mimeData()
-        # 1) Houdini 节点路径拖拽
+        # 1) Houdini node pathdrag
         if mime.hasText():
             text = mime.text().strip()
             if text.startswith('/') and '/' in text[1:]:
@@ -6217,7 +6219,7 @@ class ChatInput(QtWidgets.QPlainTextEdit):
                 self.setTextCursor(cursor)
                 event.acceptProposedAction()
                 return
-        # 2) 图片拖拽
+        # 2) imagedrag
         if mime.hasImage():
             image = mime.imageData()
             if image and not image.isNull():
@@ -6238,16 +6240,16 @@ class ChatInput(QtWidgets.QPlainTextEdit):
                             return
         super().dropEvent(event)
     
-    # ---- 图片粘贴支持 ----
+    # ---- imagepastesupport ----
     
     def insertFromMimeData(self, source):
-        """重写粘贴：支持从剪贴板粘贴图片"""
+        """Override paste: support pasting images from the clipboard."""
         if source.hasImage():
             image = source.imageData()
             if image and not image.isNull():
                 self.imageDropped.emit(image)
                 return
-        # 粘贴文件路径中的图片
+        # pastefile pathin image
         if source.hasUrls():
             _IMG_EXTS = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'}
             for url in source.urls():
@@ -6259,16 +6261,16 @@ class ChatInput(QtWidgets.QPlainTextEdit):
                         if not img.isNull():
                             self.imageDropped.emit(img)
                             return
-        # 默认文本粘贴
+        # defaulttextpaste
         super().insertFromMimeData(source)
 
 
 # ============================================================
-# 停止按钮
+# stopbutton
 # ============================================================
 
 class StopButton(QtWidgets.QPushButton):
-    """停止按钮"""
+    """stopbutton"""
     
     def __init__(self, parent=None):
         super().__init__("Stop", parent)
@@ -6276,11 +6278,11 @@ class StopButton(QtWidgets.QPushButton):
 
 
 # ============================================================
-# 发送按钮
+# sendbutton
 # ============================================================
 
 class SendButton(QtWidgets.QPushButton):
-    """发送按钮"""
+    """sendbutton"""
     
     def __init__(self, parent=None):
         super().__init__("Send", parent)
@@ -6288,11 +6290,11 @@ class SendButton(QtWidgets.QPushButton):
 
 
 # ============================================================
-# Todo 系统
+# Todo system
 # ============================================================
 
 class TodoItem(QtWidgets.QWidget):
-    """单个 Todo 项"""
+    """single Todo item"""
     
     statusChanged = QtCore.Signal(str, str)
     
@@ -6344,25 +6346,25 @@ class TodoItem(QtWidgets.QWidget):
 
 
 class TodoList(QtWidgets.QWidget):
-    """Todo 列表 - 显示 AI 的任务计划（卡片式框体）"""
+    """Todo list - show AI  taskcountplan (cardstyleboxbody) """
     
     def __init__(self, parent=None):
         super().__init__(parent)
         self._todos = {}
         
-        # 最外层无间距
+        # Outermost layer has no spacing
         outer = QtWidgets.QVBoxLayout(self)
         outer.setContentsMargins(0, 4, 0, 4)
         outer.setSpacing(0)
         
-        # 卡片容器
+        # cardcontain 
         self._card = QtWidgets.QFrame(self)
         self._card.setObjectName("todoCard")
         card_layout = QtWidgets.QVBoxLayout(self._card)
         card_layout.setContentsMargins(10, 8, 10, 8)
         card_layout.setSpacing(4)
         
-        # 标题行
+        # titlerow
         header = QtWidgets.QHBoxLayout()
         header.setSpacing(6)
         
@@ -6385,13 +6387,13 @@ class TodoList(QtWidgets.QWidget):
         
         card_layout.addLayout(header)
         
-        # 分隔线
+        # partintervalline
         sep = QtWidgets.QFrame()
         sep.setFrameShape(QtWidgets.QFrame.HLine)
         sep.setObjectName("todoSeparator")
         card_layout.addWidget(sep)
         
-        # 任务列表
+        # tasklist
         self.list_layout = QtWidgets.QVBoxLayout()
         self.list_layout.setSpacing(2)
         self.list_layout.setContentsMargins(0, 2, 0, 0)
@@ -6452,14 +6454,14 @@ class TodoList(QtWidgets.QWidget):
         ]
     
     def get_todos_data(self) -> list:
-        """返回可序列化的 todo 列表（用于缓存保存/恢复）"""
+        """returncanordercolumnization  todo list (used forcachesave/restore) """
         return [
             {"id": todo_id, "text": item.text, "status": item.status}
             for todo_id, item in self._todos.items()
         ]
 
     def restore_todos(self, todos_data: list):
-        """从序列化数据恢复 todo 列表"""
+        """fromordercolumnizationdatarestore todo list"""
         if not todos_data:
             return
         for td in todos_data:
@@ -6492,16 +6494,16 @@ class TodoList(QtWidgets.QWidget):
 
 
 # ============================================================
-# Token Analytics Panel — 现代简约可视化分析面板
+# Token Analytics Panel - modern minimalist visualization analysis panel
 # ============================================================
 
 class _BarWidget(QtWidgets.QWidget):
-    """水平柱状图条——用于可视化 token 占比"""
+    """Horizontal bar widget — used to visualize token usage ratios."""
 
     def __init__(self, segments: list, max_val: float, parent=None):
         """
         segments: [(value, color_hex), ...]
-        max_val: 全局最大值（用于对齐）
+        max_val: globalmaxvalue (used foralign) 
         """
         super().__init__(parent)
         self._segments = segments
@@ -6527,19 +6529,28 @@ class _BarWidget(QtWidgets.QWidget):
 
 
 class TokenAnalyticsPanel(QtWidgets.QDialog):
-    """Token 使用分析面板 - 对齐 Cursor 风格
-    
-    新增：
-    - 预估费用（按实际模型定价）
-    - 推理 Token（Reasoning）
-    - 延迟（Latency）
-    - 每行费用
+    """Token useanalyzepanel - align Cursor style
+
+    newadd: 
+    - Pre-estimated cost (based on actual model pricing)
+    - inference Token (Reasoning) 
+    - latency (Latency) 
+    - eachrowcostuse
+    - Currency toggle (USD / IDR) dengan live rate fetch
     """
 
     _COL_HEADERS = [
-        "#", "时间", "模型", "Input", "Cache↓", "Cache↑",
-        "Output", "Think", "Total", "延迟", "费用", "",
+        "#", "Time", "Model", "Input", "Cache↓", "Cache↑",
+        "Output", "Think", "Total", "Latency", "Cost", "",
     ]
+
+    # ★ Module-level cache untuk USD→IDR rate (persists across dialog open/close)
+    #   Tuple of (rate, fetched_timestamp). Cache valid for 1 hour.
+    _idr_rate_cache = None
+    _IDR_CACHE_TTL_SEC = 3600
+
+    # Signal for thread-to-main-thread rate delivery
+    rateFetched = QtCore.Signal(float, str)   # rate (0 = error), error_msg
 
     def __init__(self, call_records: list, token_stats: dict, parent=None):
         super().__init__(parent)
@@ -6548,26 +6559,81 @@ class TokenAnalyticsPanel(QtWidgets.QDialog):
         self.resize(1020, 640)
         self.setObjectName("tokenPanel")
 
+        # State for currency switching
+        self._records = call_records
+        self._stats = token_stats
+        self._currency = "USD"          # "USD" | "IDR"
+        self._idr_rate = 0.0            # USD → IDR multiplier (0 = not loaded yet)
+        # Hydrate from cache if still fresh
+        if TokenAnalyticsPanel._idr_rate_cache:
+            rate, ts = TokenAnalyticsPanel._idr_rate_cache
+            if (time.time() - ts) < self._IDR_CACHE_TTL_SEC and rate > 0:
+                self._idr_rate = rate
+
+        # Connect cross-thread signal
+        self.rateFetched.connect(self._on_rate_fetched)
+
         root = QtWidgets.QVBoxLayout(self)
         root.setContentsMargins(16, 12, 16, 12)
         root.setSpacing(12)
 
-        # ---- 摘要卡片 ----
-        root.addWidget(self._build_summary(call_records, token_stats))
+        # ---- summarycard ----
+        self._summary_card = self._build_summary(call_records, token_stats)
+        root.addWidget(self._summary_card)
 
-        # ---- 调用明细表 ----
+        # ---- callclearfinetable ----
         root.addWidget(self._build_table(call_records), 1)
 
-        # ---- 底部按钮 ----
+        # ---- bottompartbutton + Currency selector ----
         self.should_reset_stats = False
         foot = QtWidgets.QHBoxLayout()
         foot.setContentsMargins(0, 0, 0, 0)
+        foot.setSpacing(10)
 
         reset_btn = QtWidgets.QPushButton("Reset stats")
         reset_btn.setFixedWidth(82)
         reset_btn.setObjectName("tokenResetBtn")
         reset_btn.clicked.connect(self._on_reset)
         foot.addWidget(reset_btn)
+
+        # Currency selector chip
+        cur_lbl = QtWidgets.QLabel("Currency:")
+        cur_lbl.setObjectName("tokenCurrencyLabel")
+        cur_lbl.setStyleSheet(f"color:{CursorTheme.TEXT_MUTED}; font-size:11px;")
+        foot.addWidget(cur_lbl)
+
+        self._currency_combo = QtWidgets.QComboBox()
+        self._currency_combo.setObjectName("tokenCurrencyCombo")
+        self._currency_combo.addItem("USD ($)", "USD")
+        self._currency_combo.addItem("IDR (Rp)", "IDR")
+        self._currency_combo.setFixedWidth(96)
+        self._currency_combo.setFixedHeight(26)
+        self._currency_combo.setStyleSheet(
+            "QComboBox#tokenCurrencyCombo {"
+            "  background: rgba(22,24,42,200);"
+            "  border: 1px solid rgba(255,255,255,28);"
+            "  border-radius: 13px;"
+            "  padding: 2px 10px;"
+            "  color: #e2e8f0;"
+            "  font-size: 11px;"
+            "}"
+            "QComboBox#tokenCurrencyCombo:hover {"
+            "  border-color: rgba(251,122,26,180);"
+            "}"
+            "QComboBox#tokenCurrencyCombo::drop-down {"
+            "  border: none; width: 18px;"
+            "}"
+        )
+        self._currency_combo.currentIndexChanged.connect(self._on_currency_changed)
+        foot.addWidget(self._currency_combo)
+
+        # Rate hint label (shows live rate or "Fetching...")
+        self._rate_hint = QtWidgets.QLabel("")
+        self._rate_hint.setObjectName("tokenRateHint")
+        self._rate_hint.setStyleSheet(
+            f"color:{CursorTheme.TEXT_MUTED}; font-size:10px; padding-left:4px;"
+        )
+        foot.addWidget(self._rate_hint)
 
         foot.addStretch()
         close_btn = QtWidgets.QPushButton("Close")
@@ -6578,11 +6644,145 @@ class TokenAnalyticsPanel(QtWidgets.QDialog):
         root.addLayout(foot)
 
     def _on_reset(self):
-        """用户点击了重置按钮"""
+        """userclickreplacebutton"""
         self.should_reset_stats = True
         self.accept()
 
-    # -------- 摘要区 --------
+    # ---- Currency handling ----------------------------------------------
+
+    def _format_cost(self, usd_amount: float) -> str:
+        """Format a USD amount according to current selected currency."""
+        if usd_amount <= 0:
+            return "Rp 0" if self._currency == "IDR" else "$0.00"
+        if self._currency == "IDR":
+            if self._idr_rate <= 0:
+                # Rate not loaded yet — fall back to USD with marker
+                return f"${usd_amount:.4f}*"
+            idr = usd_amount * self._idr_rate
+            # Indonesian-style formatting (dot thousands separator)
+            if idr >= 1_000_000:
+                return f"Rp {idr/1_000_000:.2f}M"
+            elif idr >= 1_000:
+                return f"Rp {int(round(idr)):,}".replace(",", ".")
+            else:
+                return f"Rp {int(round(idr))}"
+        # USD
+        if usd_amount >= 1.0:
+            return f"${usd_amount:.2f}"
+        else:
+            return f"${usd_amount:.4f}"
+
+    def _on_currency_changed(self, idx: int):
+        new_cur = self._currency_combo.itemData(idx) or "USD"
+        self._currency = new_cur
+        if new_cur == "IDR" and self._idr_rate <= 0:
+            self._rate_hint.setText("Fetching live rate…")
+            self._start_idr_rate_fetch()
+        elif new_cur == "IDR":
+            self._update_rate_hint()
+        else:
+            self._rate_hint.setText("")
+        self._rebuild_dynamic_displays()
+
+    def _update_rate_hint(self):
+        if self._currency != "IDR" or self._idr_rate <= 0:
+            self._rate_hint.setText("")
+            return
+        # Show "1 USD = Rp 15.800 (live)"
+        rate_int = int(round(self._idr_rate))
+        rate_fmt = f"{rate_int:,}".replace(",", ".")
+        self._rate_hint.setText(f"1 USD = Rp {rate_fmt} (live, cached 1h)")
+
+    def _start_idr_rate_fetch(self):
+        """Fetch USD→IDR rate in a background thread, emit rateFetched on done."""
+        import threading
+        t = threading.Thread(target=self._fetch_idr_rate_blocking, daemon=True)
+        t.start()
+
+    def _fetch_idr_rate_blocking(self):
+        """Runs in worker thread — fetches rate from open.er-api.com (free, no API key)."""
+        try:
+            import urllib.request, json, ssl
+            ctx = ssl.create_default_context()
+            try:
+                # Some embedded Python installs have an outdated CA bundle
+                ctx.check_hostname = True
+                ctx.verify_mode = ssl.CERT_REQUIRED
+            except Exception:
+                pass
+            req = urllib.request.Request(
+                "https://open.er-api.com/v6/latest/USD",
+                headers={'User-Agent': 'MorfyAI/1.2 (TokenAnalytics)'}
+            )
+            with urllib.request.urlopen(req, timeout=6, context=ctx) as resp:
+                raw = resp.read().decode('utf-8')
+            data = json.loads(raw)
+            rate = float(data.get('rates', {}).get('IDR', 0))
+            if rate <= 0:
+                self.rateFetched.emit(0.0, "IDR rate not in API response")
+                return
+            # Update module-level cache
+            TokenAnalyticsPanel._idr_rate_cache = (rate, time.time())
+            self.rateFetched.emit(rate, "")
+        except Exception as e:
+            self.rateFetched.emit(0.0, f"{type(e).__name__}: {e}")
+
+    @QtCore.Slot(float, str)
+    def _on_rate_fetched(self, rate: float, err: str):
+        if rate > 0:
+            self._idr_rate = rate
+            self._update_rate_hint()
+            self._rebuild_dynamic_displays()
+        else:
+            self._rate_hint.setText(f"Rate fetch failed — {err[:48]}")
+            # Revert to USD
+            try:
+                self._currency_combo.blockSignals(True)
+                self._currency_combo.setCurrentIndex(0)
+                self._currency = "USD"
+            finally:
+                self._currency_combo.blockSignals(False)
+
+    def _rebuild_dynamic_displays(self):
+        """Re-render the summary card (where Est. Cost lives) and the cost
+        column in the detail table whenever currency changes.
+        """
+        try:
+            new_summary = self._build_summary(self._records, self._stats)
+            # Swap the old summary card with the new one
+            root = self.layout()
+            old = self._summary_card
+            root.replaceWidget(old, new_summary)
+            old.setParent(None)
+            old.deleteLater()
+            self._summary_card = new_summary
+            # Re-render cost cells in the detail table by rebuilding it
+            # (rows reference _format_cost via record loop)
+            # For simplicity: leave the table content as-is but trigger a
+            # full repaint — the per-row cost is generated in _make_record_row
+            # which uses _format_cost; rebuilding only requires re-running that.
+            self._refresh_table_costs()
+        except Exception:
+            pass
+
+    def _refresh_table_costs(self):
+        """Update the cost column (index 10) in every existing data row."""
+        try:
+            for row_w in self.findChildren(QtWidgets.QWidget, "tokenDataRow"):
+                # Each row's children are the 12 cell QLabels in order.
+                labels = row_w.findChildren(QtWidgets.QLabel, "tokenDataCell")
+                if len(labels) < 11:
+                    continue
+                # Read the original USD cost from the row's stored attribute
+                usd_cost = getattr(row_w, '_usd_cost', None)
+                if usd_cost is None:
+                    continue
+                cost_label = labels[10]
+                cost_label.setText(self._format_cost(usd_cost) if usd_cost > 0 else "-")
+        except Exception:
+            pass
+
+    # -------- summarysection --------
     def _build_summary(self, records, stats) -> QtWidgets.QWidget:
         card = QtWidgets.QFrame()
         card.setObjectName("tokenSummaryCard")
@@ -6602,17 +6802,12 @@ class TokenAnalyticsPanel(QtWidgets.QDialog):
         cache_total = cache_r + cache_w
         hit_rate = (cache_r / cache_total * 100) if cache_total > 0 else 0
 
-        # 平均延迟
+        # averagelatency
         latencies = [r.get('latency', 0) for r in records if r.get('latency', 0) > 0]
         avg_latency = sum(latencies) / len(latencies) if latencies else 0
 
-        # 费用格式化
-        if cost >= 1.0:
-            cost_str = f"${cost:.2f}"
-        elif cost > 0:
-            cost_str = f"${cost:.4f}"
-        else:
-            cost_str = "$0.00"
+        # costuseformatization — currency-aware (respects USD/IDR toggle)
+        cost_str = self._format_cost(cost)
 
         metrics = [
             ("Requests",       f"{reqs}",               CursorTheme.ACCENT_BLUE),
@@ -6637,7 +6832,7 @@ class TokenAnalyticsPanel(QtWidgets.QDialog):
             val.setAlignment(QtCore.Qt.AlignCenter)
             grid.addWidget(val, 1, col)
 
-        # 进度条: input vs output vs cache
+        # progressitem: input vs output vs cache
         if total > 0:
             bar = _BarWidget([
                 (cache_r, "#10b981"),
@@ -6651,7 +6846,7 @@ class TokenAnalyticsPanel(QtWidgets.QDialog):
 
         return card
 
-    # -------- 明细表 --------
+    # -------- clearfinetable --------
     def _build_table(self, records) -> QtWidgets.QWidget:
         container = QtWidgets.QFrame()
         container.setObjectName("tokenTableCard")
@@ -6659,7 +6854,7 @@ class TokenAnalyticsPanel(QtWidgets.QDialog):
         vbox.setContentsMargins(0, 0, 0, 0)
         vbox.setSpacing(0)
 
-        # 标题
+        # title
         title_lbl = QtWidgets.QLabel(f"  Call details ({len(records)} calls)")
         title_lbl.setObjectName("tokenTableTitle")
         vbox.addWidget(title_lbl)
@@ -6670,7 +6865,7 @@ class TokenAnalyticsPanel(QtWidgets.QDialog):
             vbox.addWidget(empty)
             return container
 
-        # 滚动表格区域
+        # scrolltablegridarea
         scroll = QtWidgets.QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
@@ -6681,14 +6876,14 @@ class TokenAnalyticsPanel(QtWidgets.QDialog):
         table_layout.setContentsMargins(8, 0, 8, 8)
         table_layout.setSpacing(0)
 
-        # 表头
+        # tablehead
         hdr = self._make_row_widget(self._COL_HEADERS, is_header=True)
         table_layout.addWidget(hdr)
 
-        # 找最大 total 以绘制柱状图
+        # Find max total for the bar chart
         max_total = max((r.get('total_tokens', 0) for r in records), default=1)
 
-        # 最新的调用显示在最上面
+        # latest callshowinmostonface
         for display_idx, (orig_idx, rec) in enumerate(
             reversed(list(enumerate(records)))
         ):
@@ -6701,11 +6896,11 @@ class TokenAnalyticsPanel(QtWidgets.QDialog):
 
         return container
 
-    # 列宽定义
+    # Column-width definitions
     _COL_WIDTHS = [24, 50, 90, 54, 54, 54, 54, 48, 54, 44, 52, 0]
 
     def _make_row_widget(self, cells: list, is_header=False) -> QtWidgets.QWidget:
-        """创建一行（表头或数据行）"""
+        """createonerow (tableheadordatarow) """
         row_w = QtWidgets.QWidget()
         row_h = QtWidgets.QHBoxLayout(row_w)
         row_h.setContentsMargins(4, 3, 4, 3)
@@ -6723,7 +6918,7 @@ class TokenAnalyticsPanel(QtWidgets.QDialog):
             lbl.setObjectName("tokenHeaderCell" if is_header else "tokenDataCell")
             if i < len(widths) and widths[i] > 0:
                 lbl.setFixedWidth(widths[i])
-            # 数字列右对齐
+            # countcharactercolumnrightalign
             lbl.setAlignment(QtCore.Qt.AlignRight if 3 <= i <= 10 else QtCore.Qt.AlignLeft)
             if i < len(widths) and widths[i] == 0:
                 row_h.addWidget(lbl, 1)
@@ -6736,7 +6931,7 @@ class TokenAnalyticsPanel(QtWidgets.QDialog):
         return row_w
 
     def _make_record_row(self, idx: int, rec: dict, max_total: float) -> QtWidgets.QWidget:
-        """构建单条记录行"""
+        """buildsingleitemrecordrow"""
         row_w = QtWidgets.QWidget()
         row_w.setObjectName("tokenDataRow")
         row_h = QtWidgets.QHBoxLayout(row_w)
@@ -6757,7 +6952,7 @@ class TokenAnalyticsPanel(QtWidgets.QDialog):
         total = rec.get('total_tokens', 0)
         latency = rec.get('latency', 0)
 
-        # 单次费用（优先使用预计算值）
+        # singletimecostuse (preferredusepre-computevalue) 
         row_cost = rec.get('estimated_cost', 0.0)
         if not row_cost:
             try:
@@ -6773,8 +6968,12 @@ class TokenAnalyticsPanel(QtWidgets.QDialog):
             except Exception:
                 row_cost = 0.0
 
-        cost_str = f"${row_cost:.4f}" if row_cost > 0 else "-"
+        # Currency-aware row cost (uses dialog's current currency selection)
+        cost_str = self._format_cost(row_cost) if row_cost > 0 else "-"
         latency_str = f"{latency:.1f}s" if latency > 0 else "-"
+
+        # Store raw USD cost on row widget so currency toggles can re-format
+        row_w._usd_cost = row_cost
 
         cells = [
             str(idx + 1),
@@ -6789,19 +6988,19 @@ class TokenAnalyticsPanel(QtWidgets.QDialog):
             latency_str,
             cost_str,
         ]
-        widths = self._COL_WIDTHS[:-1]  # 除去最后的 stretch
+        widths = self._COL_WIDTHS[:-1]  # removegolast  stretch
         colors = [
             CursorTheme.TEXT_MUTED,       # #
-            CursorTheme.TEXT_MUTED,       # 时间
-            CursorTheme.TEXT_PRIMARY,     # 模型
+            CursorTheme.TEXT_MUTED,       # whenbetween
+            CursorTheme.TEXT_PRIMARY,     # model
             CursorTheme.ACCENT_PURPLE,    # Input
             "#10b981",                    # Cache Hit
             CursorTheme.ACCENT_ORANGE,    # Cache Write
             CursorTheme.ACCENT_GREEN,     # Output
             CursorTheme.ACCENT_YELLOW,    # Reasoning
             CursorTheme.TEXT_BRIGHT,      # Total
-            CursorTheme.TEXT_SECONDARY,   # 延迟
-            CursorTheme.ACCENT_BLUE,      # 费用
+            CursorTheme.TEXT_SECONDARY,   # latency
+            CursorTheme.ACCENT_BLUE,      # costuse
         ]
         for i, text in enumerate(cells):
             lbl = QtWidgets.QLabel(text)
@@ -6815,7 +7014,7 @@ class TokenAnalyticsPanel(QtWidgets.QDialog):
             lbl.setStyleSheet(f"color:{c};")
             row_h.addWidget(lbl)
 
-        # 迷你柱状图
+        # Mini bar chart
         bar = _BarWidget([
             (c_hit, "#10b981"),
             (c_miss, CursorTheme.ACCENT_ORANGE),
@@ -6839,43 +7038,43 @@ class TokenAnalyticsPanel(QtWidgets.QDialog):
 
 
 # ============================================================
-# 更新通知横幅（启动时检测到新版本 → 输入区上方横幅）
+# updatenotifybanner (startwhendetecttonewversion → inputsectiononwaybanner) 
 # ============================================================
 
 class UpdateNotificationBanner(QtWidgets.QFrame):
-    """更新通知横幅 — 在输入区域上方显示新版本提示
+    """updatenotifybanner — ininputareaonwayshownewversionhint
     
-    轻量横幅，不打断聊天对话流。
-    用户可点击"立即更新"或关闭横幅。
-    支持显示更新摘要（release_notes 首行）。
+    Lightweight banner; does not interrupt the chat flow.
+    usercanclick"standi.e.update"orclosebanner. 
+    supportshowupdatesummary (release_notes firstrow) . 
     """
     
-    updateClicked = QtCore.Signal()   # 点击"立即更新"
-    dismissClicked = QtCore.Signal()  # 点击"关闭"
+    updateClicked = QtCore.Signal()   # click"standi.e.update"
+    dismissClicked = QtCore.Signal()  # click"close"
     
     def __init__(self, remote_version: str, release_name: str = "",
                  local_version: str = "", release_notes: str = "", parent=None):
         super().__init__(parent)
         self.setObjectName("updateNotifyBanner")
-        self.setVisible(False)  # 默认隐藏，由外部调用 show()
+        self.setVisible(False)  # defaulthide, byexternalcall show()
         
         row = QtWidgets.QHBoxLayout(self)
         row.setContentsMargins(10, 5, 6, 5)
         row.setSpacing(8)
         
-        # 图标
+        # icon
         icon_lbl = QtWidgets.QLabel("🚀")
         icon_lbl.setFixedWidth(18)
         icon_lbl.setStyleSheet("background: transparent; border: none;")
         row.addWidget(icon_lbl)
         
-        # 左侧：版本 + 摘要（垂直堆叠）
+        # Left side: version + summary (vertically stacked)
         text_widget = QtWidgets.QWidget()
         text_layout = QtWidgets.QVBoxLayout(text_widget)
         text_layout.setContentsMargins(0, 0, 0, 0)
         text_layout.setSpacing(2)
         
-        # 版本信息文字
+        # versioninfotext
         info_text = tr('update.notify_banner', local_version, remote_version)
         if release_name:
             info_text += f"  —  {release_name}"
@@ -6884,7 +7083,7 @@ class UpdateNotificationBanner(QtWidgets.QFrame):
         info_lbl.setWordWrap(False)
         text_layout.addWidget(info_lbl)
         
-        # 更新摘要（首行，小字）
+        # updatesummary (firstrow, smallcharacter) 
         if release_notes and release_notes.strip():
             notes_lbl = QtWidgets.QLabel(release_notes.strip())
             notes_lbl.setObjectName("updateNotifyNotes")
@@ -6894,7 +7093,7 @@ class UpdateNotificationBanner(QtWidgets.QFrame):
         
         row.addWidget(text_widget, 1)
         
-        # "立即更新" 按钮
+        # "standi.e.update" button
         update_btn = QtWidgets.QPushButton(tr('update.notify_update_now'))
         update_btn.setObjectName("updateNotifyBtn")
         update_btn.setCursor(QtCore.Qt.PointingHandCursor)
@@ -6902,7 +7101,7 @@ class UpdateNotificationBanner(QtWidgets.QFrame):
         update_btn.clicked.connect(self.updateClicked.emit)
         row.addWidget(update_btn)
         
-        # 关闭按钮
+        # closebutton
         dismiss_btn = QtWidgets.QPushButton("✕")
         dismiss_btn.setObjectName("updateNotifyDismiss")
         dismiss_btn.setFixedSize(18, 18)
@@ -6917,16 +7116,16 @@ class UpdateNotificationBanner(QtWidgets.QFrame):
 
 
 # ============================================================
-# Plugin Manager Dialog — 插件管理面板
+# Plugin Manager Dialog — pluginmanagepanel
 # ============================================================
 
 class PluginManagerDialog(QtWidgets.QDialog):
-    """插件管理面板
+    """pluginmanagepanel
 
-    从溢出菜单打开，列出所有插件，支持启用/禁用、重载、设置。
+    Opened from the overflow menu; lists all plugins; supports enable/disable, reload, settings.
     """
 
-    pluginStateChanged = QtCore.Signal()  # 插件状态变化时通知
+    pluginStateChanged = QtCore.Signal()  # pluginstatechangeizationwhennotify
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -6939,7 +7138,7 @@ class PluginManagerDialog(QtWidgets.QDialog):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        # ═══════ Header 标题栏 ═══════
+        # ═══════ Header titlebar ═══════
         header = QtWidgets.QFrame()
         header.setObjectName("pmHeader")
         header.setFixedHeight(44)
@@ -6961,7 +7160,7 @@ class PluginManagerDialog(QtWidgets.QDialog):
         # ═══════ Tab Bar (underline style) ═══════
         self._tabs = QtWidgets.QTabWidget()
         self._tabs.setObjectName("pmTabs")
-        self._tabs.setDocumentMode(True)  # 去掉 pane 边框, 更现代
+        self._tabs.setDocumentMode(True)  # godrop pane edgebox, morenowgeneration
 
         # ── Tab 1: Plugins ──
         plugins_page = QtWidgets.QWidget()
@@ -6990,7 +7189,7 @@ class PluginManagerDialog(QtWidgets.QDialog):
         tools_lay.setContentsMargins(12, 10, 12, 6)
         tools_lay.setSpacing(6)
 
-        # 搜索框
+        # searchbox
         self._tools_search = QtWidgets.QLineEdit()
         self._tools_search.setObjectName("pmSearchEdit")
         self._tools_search.setPlaceholderText(tr('plugin.search_tools'))
@@ -7029,7 +7228,7 @@ class PluginManagerDialog(QtWidgets.QDialog):
         skills_scroll.setWidget(self._skills_container)
         skills_lay.addWidget(skills_scroll, 1)
 
-        # Skill 目录配置
+        # Skill directoryconfig
         skill_dir_frame = QtWidgets.QFrame()
         skill_dir_frame.setObjectName("pmSkillDirFrame")
         skill_dir_lay = QtWidgets.QHBoxLayout(skill_dir_frame)
@@ -7057,7 +7256,7 @@ class PluginManagerDialog(QtWidgets.QDialog):
 
         root.addWidget(self._tabs, 1)
 
-        # ═══════ Footer 底部栏 ═══════
+        # ═══════ Footer bottompartbar ═══════
         footer = QtWidgets.QFrame()
         footer.setObjectName("pmFooter")
         footer.setFixedHeight(42)
@@ -7081,15 +7280,15 @@ class PluginManagerDialog(QtWidgets.QDialog):
 
         root.addWidget(footer)
 
-        # Tab 切换刷新
+        # Tab switchflushnew
         self._tabs.currentChanged.connect(self._on_tab_changed)
 
-        # 加载插件列表
+        # loadpluginlist
         self._refresh_list()
         self._update_stats()
 
     def _update_stats(self):
-        """更新 header 统计标签"""
+        """update header statisticslabel"""
         try:
             from ..utils.hooks import list_plugins
             plugins = list_plugins()
@@ -7099,8 +7298,8 @@ class PluginManagerDialog(QtWidgets.QDialog):
             self._stats_label.setText("")
 
     def _refresh_list(self):
-        """刷新插件列表"""
-        # 清空旧项
+        """flushnewpluginlist"""
+        # clearemptyolditem
         while self._list_layout.count():
             item = self._list_layout.takeAt(0)
             if item.widget():
@@ -7117,7 +7316,7 @@ class PluginManagerDialog(QtWidgets.QDialog):
             return
 
         if not plugins:
-            # 空状态 — 漂亮的引导提示
+            # Empty state — pretty onboarding hint
             empty_frame = QtWidgets.QFrame()
             empty_frame.setObjectName("pmEmptyState")
             ev = QtWidgets.QVBoxLayout(empty_frame)
@@ -7151,7 +7350,7 @@ class PluginManagerDialog(QtWidgets.QDialog):
         self._update_stats()
 
     def _create_plugin_row(self, info: dict) -> QtWidgets.QWidget:
-        """创建单个插件行（卡片式）"""
+        """createsinglepluginrow (cardstyle) """
         row = QtWidgets.QFrame()
         row.setObjectName("pmCard")
 
@@ -7159,7 +7358,7 @@ class PluginManagerDialog(QtWidgets.QDialog):
         h.setContentsMargins(12, 10, 12, 10)
         h.setSpacing(10)
 
-        # 状态指示灯
+        # State indicator light
         enabled = info.get("_enabled", False)
         dot = QtWidgets.QLabel("●")
         dot.setFixedWidth(12)
@@ -7170,7 +7369,7 @@ class PluginManagerDialog(QtWidgets.QDialog):
         dot.setAlignment(QtCore.Qt.AlignCenter)
         h.addWidget(dot)
 
-        # 左侧：名称 + 元信息
+        # left side: name + metadatainfo
         left = QtWidgets.QVBoxLayout()
         left.setSpacing(3)
 
@@ -7196,11 +7395,11 @@ class PluginManagerDialog(QtWidgets.QDialog):
 
         h.addLayout(left, 1)
 
-        # 操作按钮组
+        # operationbuttongroup
         actions = QtWidgets.QHBoxLayout()
         actions.setSpacing(4)
 
-        # 设置按钮（仅有 settings 时显示）
+        # setbutton (onlyhas settings whenshow) 
         if info.get("settings"):
             btn_settings = QtWidgets.QPushButton("⚙")
             btn_settings.setObjectName("pmIconBtn")
@@ -7211,7 +7410,7 @@ class PluginManagerDialog(QtWidgets.QDialog):
                 lambda checked=False, n=name, i=info: self._open_settings(n, i))
             actions.addWidget(btn_settings)
 
-        # 重载按钮
+        # reloadbutton
         btn_reload = QtWidgets.QPushButton("↻")
         btn_reload.setObjectName("pmIconBtn")
         btn_reload.setFixedSize(28, 28)
@@ -7221,7 +7420,7 @@ class PluginManagerDialog(QtWidgets.QDialog):
             lambda checked=False, n=name: self._on_reload(n))
         actions.addWidget(btn_reload)
 
-        # 启用/禁用开关
+        # enable/disabletoggle
         toggle = QtWidgets.QCheckBox()
         toggle.setChecked(enabled)
         toggle.setToolTip(tr('plugin.toggle_tip'))
@@ -7234,7 +7433,7 @@ class PluginManagerDialog(QtWidgets.QDialog):
         return row
 
     def _on_toggle(self, plugin_name: str, enabled: bool):
-        """启用/禁用插件"""
+        """enable/disableplugin"""
         try:
             from ..utils.hooks import enable_plugin, disable_plugin
             if enabled:
@@ -7246,7 +7445,7 @@ class PluginManagerDialog(QtWidgets.QDialog):
             _dbg(f"[PluginManager] Toggle error: {e}")
 
     def _on_reload(self, plugin_name: str):
-        """重载单个插件"""
+        """reloadsingleplugin"""
         try:
             from ..utils.hooks import reload_plugin
             reload_plugin(plugin_name)
@@ -7256,12 +7455,12 @@ class PluginManagerDialog(QtWidgets.QDialog):
             _dbg(f"[PluginManager] Reload error: {e}")
 
     def _reload_all(self):
-        """重载全部插件"""
+        """reloadallpartplugin"""
         try:
             from ..utils.hooks import reload_all_plugins
             reload_all_plugins()
             self._refresh_list()
-            # 如果当前在 Tools/Skills tab, 也刷新
+            # ifcurrentin Tools/Skills tab, alsoflushnew
             idx = self._tabs.currentIndex()
             if idx == 1:
                 self._refresh_tools_list()
@@ -7272,7 +7471,7 @@ class PluginManagerDialog(QtWidgets.QDialog):
             _dbg(f"[PluginManager] Reload all error: {e}")
 
     def _open_plugins_dir(self):
-        """打开 plugins 目录"""
+        """open plugins directory"""
         try:
             from ..utils.hooks import get_plugins_dir
             import os, subprocess
@@ -7289,14 +7488,14 @@ class PluginManagerDialog(QtWidgets.QDialog):
             _dbg(f"[PluginManager] Open dir error: {e}")
 
     def _on_tab_changed(self, index: int):
-        """Tab 切换时刷新对应列表"""
+        """Tab switchwhenflushnewforshouldlist"""
         if index == 1:
             self._refresh_tools_list()
         elif index == 2:
             self._refresh_skills_list()
 
     def _filter_tools(self, text: str):
-        """搜索框过滤工具列表"""
+        """searchboxfiltertoollist"""
         text = text.strip().lower()
         for i in range(self._tools_layout.count()):
             item = self._tools_layout.itemAt(i)
@@ -7309,13 +7508,13 @@ class PluginManagerDialog(QtWidgets.QDialog):
                 visible = (not text) or text in tool_name.lower() or text in tool_desc.lower()
                 w.setVisible(visible)
             elif w.objectName() == "pmGroupHeader":
-                # 组标题: 如果搜索框有内容则隐藏组标题
+                # grouptitle: ifsearchboxhascontentthenhidegrouptitle
                 w.setVisible(not text)
 
     # ---------- Tools Tab ----------
 
     def _refresh_tools_list(self):
-        """刷新工具列表"""
+        """flushnewtoollist"""
         while self._tools_layout.count():
             item = self._tools_layout.takeAt(0)
             if item.widget():
@@ -7338,7 +7537,7 @@ class PluginManagerDialog(QtWidgets.QDialog):
             lbl.setAlignment(QtCore.Qt.AlignCenter)
             self._tools_layout.addWidget(lbl)
         else:
-            # 按来源分组
+            # bycomesourcegroup
             groups = {}
             for t in tools:
                 source = t.get("source", "core")
@@ -7364,7 +7563,7 @@ class PluginManagerDialog(QtWidgets.QDialog):
                 if not items:
                     continue
 
-                # 组标题
+                # grouptitle
                 group_lbl = QtWidgets.QLabel(
                     f"{source_icons.get(source, '•')}  {source_labels.get(source, source)}"
                     f"  ({len(items)})"
@@ -7379,7 +7578,7 @@ class PluginManagerDialog(QtWidgets.QDialog):
         self._tools_layout.addStretch()
 
     def _create_tool_row(self, info: dict) -> QtWidgets.QWidget:
-        """创建单个工具行（紧凑卡片）"""
+        """createsingletoolrow (compactcard) """
         row = QtWidgets.QFrame()
         row.setObjectName("pmCard")
 
@@ -7389,7 +7588,7 @@ class PluginManagerDialog(QtWidgets.QDialog):
         modes = info.get("modes", [])
         tags = info.get("tags", [])
 
-        # 存储属性用于搜索过滤
+        # savestoreattributeused forsearchfilter
         row.setProperty("toolName", name)
         row.setProperty("toolDesc", desc)
 
@@ -7410,11 +7609,11 @@ class PluginManagerDialog(QtWidgets.QDialog):
             desc_lbl.setWordWrap(True)
             left.addWidget(desc_lbl)
 
-        # 标签栏 (modes + tags)
+        # labelbar (modes + tags)
         if modes or tags:
             tag_row = QtWidgets.QHBoxLayout()
             tag_row.setSpacing(4)
-            for m in modes[:3]:  # 最多显示 3 个 mode 标签
+            for m in modes[:3]:  # at mostshow 3  mode label
                 tag = QtWidgets.QLabel(m)
                 tag.setObjectName("pmTagBadge")
                 tag_row.addWidget(tag)
@@ -7427,7 +7626,7 @@ class PluginManagerDialog(QtWidgets.QDialog):
 
         h.addLayout(left, 1)
 
-        # 启用/禁用开关
+        # enable/disabletoggle
         toggle = QtWidgets.QCheckBox()
         toggle.setChecked(enabled)
         toggle.setToolTip(tr('plugin.tool_toggle_tip'))
@@ -7438,7 +7637,7 @@ class PluginManagerDialog(QtWidgets.QDialog):
         return row
 
     def _on_tool_toggle(self, tool_name: str, enabled: bool):
-        """启用/禁用工具"""
+        """enable/disabletool"""
         try:
             from ..utils.tool_registry import get_tool_registry
             reg = get_tool_registry()
@@ -7450,7 +7649,7 @@ class PluginManagerDialog(QtWidgets.QDialog):
     # ---------- Skills Tab ----------
 
     def _refresh_skills_list(self):
-        """刷新 Skill 列表"""
+        """flushnew Skill list"""
         while self._skills_layout.count():
             item = self._skills_layout.takeAt(0)
             if item.widget():
@@ -7467,7 +7666,7 @@ class PluginManagerDialog(QtWidgets.QDialog):
             return
 
         if not skills:
-            # 空状态
+            # emptystate
             empty_frame = QtWidgets.QFrame()
             empty_frame.setObjectName("pmEmptyState")
             ev = QtWidgets.QVBoxLayout(empty_frame)
@@ -7493,7 +7692,7 @@ class PluginManagerDialog(QtWidgets.QDialog):
 
         self._skills_layout.addStretch()
 
-        # 加载用户 Skill 目录
+        # loaduser Skill directory
         try:
             from ..skills import _get_user_skill_dir
             user_dir = _get_user_skill_dir()
@@ -7503,7 +7702,7 @@ class PluginManagerDialog(QtWidgets.QDialog):
             pass
 
     def _create_skill_row(self, info: dict) -> QtWidgets.QWidget:
-        """创建单个 Skill 行（卡片式）"""
+        """createsingle Skill row (cardstyle) """
         row = QtWidgets.QFrame()
         row.setObjectName("pmCard")
 
@@ -7511,7 +7710,7 @@ class PluginManagerDialog(QtWidgets.QDialog):
         h.setContentsMargins(12, 8, 12, 8)
         h.setSpacing(10)
 
-        # 图标
+        # icon
         icon_lbl = QtWidgets.QLabel("🧠")
         icon_lbl.setFixedWidth(20)
         icon_lbl.setStyleSheet("font-size: 14px; background: transparent;")
@@ -7549,8 +7748,8 @@ class PluginManagerDialog(QtWidgets.QDialog):
 
         h.addLayout(left, 1)
 
-        # Skill 启用/禁用开关
-        tool_name = f"skill:{name}"
+        # Skill enable/disabletoggle (key must match the registry key in skills/__init__.py)
+        tool_name = f"skill__{name}"
         enabled = True
         try:
             from ..utils.tool_registry import get_tool_registry
@@ -7568,12 +7767,12 @@ class PluginManagerDialog(QtWidgets.QDialog):
         return row
 
     def _browse_skill_dir(self):
-        """浏览选择用户 Skill 目录"""
+        """Browse and select user skill directory."""
         dir_path = QtWidgets.QFileDialog.getExistingDirectory(
             self, tr('plugin.skill_dir_browse'), "")
         if dir_path:
             self._skill_dir_edit.setText(dir_path)
-            # 保存到 config/houdini_ai.ini
+            # saveto config/houdini_ai.ini
             try:
                 import configparser
                 from pathlib import Path
@@ -7592,7 +7791,7 @@ class PluginManagerDialog(QtWidgets.QDialog):
                 _dbg(f"[Skills] Failed to save skill directory: {e}")
 
     def _open_settings(self, plugin_name: str, info: dict):
-        """打开插件设置对话框"""
+        """openpluginsetconversationbox"""
         dlg = PluginSettingsPage(
             plugin_name=plugin_name,
             settings_schema=info.get("settings", []),
@@ -7602,9 +7801,9 @@ class PluginManagerDialog(QtWidgets.QDialog):
 
 
 class PluginSettingsPage(QtWidgets.QDialog):
-    """插件设置页 — 根据 settings schema 自动生成配置表单
+    """pluginsetpage — based on settings schema autogenerateconfigtablesingle
 
-    settings schema 格式:
+    settings schema format:
         [
             {"key": "log_level", "type": "string", "label": "Log Level", "default": "info", "options": [...]},
             {"key": "enable_x", "type": "bool", "label": "Enable X", "default": True},
@@ -7624,7 +7823,7 @@ class PluginSettingsPage(QtWidgets.QDialog):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        # 标题栏
+        # titlebar
         header = QtWidgets.QFrame()
         header.setObjectName("pmHeader")
         header.setFixedHeight(40)
@@ -7639,13 +7838,13 @@ class PluginSettingsPage(QtWidgets.QDialog):
         layout.setContentsMargins(16, 14, 16, 14)
         layout.setSpacing(10)
 
-        # 读取当前设置值
+        # readcurrentsetvalue
         try:
             from ..utils.hooks import get_plugin_setting
         except ImportError:
             get_plugin_setting = lambda pn, k, d=None: d
 
-        # 生成表单
+        # generatetablesingle
         form = QtWidgets.QFormLayout()
         form.setSpacing(8)
         form.setContentsMargins(0, 0, 0, 0)
@@ -7686,7 +7885,7 @@ class PluginSettingsPage(QtWidgets.QDialog):
 
         root.addLayout(layout, 1)
 
-        # 底部按钮栏
+        # bottompartbuttonbar
         footer = QtWidgets.QFrame()
         footer.setObjectName("pmFooter")
         footer.setFixedHeight(42)
@@ -7709,7 +7908,7 @@ class PluginSettingsPage(QtWidgets.QDialog):
         root.addWidget(footer)
 
     def _save(self):
-        """保存设置"""
+        """saveset"""
         try:
             from ..utils.hooks import set_plugin_setting
         except ImportError:
@@ -7736,14 +7935,14 @@ class PluginSettingsPage(QtWidgets.QDialog):
 
 
 # ============================================================
-# Rules Editor Dialog — 用户自定义规则编辑器
+# Rules Editor Dialog — usercustomruleedit 
 # ============================================================
 
 class RulesEditorDialog(QtWidgets.QDialog):
-    """用户自定义规则编辑器对话框
+    """usercustomruleedit conversationbox
 
-    左侧：规则列表 + 操作按钮
-    右侧：标题 + 内容编辑区（或空状态引导）
+    left side: rulelist + operationbutton
+    right side: title + contenteditsection (oremptystateguideimport) 
     """
 
     def __init__(self, parent=None):
@@ -7764,7 +7963,7 @@ class RulesEditorDialog(QtWidgets.QDialog):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        # ---- 标题栏 ----
+        # ---- titlebar ----
         header = QtWidgets.QFrame()
         header.setObjectName("rulesHeader")
         header.setFixedHeight(40)
@@ -7783,12 +7982,12 @@ class RulesEditorDialog(QtWidgets.QDialog):
 
         root.addWidget(header)
 
-        # ---- 主体 ----
+        # ---- mainbody ----
         body = QtWidgets.QHBoxLayout()
         body.setContentsMargins(10, 8, 10, 0)
         body.setSpacing(8)
 
-        # ── 左侧面板 ──
+        # ── left sidepanel ──
         left_panel = QtWidgets.QFrame()
         left_panel.setObjectName("rulesLeftPanel")
         left_panel.setFixedWidth(200)
@@ -7801,7 +8000,7 @@ class RulesEditorDialog(QtWidgets.QDialog):
         self._list_widget.currentRowChanged.connect(self._on_rule_selected)
         left_v.addWidget(self._list_widget, 1)
 
-        # 操作按钮
+        # operationbutton
         btn_row = QtWidgets.QHBoxLayout()
         btn_row.setSpacing(4)
 
@@ -7822,11 +8021,11 @@ class RulesEditorDialog(QtWidgets.QDialog):
         left_v.addLayout(btn_row)
         body.addWidget(left_panel)
 
-        # ── 右侧面板 (QStackedWidget: 空状态 / 编辑区) ──
+        # ── right sidepanel (QStackedWidget: emptystate / editsection) ──
         self._right_stack = QtWidgets.QStackedWidget()
         self._right_stack.setObjectName("rulesRightStack")
 
-        # page 0: 空状态引导
+        # page 0: emptystateguideimport
         empty_page = QtWidgets.QWidget()
         empty_lay = QtWidgets.QVBoxLayout(empty_page)
         empty_lay.setAlignment(QtCore.Qt.AlignCenter)
@@ -7842,7 +8041,7 @@ class RulesEditorDialog(QtWidgets.QDialog):
         self._empty_label.setWordWrap(True)
         empty_lay.addWidget(self._empty_label)
 
-        # 空状态下的新建按钮
+        # emptystatebelow createbutton
         empty_add_btn = QtWidgets.QPushButton(f"＋ {tr('rules.add')}")
         empty_add_btn.setObjectName("rulesAddBtn")
         empty_add_btn.setCursor(QtCore.Qt.PointingHandCursor)
@@ -7855,7 +8054,7 @@ class RulesEditorDialog(QtWidgets.QDialog):
 
         self._right_stack.addWidget(empty_page)  # index 0
 
-        # page 1: 编辑区
+        # page 1: editsection
         edit_page = QtWidgets.QWidget()
         edit_lay = QtWidgets.QVBoxLayout(edit_page)
         edit_lay.setContentsMargins(0, 0, 0, 0)
@@ -7873,7 +8072,7 @@ class RulesEditorDialog(QtWidgets.QDialog):
         self._content_edit.textChanged.connect(self._on_content_changed)
         edit_lay.addWidget(self._content_edit, 1)
 
-        # 底部状态行
+        # bottompartstaterow
         bottom_row = QtWidgets.QHBoxLayout()
         bottom_row.setSpacing(6)
 
@@ -7894,7 +8093,7 @@ class RulesEditorDialog(QtWidgets.QDialog):
         body.addWidget(self._right_stack, 1)
         root.addLayout(body, 1)
 
-        # ---- 底部栏 ----
+        # ---- bottompartbar ----
         footer = QtWidgets.QFrame()
         footer.setObjectName("rulesFooter")
         footer.setFixedHeight(36)
@@ -7911,11 +8110,11 @@ class RulesEditorDialog(QtWidgets.QDialog):
 
         root.addWidget(footer)
 
-        # 初始显示空状态
+        # initialshowemptystate
         self._right_stack.setCurrentIndex(0)
 
     def _load_rules(self):
-        """从 rules_manager 加载所有规则"""
+        """from rules_manager loadallrule"""
         try:
             from ..utils.rules_manager import get_all_rules
             self._rules = get_all_rules(force_reload=True)
@@ -7926,7 +8125,7 @@ class RulesEditorDialog(QtWidgets.QDialog):
         self._refresh_list()
 
     def _refresh_list(self):
-        """刷新左侧规则列表"""
+        """flushnewleft siderulelist"""
         self._list_widget.blockSignals(True)
         self._list_widget.clear()
 
@@ -7935,7 +8134,7 @@ class RulesEditorDialog(QtWidgets.QDialog):
             source = r.get("source", "ui")
             enabled = r.get("enabled", True)
 
-            # 构造显示文本
+            # constructshowtext
             prefix = ""
             if source == "file":
                 prefix = "[F] "
@@ -7943,25 +8142,25 @@ class RulesEditorDialog(QtWidgets.QDialog):
                 prefix += "(" + tr('rules.disable') + ") "
 
             item = QtWidgets.QListWidgetItem(prefix + title)
-            # 禁用的规则灰色显示
+            # disable rulegraycolorshow
             if not enabled:
                 item.setForeground(QtCore.Qt.gray)
             self._list_widget.addItem(item)
 
         self._list_widget.blockSignals(False)
 
-        # 更新计数
+        # updatecountcount
         enabled_count = sum(1 for r in self._rules if r.get("enabled", True))
         self._count_label.setText(tr('rules.count', enabled_count))
 
-        # 空状态 / 编辑区切换
+        # emptystate / editsectionswitch
         has_rules = len(self._rules) > 0
         if not has_rules:
-            self._right_stack.setCurrentIndex(0)  # 空状态页
+            self._right_stack.setCurrentIndex(0)  # emptystatepage
         else:
-            self._right_stack.setCurrentIndex(1)  # 编辑页
+            self._right_stack.setCurrentIndex(1)  # editpage
 
-        # 恢复选中
+        # restoreselected
         if self._current_rule_id:
             for i, r in enumerate(self._rules):
                 if r.get("id") == self._current_rule_id:
@@ -7971,7 +8170,7 @@ class RulesEditorDialog(QtWidgets.QDialog):
             self._list_widget.setCurrentRow(0)
 
     def _on_rule_selected(self, row: int):
-        """选中规则时更新右侧编辑区"""
+        """selectedrulewhenupdateright sideeditsection"""
         if row < 0 or row >= len(self._rules):
             self._current_rule_id = None
             self._set_editor_enabled(False)
@@ -7981,7 +8180,7 @@ class RulesEditorDialog(QtWidgets.QDialog):
         self._current_rule_id = rule.get("id")
         is_file = rule.get("source") == "file"
 
-        # 更新编辑区
+        # updateeditsection
         self._title_edit.blockSignals(True)
         self._content_edit.blockSignals(True)
 
@@ -7991,18 +8190,18 @@ class RulesEditorDialog(QtWidgets.QDialog):
         self._title_edit.blockSignals(False)
         self._content_edit.blockSignals(False)
 
-        # 文件规则只读
+        # fileruleread-only
         self._title_edit.setReadOnly(is_file)
         self._content_edit.setReadOnly(is_file)
 
-        # 源标签
+        # sourcelabel
         if is_file:
             fp = rule.get("file_path", "")
             self._source_label.setText(f"{tr('rules.file_readonly')}  {fp}")
         else:
             self._source_label.setText("")
 
-        # 启用/禁用按钮
+        # enable/disablebutton
         enabled = rule.get("enabled", True)
         if is_file:
             self._btn_toggle.setVisible(False)
@@ -8015,14 +8214,14 @@ class RulesEditorDialog(QtWidgets.QDialog):
         self._set_editor_enabled(True)
 
     def _set_editor_enabled(self, enabled: bool):
-        """切换右侧面板：编辑区 / 空状态"""
+        """switchright sidepanel: editsection / emptystate"""
         if enabled:
             self._right_stack.setCurrentIndex(1)
         else:
             self._right_stack.setCurrentIndex(0)
 
     def _on_title_changed(self, text: str):
-        """标题变更时实时保存"""
+        """titlechangewhenrealwhensave"""
         if self._current_rule_id and not self._current_rule_id.startswith("file:"):
             for r in self._rules:
                 if r.get("id") == self._current_rule_id:
@@ -8030,7 +8229,7 @@ class RulesEditorDialog(QtWidgets.QDialog):
                     self._dirty = True
                     break
             self._auto_save()
-            # 更新列表显示
+            # updatelistshow
             row = self._list_widget.currentRow()
             if 0 <= row < self._list_widget.count():
                 item = self._list_widget.item(row)
@@ -8038,7 +8237,7 @@ class RulesEditorDialog(QtWidgets.QDialog):
                     item.setText(text or tr('rules.untitled'))
 
     def _on_content_changed(self):
-        """内容变更时实时保存"""
+        """contentchangewhenrealwhensave"""
         if self._current_rule_id and not self._current_rule_id.startswith("file:"):
             text = self._content_edit.toPlainText()
             for r in self._rules:
@@ -8049,7 +8248,7 @@ class RulesEditorDialog(QtWidgets.QDialog):
             self._auto_save()
 
     def _auto_save(self):
-        """自动保存 UI 规则"""
+        """autosave UI rule"""
         if not self._dirty:
             return
         try:
@@ -8061,7 +8260,7 @@ class RulesEditorDialog(QtWidgets.QDialog):
             _dbg(f"[RulesEditor] Auto-save failed: {e}")
 
     def _on_add(self):
-        """新增一条 UI 规则"""
+        """newaddoneitem UI rule"""
         try:
             from ..utils.rules_manager import add_rule
             rule = add_rule(title=tr('rules.untitled'), content="")
@@ -8069,19 +8268,19 @@ class RulesEditorDialog(QtWidgets.QDialog):
             self._rules.append(rule)
             self._current_rule_id = rule["id"]
             self._refresh_list()
-            # 选中新建的规则
+            # selectedcreate rule
             self._list_widget.setCurrentRow(len(self._rules) - 1)
         except Exception as e:
             _dbg(f"[RulesEditor] Add rule failed: {e}")
 
     def _on_delete(self):
-        """删除当前选中的 UI 规则"""
+        """deletecurrentselected  UI rule"""
         if not self._current_rule_id:
             return
         if self._current_rule_id.startswith("file:"):
-            return  # 文件规则不允许在 UI 中删除
+            return  # filerulenotallowin UI indelete
 
-        # 确认
+        # confirm
         current_rule = None
         for r in self._rules:
             if r.get("id") == self._current_rule_id:
@@ -8110,7 +8309,7 @@ class RulesEditorDialog(QtWidgets.QDialog):
             _dbg(f"[RulesEditor] Delete rule failed: {e}")
 
     def _on_toggle_enabled(self):
-        """切换当前规则的启用/禁用状态"""
+        """switchcurrentrule enable/disablestate"""
         if not self._current_rule_id or self._current_rule_id.startswith("file:"):
             return
 
@@ -8121,14 +8320,14 @@ class RulesEditorDialog(QtWidgets.QDialog):
                 self._dirty = True
                 self._auto_save()
                 self._refresh_list()
-                # 更新按钮文本
+                # updatebuttontext
                 self._btn_toggle.setText(
                     tr('rules.disable') if new_enabled else tr('rules.enable')
                 )
                 break
 
     def _on_open_dir(self):
-        """打开 rules/ 目录"""
+        """open rules/ directory"""
         try:
             from ..utils.rules_manager import get_rules_dir, ensure_rules_dir
             import os, subprocess
@@ -8145,9 +8344,9 @@ class RulesEditorDialog(QtWidgets.QDialog):
             _dbg(f"[RulesEditor] Open dir failed: {e}")
 
     def resizeEvent(self, event):
-        """调整空状态提示的位置"""
+        """adjustwholeemptystatehint position"""
         super().resizeEvent(event)
-        # 让 empty_label 覆盖右侧编辑区域
+        # let empty_label overrideright sideeditarea
         if hasattr(self, '_empty_label') and self._empty_label.parent():
             self._empty_label.setGeometry(self._empty_label.parent().rect())
 

@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """Normal quality check skill
 
-全面Analyze Houdini 节点几何体的法线状态, 检测以下问题: 
+Comprehensive normal-state analysis for a Houdini node's geometry. Detects:
   - NO_NORMAL     : Geometry has no normal attribute (N)
   - NAN_NORMAL    : Normal contains NaN values
   - INF_NORMAL    : Normal contains Inf values
-  - ZERO_NORMAL   : Zero-vector normals (长度为 0)
-  - NON_NORMALIZED: 未归一化 (长度 ≠ 1)
-  - FLIPPED_FACES : Flipped faces (相邻面法线方向相反)
+  - ZERO_NORMAL   : Zero-vector normals (length = 0)
+  - NON_NORMALIZED: Not normalized (length != 1)
+  - FLIPPED_FACES : Flipped faces (adjacent face normals point opposite ways)
 """
 
 SKILL_INFO = {
@@ -41,7 +41,7 @@ SKILL_INFO = {
 }
 
 
-# 问题严重级别
+# Severity per issue type
 _SEVERITY = {
     "NO_NORMAL":      "WARNING",
     "NAN_NORMAL":     "ERROR",
@@ -65,10 +65,10 @@ def run(node_path, tolerance=0.001, flip_angle_threshold=120.0, max_sample=20000
     """Entry point
 
     Args:
-        node_path: 节点路径
-        tolerance: 归一化容差
-        flip_angle_threshold: 翻转检测角度阈值 (度)
-        max_sample: 最大采样数
+        node_path: node path
+        tolerance: normalization tolerance
+        flip_angle_threshold: flip-detection angle threshold (degrees)
+        max_sample: max sample count
     """
     import hou  # type: ignore
     import math
@@ -87,7 +87,7 @@ def run(node_path, tolerance=0.001, flip_angle_threshold=120.0, max_sample=20000
     issues = []
     summary = {"status": "OK", "total_issues": 0}
 
-    # ---- 1. Check法线属性是否存 in  ----
+    # ---- 1. Verify the normal attribute exists ----
     n_attrib = geo.findPointAttrib("N")
     if not n_attrib:
         issues.append({
@@ -107,7 +107,7 @@ def run(node_path, tolerance=0.001, flip_angle_threshold=120.0, max_sample=20000
             "summary": summary,
         }
 
-    # ---- 获取法线数据 ----
+    # ---- Fetch normal data ----
     try:
         raw_vals = geo.pointFloatAttribValues("N")
     except Exception as e:
@@ -119,7 +119,7 @@ def run(node_path, tolerance=0.001, flip_angle_threshold=120.0, max_sample=20000
 
     total_points = len(raw_vals) // 3
 
-    # 使用 numpy 加速 (如果可用)
+    # Use numpy for speed (if available)
     try:
         import numpy as np
         use_numpy = True
@@ -129,7 +129,7 @@ def run(node_path, tolerance=0.001, flip_angle_threshold=120.0, max_sample=20000
     if use_numpy:
         normals = np.array(raw_vals, dtype=np.float64).reshape((-1, 3))
 
-        # 采样
+        # Sample
         sampled = False
         max_sample = min(int(max_sample), 500000)
         if total_points > max_sample:
@@ -139,7 +139,7 @@ def run(node_path, tolerance=0.001, flip_angle_threshold=120.0, max_sample=20000
         else:
             normals_sample = normals
 
-        # ---- 2. NaN 检测 ----
+        # ---- 2. NaN detection ----
         nan_mask = np.isnan(normals_sample).any(axis=1)
         nan_count = int(nan_mask.sum())
         if nan_count > 0:
@@ -151,7 +151,7 @@ def run(node_path, tolerance=0.001, flip_angle_threshold=120.0, max_sample=20000
                 "detail": f"{nan_count} points have Normal containing NaN",
             })
 
-        # ---- 3. Inf 检测 ----
+        # ---- 3. Inf detection ----
         inf_mask = np.isinf(normals_sample).any(axis=1)
         inf_count = int(inf_mask.sum())
         if inf_count > 0:
@@ -163,15 +163,15 @@ def run(node_path, tolerance=0.001, flip_angle_threshold=120.0, max_sample=20000
                 "detail": f"{inf_count} points have Normal containing Inf",
             })
 
-        # 过滤掉 NaN  and  Inf 后再做后续Check
+        # Strip NaN and Inf before further checks
         valid_mask = ~(nan_mask | inf_mask)
         valid_normals = normals_sample[valid_mask]
 
         if len(valid_normals) > 0:
-            # 计算长度
+            # Compute lengths
             lengths = np.linalg.norm(valid_normals, axis=1)
 
-            # ---- 4. 零向量检测 ----
+            # ---- 4. Zero-vector detection ----
             zero_mask = lengths < 1e-10
             zero_count = int(zero_mask.sum())
             if zero_count > 0:
@@ -183,13 +183,13 @@ def run(node_path, tolerance=0.001, flip_angle_threshold=120.0, max_sample=20000
                     "detail": f"{zero_count} zero vector(s)",
                 })
 
-            # ---- 5. 归一化检测 ----
+            # ---- 5. Normalization check ----
             non_zero_lengths = lengths[~zero_mask]
             if len(non_zero_lengths) > 0:
                 not_normalized = np.abs(non_zero_lengths - 1.0) > tolerance
                 not_norm_count = int(not_normalized.sum())
                 if not_norm_count > 0:
-                    # 统计偏差
+                    # Deviation stats
                     deviations = non_zero_lengths[not_normalized]
                     issues.append({
                         "type": "NON_NORMALIZED",
@@ -210,7 +210,7 @@ def run(node_path, tolerance=0.001, flip_angle_threshold=120.0, max_sample=20000
         }
 
     else:
-        # ---- 纯 Python 路径 (无 numpy) ----
+        # ---- Pure Python path (no numpy) ----
         nan_count = 0
         inf_count = 0
         zero_count = 0
@@ -284,7 +284,7 @@ def run(node_path, tolerance=0.001, flip_angle_threshold=120.0, max_sample=20000
             "sample_size": min(total_points, max_sample),
         }
 
-    # ---- 6. 翻转面检测 ----
+    # ---- 6. Flipped-face detection ----
     if prim_count > 0:
         flipped_count = _check_flipped_faces(geo, prim_count, flip_angle_threshold, max_sample)
         if flipped_count > 0:
@@ -296,7 +296,7 @@ def run(node_path, tolerance=0.001, flip_angle_threshold=120.0, max_sample=20000
                 "detail": f"{flipped_count} adjacent face pairs flipped (angle > {flip_angle_threshold}°)",
             })
 
-    # ---- 汇总 ----
+    # ---- Aggregate ----
     if any(i["severity"] == "ERROR" for i in issues):
         summary["status"] = "ERROR"
     elif any(i["severity"] == "WARNING" for i in issues):
@@ -322,33 +322,34 @@ def run(node_path, tolerance=0.001, flip_angle_threshold=120.0, max_sample=20000
 
 
 def _check_flipped_faces(geo, prim_count, angle_threshold, max_check):
-    """Detect flipped faces: compare adjacent face normal directions
+    """Detect flipped faces by comparing adjacent face normal directions.
 
-    构建简易邻接关系 (基于共享边/点), 比较相邻面法线夹角. 
+    Builds a simple adjacency relation (based on shared edges/points) and
+    compares the angle between adjacent face normals.
     """
     import math
 
     cos_threshold = math.cos(math.radians(angle_threshold))
     flipped = 0
 
-    # 构建 prim -> normal 映射 (使用面中心法线 or  prim N)
+    # Build prim -> normal map (uses face-center normal or prim N)
     prim_normals = {}
     has_prim_n = geo.findPrimAttrib("N") is not None
 
     check_count = min(prim_count, max_check)
 
-    # 构建 point -> prim 邻接 (用于查找共享点的面)
+    # Build point -> prim adjacency (used to find faces sharing a point)
     point_to_prims = {}
 
     for i, prim in enumerate(geo.iterPrims()):
         if i >= check_count:
             break
 
-        # 获取面法线
+        # Fetch face normal
         if has_prim_n:
             n = prim.attribValue("N")
         else:
-            # 从面的顶点位置计算法线
+            # Compute normal from face vertex positions
             verts = prim.vertices()
             if len(verts) >= 3:
                 p0 = verts[0].point().position()
@@ -370,14 +371,14 @@ def _check_flipped_faces(geo, prim_count, angle_threshold, max_check):
 
         prim_normals[i] = (n[0] / length, n[1] / length, n[2] / length)
 
-        # 记录 point -> prim 映射
+        # Record point -> prim map
         for v in prim.vertices():
             pt_num = v.point().number()
             if pt_num not in point_to_prims:
                 point_to_prims[pt_num] = []
             point_to_prims[pt_num].append(i)
 
-    # Check相邻面 (共享至少一个点)
+    # Check adjacent faces (those sharing at least one point)
     checked_pairs = set()
     for pt_num, prim_ids in point_to_prims.items():
         for a in range(len(prim_ids)):
@@ -393,12 +394,12 @@ def _check_flipped_faces(geo, prim_count, angle_threshold, max_check):
                 if na is None or nb is None:
                     continue
 
-                # 点乘判断
+                # Dot product check
                 dot = na[0] * nb[0] + na[1] * nb[1] + na[2] * nb[2]
                 if dot < cos_threshold:
                     flipped += 1
 
-        # 限制Check量
+        # Cap the amount we check
         if len(checked_pairs) > max_check:
             break
 

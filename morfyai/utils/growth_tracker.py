@@ -1,18 +1,18 @@
 # -*- coding: utf-8 -*-
 """
-成长追踪 + 个性形成 (Growth Tracker + Personality Profile)
+Growth Tracker + Personality Profile
 
-核心公式: Growth(t) = -d(Error)/dt
-长期预测误差下降 = 成长
+Core formula: Growth(t) = -d(Error)/dt
+Long-term decrease in prediction error = growth
 
-追踪指标（滚动窗口统计）：
-- error_rate:  最近 N 个任务的错误率趋势
-- success_rate: 成功率趋势
-- avg_tool_calls: 平均工具调用次数趋势 (下降 = 更高效)
-- avg_retries: 平均重试次数趋势
-- skill_confidence: 各领域技能置信度
+Tracked metrics (rolling-window statistics):
+- error_rate:        recent N-task error rate trend
+- success_rate:      success rate trend
+- avg_tool_calls:    average tool-call count trend (down = more efficient)
+- avg_retries:       average retry count trend
+- skill_confidence:  per-domain skill confidence
 
-个性 = 策略强化的长期累积结果
+Personality = the long-term cumulative result of strategy reinforcement
 """
 
 import json
@@ -32,21 +32,21 @@ from typing import Any, Dict, List, Optional
 from .memory_store import MemoryStore, get_memory_store
 
 # ============================================================
-# 持久化路径
+# Persistence path
 # ============================================================
 
 _GROWTH_FILE = Path(__file__).parent.parent.parent / "cache" / "memory" / "growth_profile.json"
 
 # ============================================================
-# 滚动窗口大小
+# Rolling window size
 # ============================================================
 
-WINDOW_SIZE = 30  # 最近 N 个任务的滚动窗口
+WINDOW_SIZE = 30  # rolling window of recent N tasks
 
 
 @dataclass
 class TaskMetric:
-    """单个任务的度量数据"""
+    """Metric data for a single task"""
     timestamp: float = 0.0
     success: bool = True
     error_count: int = 0
@@ -58,11 +58,11 @@ class TaskMetric:
 
 @dataclass
 class PersonalityTraits:
-    """个性特征（由 reward 偏向长期累积形成）"""
-    efficiency_bias: float = 0.0     # >0 冷静理性, <0 探索创新
-    risk_tolerance: float = 0.5      # 高=大胆尝试, 低=保守稳定
-    verbosity: float = 0.5           # 回复详细度偏好
-    proactivity: float = 0.5         # 主动提供建议 vs 只回答问题
+    """Personality traits (accumulated from long-term reward bias)"""
+    efficiency_bias: float = 0.0     # >0 calm/rational, <0 exploratory/creative
+    risk_tolerance: float = 0.5      # high = bold attempts, low = conservative/stable
+    verbosity: float = 0.5           # preference for reply verbosity
+    proactivity: float = 0.5         # proactively suggest vs. only answer the question
 
     def to_dict(self) -> Dict:
         return asdict(self)
@@ -73,18 +73,18 @@ class PersonalityTraits:
 
 
 class GrowthTracker:
-    """成长追踪器 + 个性形成
+    """Growth tracker + personality formation
 
-    记录每个任务的度量指标，计算趋势，形成个性特征。
+    Records per-task metrics, computes trends, and forms personality traits.
     """
 
     def __init__(self, store: Optional[MemoryStore] = None):
         self.store = store or get_memory_store()
 
-        # 滚动窗口
-        self._metrics: deque = deque(maxlen=WINDOW_SIZE * 2)  # 保留 2 倍以计算趋势
+        # Rolling window
+        self._metrics: deque = deque(maxlen=WINDOW_SIZE * 2)  # keep 2x to compute trend
 
-        # 技能置信度
+        # Skill confidence
         self._skill_confidence: Dict[str, float] = {
             "vex": 0.5,
             "node_creation": 0.5,
@@ -93,53 +93,53 @@ class GrowthTracker:
             "general": 0.5,
         }
 
-        # 个性特征
+        # Personality traits
         self.personality = PersonalityTraits()
 
-        # 总任务计数
+        # Total task counter
         self._total_tasks: int = 0
 
-        # 加载持久化数据
+        # Load persisted data
         self._load()
 
     # ==========================================================
-    # 记录任务度量
+    # Record task metrics
     # ==========================================================
 
     def record_task(self, metric: TaskMetric):
-        """记录一个任务的度量数据"""
+        """Record the metric data of a single task"""
         if metric.timestamp == 0.0:
             metric.timestamp = time.time()
 
         self._metrics.append(metric)
         self._total_tasks += 1
 
-        # 更新技能置信度
+        # Update skill confidence
         self._update_skill_confidence(metric)
 
-        # 更新个性
+        # Update personality
         self._update_personality(metric)
 
-        # 自动保存
+        # Auto save
         self._save()
 
     # ==========================================================
-    # 趋势计算
+    # Trend computation
     # ==========================================================
 
     def get_growth_metrics(self) -> Dict:
-        """获取成长指标
+        """Get growth metrics
 
         Returns:
             {
-                "error_rate": float,           # 当前错误率
-                "error_rate_trend": float,      # 错误率趋势 (负 = 改善)
-                "success_rate": float,          # 当前成功率
-                "success_rate_trend": float,    # 成功率趋势 (正 = 改善)
-                "avg_tool_calls": float,        # 平均工具调用次数
-                "avg_retries": float,           # 平均重试次数
-                "growth_score": float,          # 综合成长分数
-                "total_tasks": int,             # 总任务数
+                "error_rate": float,           # current error rate
+                "error_rate_trend": float,      # error-rate trend (negative = improving)
+                "success_rate": float,          # current success rate
+                "success_rate_trend": float,    # success-rate trend (positive = improving)
+                "avg_tool_calls": float,        # average tool-call count
+                "avg_retries": float,           # average retry count
+                "growth_score": float,          # composite growth score
+                "total_tasks": int,             # total task count
             }
         """
         if not self._metrics:
@@ -158,28 +158,28 @@ class GrowthTracker:
         n = len(metrics)
         half = n // 2
 
-        # 当前窗口 (后半部分)
+        # Current window (later half)
         recent = metrics[half:] if half > 0 else metrics
-        # 历史窗口 (前半部分)
+        # Historical window (earlier half)
         older = metrics[:half] if half > 0 else []
 
-        # 当前指标
+        # Current metrics
         error_rate = sum(1 for m in recent if m.error_count > 0) / max(len(recent), 1)
         success_rate = sum(1 for m in recent if m.success) / max(len(recent), 1)
         avg_tool_calls = sum(m.tool_call_count for m in recent) / max(len(recent), 1)
         avg_retries = sum(m.retry_count for m in recent) / max(len(recent), 1)
 
-        # 趋势 (与旧窗口对比)
+        # Trend (compared to older window)
         if older:
             old_error_rate = sum(1 for m in older if m.error_count > 0) / max(len(older), 1)
             old_success_rate = sum(1 for m in older if m.success) / max(len(older), 1)
-            error_rate_trend = error_rate - old_error_rate   # 负 = 改善
-            success_rate_trend = success_rate - old_success_rate  # 正 = 改善
+            error_rate_trend = error_rate - old_error_rate   # negative = improving
+            success_rate_trend = success_rate - old_success_rate  # positive = improving
         else:
             error_rate_trend = 0.0
             success_rate_trend = 0.0
 
-        # 综合成长分数 = -d(Error)/dt (简化版)
+        # Composite growth score = -d(Error)/dt (simplified)
         growth_score = -error_rate_trend + success_rate_trend
 
         return {
@@ -194,14 +194,14 @@ class GrowthTracker:
         }
 
     # ==========================================================
-    # 技能置信度
+    # Skill confidence
     # ==========================================================
 
     def _update_skill_confidence(self, metric: TaskMetric):
-        """根据任务标签更新技能置信度"""
-        alpha = 0.1  # 学习率
+        """Update skill confidence based on task tags"""
+        alpha = 0.1  # learning rate
 
-        # 根据 tags 判断涉及的技能领域
+        # Determine affected skill domains from tags
         skill_map = {
             "vex_related": "vex",
             "node_creation": "node_creation",
@@ -215,107 +215,107 @@ class GrowthTracker:
             if skill:
                 affected_skills.add(skill)
 
-        # 始终更新 general
+        # Always update "general"
         affected_skills.add("general")
 
         for skill in affected_skills:
             current = self._skill_confidence.get(skill, 0.5)
             target = 1.0 if metric.success else 0.0
-            # 滑动平均
+            # Moving average
             new_val = (1 - alpha) * current + alpha * target
             self._skill_confidence[skill] = round(max(0.0, min(1.0, new_val)), 3)
 
     def update_skill_confidence_batch(self, updates: Dict[str, float]):
-        """批量更新技能置信度（来自 LLM 反思）"""
+        """Batch update skill confidence (from LLM reflection)"""
         for skill, confidence in updates.items():
-            # 与当前值做加权平均（避免 LLM 一次性大幅修改）
+            # Weighted average with current value (avoid large one-shot LLM changes)
             current = self._skill_confidence.get(skill, 0.5)
             blended = 0.7 * current + 0.3 * confidence
             self._skill_confidence[skill] = round(max(0.0, min(1.0, blended)), 3)
         self._save()
 
     def get_skill_confidence(self) -> Dict[str, float]:
-        """获取所有技能置信度"""
+        """Get all skill confidences"""
         return dict(self._skill_confidence)
 
     # ==========================================================
-    # 个性形成
+    # Personality formation
     # ==========================================================
 
     def _update_personality(self, metric: TaskMetric):
-        """根据任务结果逐渐形成个性
+        """Gradually form personality based on task results
 
-        个性 = 策略强化的长期累积结果
+        Personality = long-term cumulative result of strategy reinforcement
         """
-        alpha = 0.05  # 个性变化率（慢，需要长期积累）
+        alpha = 0.05  # personality change rate (slow, accumulates over time)
 
-        # 效率偏向
+        # Efficiency bias
         if metric.success and metric.tool_call_count <= 3:
-            # 高效成功 → 效率偏向增加
+            # Efficient success -> increase efficiency bias
             self.personality.efficiency_bias += alpha
         elif not metric.success and metric.retry_count > 2:
-            # 失败重试多 → 效率偏向降低（需要更多探索）
+            # Many failed retries -> decrease efficiency bias (needs more exploration)
             self.personality.efficiency_bias -= alpha
 
-        # 风险容忍度
+        # Risk tolerance
         if "error_correction" in metric.tags:
-            # 犯错后纠正 → 提高风险容忍度
+            # Mistake then correction -> raise risk tolerance
             self.personality.risk_tolerance = min(1.0, self.personality.risk_tolerance + alpha)
         elif "unresolved_error" in metric.tags:
-            # 未解决的错误 → 降低风险容忍度
+            # Unresolved error -> lower risk tolerance
             self.personality.risk_tolerance = max(0.0, self.personality.risk_tolerance - alpha)
 
-        # 主动性
+        # Proactivity
         if "complex_task" in metric.tags and metric.success:
-            # 复杂任务成功 → 提高主动性
+            # Complex task success -> raise proactivity
             self.personality.proactivity = min(1.0, self.personality.proactivity + alpha * 0.5)
 
-        # 限制范围
+        # Clamp range
         self.personality.efficiency_bias = max(-1.0, min(1.0, self.personality.efficiency_bias))
 
     def get_personality(self) -> PersonalityTraits:
-        """获取当前个性特征"""
+        """Get current personality traits"""
         return self.personality
 
     def get_personality_description(self) -> str:
-        """生成个性描述文本（注入 system prompt）"""
+        """Generate a personality description text (for injection into the system prompt)"""
         p = self.personality
         skills = self._skill_confidence
 
-        # 效率偏向描述
+        # Efficiency-bias description
         if p.efficiency_bias > 0.3:
-            style = "效率优先, 偏向简洁直接的解决方案"
+            style = "efficiency-first, prefers concise direct solutions"
         elif p.efficiency_bias < -0.3:
-            style = "探索创新, 偏向尝试多种方案"
+            style = "exploratory and creative, tries multiple approaches"
         else:
-            style = "均衡风格, 兼顾效率与探索"
+            style = "balanced style, balances efficiency and exploration"
 
-        # 风险描述
+        # Risk description
         if p.risk_tolerance > 0.7:
-            risk = "高风险容忍度"
+            risk = "high risk tolerance"
         elif p.risk_tolerance < 0.3:
-            risk = "低风险容忍度, 偏保守"
+            risk = "low risk tolerance, conservative"
         else:
-            risk = "中等风险容忍度"
+            risk = "medium risk tolerance"
 
-        # 技能描述
+        # Skills description
         skill_parts = []
         for skill_name, conf in sorted(skills.items(), key=lambda x: -x[1]):
             if conf > 0.1:
                 skill_parts.append(f"{skill_name}: {conf:.2f}")
-        skills_text = ", ".join(skill_parts) if skill_parts else "暂无数据"
+        skills_text = ", ".join(skill_parts) if skill_parts else "no data yet"
 
         return (
-            f"[Self-Awareness] 当前风格偏好: {style}, {risk}。\n"
-            f"技能置信度: {skills_text}"
+            f"[Self-Awareness] Current style preference: {style}, {risk}.\n"
+            f"Skill confidence: {skills_text}"
         )
 
     # ==========================================================
-    # 持久化
+    # Persistence
     # ==========================================================
 
     def _save(self):
-        """保存成长数据到文件"""
+        """Save growth data to file"""
         try:
             _GROWTH_FILE.parent.mkdir(parents=True, exist_ok=True)
             data = {
@@ -341,7 +341,7 @@ class GrowthTracker:
             _dbg(f"[GrowthTracker] Save failed: {e}")
 
     def _load(self):
-        """从文件加载成长数据"""
+        """Load growth data from file"""
         if not _GROWTH_FILE.exists():
             return
         try:
@@ -369,11 +369,11 @@ class GrowthTracker:
             _dbg(f"[GrowthTracker] Load failed: {e}")
 
     # ==========================================================
-    # 综合报告
+    # Composite report
     # ==========================================================
 
     def get_full_report(self) -> Dict:
-        """获取完整的成长报告"""
+        """Get the full growth report"""
         return {
             "growth_metrics": self.get_growth_metrics(),
             "skill_confidence": self.get_skill_confidence(),
@@ -383,13 +383,13 @@ class GrowthTracker:
 
 
 # ============================================================
-# 全局单例
+# Global singleton
 # ============================================================
 
 _tracker_instance: Optional[GrowthTracker] = None
 
 def get_growth_tracker() -> GrowthTracker:
-    """获取全局 GrowthTracker 实例"""
+    """Get the global GrowthTracker instance"""
     global _tracker_instance
     if _tracker_instance is None:
         _tracker_instance = GrowthTracker()

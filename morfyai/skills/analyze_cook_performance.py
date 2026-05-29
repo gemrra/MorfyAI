@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 """Cook performance analysis skill
 
-遍历网络中所有节点, 收集 cook 时间、cook 次数、几何体大小等指标, 
-识别瓶颈节点 and 几何体膨胀点, Return结构化Analyze报告. 
+Walk every node in a network and collect cook time, cook count, geometry size,
+etc. Identifies bottleneck nodes and geometry growth points; returns a
+structured analysis report.
 
-不依赖 hou.perfMon, 直接使用 node.lastCookTime() 等 HOM API, 
-适合快速诊断场景. 
+Does not depend on hou.perfMon — uses node.lastCookTime() and the rest of the
+HOM API directly. Suited for quick diagnostic passes.
 """
 
 SKILL_INFO = {
@@ -38,9 +39,9 @@ def run(network_path, top_n=10, force_cook=False):
     """Analyze network cook performance
 
     Args:
-        network_path: 网络路径
-        top_n: Return最慢的前 N 个节点
-        force_cook: 是否强制 cook
+        network_path: network path
+        top_n: return the slowest N nodes
+        force_cook: whether to force a cook before analyzing
     """
     import hou  # type: ignore
 
@@ -60,9 +61,9 @@ def run(network_path, top_n=10, force_cook=False):
             "suggestions": ["Network is empty, no nodes to analyze."],
         }
 
-    # options: 强制 cook 以获取最新数据
+    # Optional: force a cook to refresh data
     if force_cook:
-        # 找到 display 节点并强制 cook 整条链
+        # Find the display node and force-cook the whole chain
         display_node = None
         for node in children:
             if node.isDisplayFlagSet():
@@ -72,9 +73,9 @@ def run(network_path, top_n=10, force_cook=False):
             try:
                 display_node.cook(force=True)
             except Exception:
-                pass  # cook 可能因节点错误而失败, 继续Analyze
+                pass  # Cook may fail due to node errors; continue analysis anyway
 
-    # ---- 收集数据 ----
+    # ---- Collect data ----
     node_data = []
     error_nodes = []
 
@@ -85,19 +86,19 @@ def run(network_path, top_n=10, force_cook=False):
             "path": node.path(),
         }
 
-        # cook 时间 (毫秒)
+        # Cook time (ms)
         try:
             info["cook_time_ms"] = round(node.lastCookTime() * 1000, 3)
         except Exception:
             info["cook_time_ms"] = 0.0
 
-        # cook 次数
+        # Cook count
         try:
             info["cook_count"] = node.cookCount()
         except Exception:
             info["cook_count"] = 0
 
-        # 几何体大小
+        # Geometry size
         try:
             geo = node.geometry()
             if geo:
@@ -110,13 +111,13 @@ def run(network_path, top_n=10, force_cook=False):
             info["points"] = 0
             info["prims"] = 0
 
-        # 是否 time dependent
+        # Time-dependent flag
         try:
             info["time_dependent"] = node.isTimeDependent()
         except Exception:
             info["time_dependent"] = False
 
-        # 错误 / 警告
+        # Errors / warnings
         has_error = False
         has_warning = False
         try:
@@ -138,20 +139,21 @@ def run(network_path, top_n=10, force_cook=False):
 
         node_data.append(info)
 
-    # ---- 按 cook 时间降序排列 ----
+    # ---- Sort by cook time descending ----
     node_data.sort(key=lambda x: x["cook_time_ms"], reverse=True)
     total_cook_time = sum(n["cook_time_ms"] for n in node_data)
     slow_nodes = node_data[:top_n]
 
-    # ---- 检测几何体膨胀点 ----
-    # 沿连接链追踪, 找到输出点数远大于输入点数的节点
+    # ---- Detect geometry growth points ----
+    # Walk the connection chain and find nodes whose output point count
+    # vastly exceeds their input point count.
     geometry_growth = []
     for node_obj in children:
         try:
             inputs = node_obj.inputs()
             if not inputs:
                 continue
-            # 取第一个有效输入
+            # Take the first valid input
             input_node = inputs[0]
             if input_node is None:
                 continue
@@ -178,7 +180,7 @@ def run(network_path, top_n=10, force_cook=False):
 
     geometry_growth.sort(key=lambda x: x["growth_ratio"], reverse=True)
 
-    # ---- 生成建议 ----
+    # ---- Generate suggestions ----
     suggestions = []
 
     if slow_nodes and slow_nodes[0]["cook_time_ms"] > 100:
@@ -210,7 +212,7 @@ def run(network_path, top_n=10, force_cook=False):
             "Error nodes can cause cascading cook issues upstream/downstream."
         )
 
-    # 检测 Python SOP (性能远低于 VEX)
+    # Detect Python SOPs (performance is much worse than VEX)
     python_sops = [
         n for n in node_data
         if "python" in n["type"].lower() and n["cook_time_ms"] > 10

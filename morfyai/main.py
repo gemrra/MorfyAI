@@ -3,9 +3,9 @@ import sys
 import hou
 from morfyai.qt_compat import QtWidgets
 
-# 强制重新加载模块，避免缓存问题
+# Force-reload modules on each panel open to avoid stale-cache issues.
 def _reload_modules():
-    # ---- 清理旧包名残留（HOUDINI_HIP_MANAGER → morfyai 迁移） ----
+    # ---- Purge legacy package name leftovers (HOUDINI_HIP_MANAGER → morfyai migration) ----
     old_mods = [k for k in sys.modules if k.startswith('HOUDINI_HIP_MANAGER')]
     for k in old_mods:
         del sys.modules[k]
@@ -68,10 +68,10 @@ _main_window = None
 def show_tool():
     global _main_window, MainWindow
     
-    # 每次调用时强制重新加载模块
+    # Force reload modules on every call
     _reload_modules()
-    
-    # ★ 重载后刷新 MainWindow 引用，避免使用旧类
+
+    # ★ After reload, refresh MainWindow reference to avoid using a stale class
     try:
         from morfyai.core.main_window import MainWindow as _MW
         MainWindow = _MW
@@ -90,7 +90,7 @@ def show_tool():
                 _main_window.activateWindow()
                 return _main_window
             else:
-                # 清理旧实例的退出保存回调，防止覆盖新实例的数据
+                # Detach the old instance's atexit save callback so it doesn't overwrite the new instance's data
                 try:
                     import atexit as _atexit
                     if hasattr(_main_window, 'ai_tab'):

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Bounding box info skill
 
-获取几何体的边界盒、中心点、尺寸、对角线长度、体积、表面积、长宽比等. 
+Compute geometry bounding box, center, size, diagonal length, volume, surface area, aspect ratio, etc.
 """
 
 SKILL_INFO = {
@@ -24,7 +24,7 @@ def run(node_path):
     """Entry point
 
     Args:
-        node_path: 节点路径
+        node_path: node path
     """
     import hou  # type: ignore
 

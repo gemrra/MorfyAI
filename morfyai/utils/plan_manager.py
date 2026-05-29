@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-Plan Manager — Plan 模式的数据模型与文件管理
+Plan Manager — data model and file management for Plan mode
 
-职责：
-- Plan 数据的 CRUD（创建、读取、更新、删除）
-- Plan 文件持久化到 cache/plans/plan_{session_id}.json
-- 精简版 Plan 上下文生成（用于注入 LLM，最小化 token 消耗）
-- 一个 session 只有一个 active plan，重复创建时自动归档旧 plan
+Responsibilities:
+- Plan data CRUD (create / read / update / delete)
+- Plan file persistence at cache/plans/plan_{session_id}.json
+- Compact Plan context generation (injected into the LLM, minimizing token cost)
+- One session has only one active plan; old plans are auto-archived on re-creation
 """
 
 import json
@@ -24,12 +24,12 @@ except Exception:
 
 
 class PlanManager:
-    """Plan 文件管理器
+    """Plan file manager
 
-    文件存储路径:
+    File storage path:
         cache/plans/plan_{session_id}.json
 
-    Plan JSON Schema (增强版):
+    Plan JSON Schema (enhanced):
         {
             "plan_id": "a1b2c3d4",
             "session_id": "e5f6g7h8",
@@ -44,16 +44,16 @@ class PlanManager:
             "steps": [
                 {
                     "id": "step-1",
-                    "title": "构建基础地形",
-                    "description": "详细描述，含具体路径和参数值...",
-                    "sub_steps": ["创建节点", "设置参数"],
+                    "title": "Build base terrain",
+                    "description": "Detailed description, including specific paths and parameter values...",
+                    "sub_steps": ["Create node", "Set parameters"],
                     "tools": ["create_node", "set_node_parameter"],
                     "depends_on": [],
-                    "expected_result": "可验证的预期结果",
+                    "expected_result": "Verifiable expected outcome",
                     "risk": "low|medium|high",
                     "estimated_operations": 4,
-                    "fallback": "失败回退策略",
-                    "notes": "备注",
+                    "fallback": "Fallback strategy on failure",
+                    "notes": "Notes",
                     "status": "pending|running|done|error",
                     "result_summary": null
                 }
@@ -68,7 +68,7 @@ class PlanManager:
         self._plans_dir.mkdir(parents=True, exist_ok=True)
 
     # ------------------------------------------------------------------
-    # 路径工具
+    # Path helpers
     # ------------------------------------------------------------------
 
     def _plan_path(self, session_id: str) -> Path:
@@ -83,19 +83,19 @@ class PlanManager:
     # ------------------------------------------------------------------
 
     def create_plan(self, session_id: str, plan_data: dict) -> dict:
-        """创建新 Plan 并持久化
+        """Create a new Plan and persist it
 
-        如果该 session 已有 active plan，旧 plan 自动归档。
+        If the session already has an active plan, the old one is auto-archived.
 
         Args:
-            session_id: 会话 ID
-            plan_data: AI 通过 create_plan 工具提交的数据
-                必须包含 title, steps; 可选 overview
+            session_id: session ID
+            plan_data: data submitted by the AI via the create_plan tool
+                must include title, steps; overview is optional
 
         Returns:
-            完整的 plan dict（含自动生成的 plan_id, created_at 等）
+            Complete plan dict (with auto-generated plan_id, created_at, etc.)
         """
-        # 归档旧 plan
+        # Archive old plan
         old_path = self._plan_path(session_id)
         if old_path.exists():
             try:
@@ -103,7 +103,7 @@ class PlanManager:
             except OSError:
                 old_path.unlink(missing_ok=True)
 
-        # 规范化 steps（增强版：支持子步骤/预期结果/风险/回退等）
+        # Normalize steps (enhanced: supports sub_steps / expected_result / risk / fallback, etc.)
         steps = []
         for i, s in enumerate(plan_data.get("steps", [])):
             step = {
@@ -143,10 +143,10 @@ class PlanManager:
         return plan
 
     def load_plan(self, session_id: str) -> Optional[dict]:
-        """加载该 session 的 active plan
+        """Load the active plan for this session
 
         Returns:
-            plan dict, 或 None（不存在）
+            plan dict, or None if not found
         """
         path = self._plan_path(session_id)
         if not path.exists():
@@ -164,16 +164,16 @@ class PlanManager:
         status: str,
         result_summary: Optional[str] = None,
     ) -> Optional[dict]:
-        """更新单个步骤的状态
+        """Update the status of a single step
 
         Args:
-            session_id: 会话 ID
-            step_id: 步骤 ID
-            status: 新状态 ("running" | "done" | "error")
-            result_summary: 可选的结果摘要
+            session_id: session ID
+            step_id: step ID
+            status: new status ("running" | "done" | "error")
+            result_summary: optional result summary
 
         Returns:
-            更新后的 plan dict, 或 None（plan 不存在）
+            Updated plan dict, or None if the plan does not exist
         """
         plan = self.load_plan(session_id)
         if not plan:
@@ -186,7 +186,7 @@ class PlanManager:
                     step["result_summary"] = result_summary
                 break
 
-        # 检查是否全部完成
+        # Check whether everything is done
         all_done = all(s["status"] in ("done", "error") for s in plan["steps"])
         if all_done:
             plan["status"] = "completed"
@@ -197,7 +197,7 @@ class PlanManager:
         return plan
 
     def confirm_plan(self, session_id: str) -> Optional[dict]:
-        """将 plan 状态设为 confirmed"""
+        """Set plan status to confirmed"""
         plan = self.load_plan(session_id)
         if plan:
             plan["status"] = "confirmed"
@@ -205,7 +205,7 @@ class PlanManager:
         return plan
 
     def reject_plan(self, session_id: str) -> Optional[dict]:
-        """将 plan 状态设为 rejected"""
+        """Set plan status to rejected"""
         plan = self.load_plan(session_id)
         if plan:
             plan["status"] = "rejected"
@@ -213,22 +213,22 @@ class PlanManager:
         return plan
 
     def delete_plan(self, session_id: str):
-        """删除该 session 的 plan 文件"""
+        """Delete this session's plan file"""
         path = self._plan_path(session_id)
         path.unlink(missing_ok=True)
 
     # ------------------------------------------------------------------
-    # 上下文注入（精简版）
+    # Context injection (compact form)
     # ------------------------------------------------------------------
 
     def get_plan_for_context(self, session_id: str) -> str:
-        """生成精简版 Plan 上下文用于注入 LLM
+        """Generate a compact Plan context to inject into the LLM
 
-        只包含标题 + 当前进度 + 未完成步骤，最小化 token 消耗。
-        约 100-200 tokens。
+        Contains only title + current progress + unfinished steps,
+        minimizing token cost. Roughly 100-200 tokens.
 
         Returns:
-            格式化字符串, 或空字符串（无 plan）
+            Formatted string, or empty string if no plan
         """
         plan = self.load_plan(session_id)
         if not plan or plan.get("status") in ("rejected", "draft"):
@@ -244,7 +244,7 @@ class PlanManager:
         lines = [f"[Active Plan: {plan.get('title', 'Untitled')}]"]
         lines.append(f"Progress: {done_count}/{total} done")
 
-        # 当前正在执行的步骤
+        # Currently running step
         for s in steps:
             if s["status"] == "running":
                 tools_str = ", ".join(s.get("tools", [])) if s.get("tools") else ""
@@ -259,13 +259,13 @@ class PlanManager:
                 if fallback:
                     line += f" | Fallback: {fallback}"
                 lines.append(line)
-                # 子步骤提示
+                # Sub-step hint
                 sub = s.get("sub_steps", [])
                 if sub:
                     lines.append(f"  Sub-steps: {'; '.join(sub)}")
                 break
 
-        # 下一个待执行的步骤
+        # Next pending step
         for s in steps:
             if s["status"] == "pending":
                 deps = s.get("depends_on", [])
@@ -276,7 +276,7 @@ class PlanManager:
                 lines.append(line)
                 break
 
-        # 剩余未完成步骤数量
+        # Remaining unfinished step count
         remaining = [s for s in steps if s["status"] == "pending"]
         if len(remaining) > 1:
             names = ", ".join(
@@ -288,16 +288,16 @@ class PlanManager:
         return "\n".join(lines)
 
     # ------------------------------------------------------------------
-    # 工具注册信息
+    # Tool registration info
     # ------------------------------------------------------------------
 
     @staticmethod
     def get_plan_tools() -> List[dict]:
-        """返回 Plan 模式专用的工具定义列表"""
+        """Return the list of tool definitions specific to Plan mode"""
         return [PLAN_TOOL_CREATE, PLAN_TOOL_UPDATE_STEP, PLAN_TOOL_ASK_QUESTION]
 
     # ------------------------------------------------------------------
-    # 内部方法
+    # Internal methods
     # ------------------------------------------------------------------
 
     def _save(self, session_id: str, plan: dict):
@@ -310,7 +310,7 @@ class PlanManager:
 
 
 # ======================================================================
-# Plan 工具定义（OpenAI Function Calling 格式）
+# Plan tool definitions (OpenAI Function Calling format)
 # ======================================================================
 
 PLAN_TOOL_CREATE = {
@@ -619,14 +619,14 @@ PLAN_TOOL_ASK_QUESTION = {
 
 
 # ======================================================================
-# 单例
+# Singleton
 # ======================================================================
 
 _instance: Optional[PlanManager] = None
 
 
 def get_plan_manager(cache_dir: Optional[Path] = None) -> PlanManager:
-    """获取 PlanManager 单例"""
+    """Get the PlanManager singleton"""
     global _instance
     if _instance is None:
         _instance = PlanManager(cache_dir)

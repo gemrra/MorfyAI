@@ -15,15 +15,15 @@ from urllib.parse import quote_plus
 
 from shared.common_utils import load_config, save_config
 
-# 强制使用本地 lib 目录中的依赖库
+# Force-use dependencies from the local lib directory
 _lib_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'lib')
 if os.path.exists(_lib_path):
-    # 将 lib 目录添加到 sys.path 最前面，确保优先使用
+    # Prepend lib to sys.path so it takes priority
     if _lib_path in sys.path:
         sys.path.remove(_lib_path)
     sys.path.insert(0, _lib_path)
 
-# 导入 requests
+# Import requests
 HAS_REQUESTS = False
 try:
     import requests
@@ -39,19 +39,19 @@ except Exception:
 
 
 # ============================================================
-# 联网搜索功能
+# Web search
 # ============================================================
 
 class WebSearcher:
-    """联网搜索工具 - 多引擎自动降级（Brave → DuckDuckGo）+ 缓存"""
-    
-    # Brave Search（免费 HTML 抓取，Svelte SSR，结果质量好）
+    """Web search utility - multi-engine auto-fallback (Brave -> DuckDuckGo) + cache"""
+
+    # Brave Search (free HTML scraping, Svelte SSR, good result quality)
     BRAVE_URL = "https://search.brave.com/search"
-    
-    # DuckDuckGo HTML 搜索（无需 API Key，备用）
+
+    # DuckDuckGo HTML search (no API key required, fallback)
     DUCKDUCKGO_URL = "https://html.duckduckgo.com/html/"
 
-    # 通用请求头
+    # Shared request headers
     _HEADERS = {
         'User-Agent': (
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
@@ -63,19 +63,19 @@ class WebSearcher:
         'Accept-Encoding': 'gzip, deflate',
     }
 
-    # 搜索结果缓存：key -> (timestamp, result)
+    # Search result cache: key -> (timestamp, result)
     _search_cache: Dict[str, tuple] = {}
-    _CACHE_TTL = 300  # 5 分钟
+    _CACHE_TTL = 300  # 5 minutes
 
-    # 网页正文缓存：url -> (timestamp, text_lines)
+    # Page body cache: url -> (timestamp, text_lines)
     _page_cache: Dict[str, tuple] = {}
-    _PAGE_CACHE_TTL = 600  # 10 分钟
+    _PAGE_CACHE_TTL = 600  # 10 minutes
 
-    # Trafilatura 可用性
+    # Trafilatura availability
     _HAS_TRAFILATURA = False
-    
+
     def __init__(self):
-        # 检测 trafilatura 可用性（只检测一次）
+        # Detect trafilatura availability (only once)
         if not WebSearcher._HAS_TRAFILATURA:
             try:
                 import trafilatura  # noqa: F401
@@ -83,25 +83,25 @@ class WebSearcher:
             except ImportError:
                 pass
     # ------------------------------------------------------------------
-    # 编码修复：requests 默认 ISO-8859-1 会导致中文乱码
+    # Encoding fix: requests defaults to ISO-8859-1 which causes mojibake
     # ------------------------------------------------------------------
 
     @staticmethod
     def _fix_encoding(response) -> str:
-        """智能检测并修正 HTTP 响应的编码，避免中文乱码。
+        """Detect and fix HTTP response encoding to avoid mojibake.
 
-        优先级：
-        1. Content-Type header 中明确声明的 charset（排除 ISO-8859-1 默认值）
-        2. HTML <meta charset="..."> 标签
-        3. requests.apparent_encoding（基于 chardet / charset_normalizer）
-        4. 回退到 UTF-8
+        Priority:
+        1. Charset explicitly declared in Content-Type header (excludes ISO-8859-1 default)
+        2. HTML <meta charset="..."> tag
+        3. requests.apparent_encoding (based on chardet / charset_normalizer)
+        4. Fall back to UTF-8
         """
-        # 1) Content-Type 声明的 charset
+        # 1) Charset from Content-Type
         ct_enc = response.encoding
         if ct_enc and ct_enc.lower() not in ('iso-8859-1', 'latin-1', 'ascii'):
             return response.text
 
-        # 2) HTML meta 标签
+        # 2) HTML meta tag
         raw = response.content[:8192]
         meta_match = re.search(
             rb'<meta[^>]*charset=["\']?\s*([a-zA-Z0-9_-]+)',
@@ -124,30 +124,30 @@ class WebSearcher:
             except (LookupError, UnicodeDecodeError):
                 pass
 
-        # 4) 回退 UTF-8
+        # 4) Fall back to UTF-8
         response.encoding = 'utf-8'
         return response.text
 
     @staticmethod
     def _decode_entities(text: str) -> str:
-        """解码 HTML 实体: &amp; &lt; &gt; &quot; &#xxxx; 等"""
+        """Decode HTML entities: &amp; &lt; &gt; &quot; &#xxxx; etc."""
         import html as _html
         try:
             return _html.unescape(text)
         except Exception:
             return text
-    
+
     # ------------------------------------------------------------------
-    # 搜索（带缓存 + 三级降级）
+    # Search (with cache + 3-tier fallback)
     # ------------------------------------------------------------------
 
     def search(self, query: str, max_results: int = 5, timeout: int = 10) -> Dict[str, Any]:
-        """执行网络搜索（缓存 + 多引擎自动降级）
-        
-        优先级：缓存 → Brave 抓取 → DuckDuckGo 抓取
-        任一引擎成功且有结果即返回，否则尝试下一个。
+        """Run a web search (cache + multi-engine auto-fallback).
+
+        Priority: cache -> Brave scrape -> DuckDuckGo scrape.
+        First engine that succeeds with results wins; otherwise try the next.
         """
-        # --- 缓存查找 ---
+        # --- Cache lookup ---
         cache_key = f"{query}|{max_results}"
         cached = self._search_cache.get(cache_key)
         if cached:
@@ -158,15 +158,15 @@ class WebSearcher:
                 return cached_result
 
         errors = []
-        
-        # 1. Brave Search（免费 HTML 抓取，结果质量好）
+
+        # 1. Brave Search (free HTML scrape, good quality)
         result = self._search_brave(query, max_results, timeout)
         if result.get('success') and result.get('results'):
             self._search_cache[cache_key] = (time.time(), result)
             return result
         errors.append(f"Brave: {result.get('error', 'no results')}")
-        
-        # 2. DuckDuckGo（备用）
+
+        # 2. DuckDuckGo (fallback)
         result = self._search_duckduckgo(query, max_results, timeout)
         if result.get('success') and result.get('results'):
             self._search_cache[cache_key] = (time.time(), result)
@@ -178,7 +178,7 @@ class WebSearcher:
     # ---------- Brave Search ----------
 
     def _search_brave(self, query: str, max_results: int, timeout: int) -> Dict[str, Any]:
-        """通过 Brave Search（HTML 抓取，无需 API Key，结果质量好）"""
+        """Search via Brave (HTML scrape, no API key required, good quality)."""
         if not HAS_REQUESTS:
             return {"success": False, "error": "requests not installed", "results": []}
         try:
@@ -196,15 +196,15 @@ class WebSearcher:
             return {"success": False, "error": str(e), "results": []}
 
     def _parse_brave_html(self, page_html: str, max_results: int) -> List[Dict[str, str]]:
-        """解析 Brave Search 结果页（Svelte SSR 结构）
-        
-        Brave 结构:
+        """Parse a Brave Search results page (Svelte SSR structure).
+
+        Brave structure:
           <div class="snippet svelte-..." data-type="web" data-pos="N">
             <a href="URL">
               <div class="title search-snippet-title ...">TITLE</div>
             </a>
             <div class="snippet-description ...">DESCRIPTION</div>
-            或直接嵌入文本段落
+            or text paragraph inlined directly
           </div>
         """
         results: List[Dict[str, str]] = []
@@ -219,7 +219,7 @@ class WebSearcher:
             end = block_starts[i + 1].start() if i + 1 < len(block_starts) else start + 4000
             block = page_html[start:end]
             
-            # URL: 第一个外部 <a href="https://...">
+            # URL: first external <a href="https://...">
             url_m = re.search(r'<a[^>]*href="(https?://[^"]+)"', block, re.IGNORECASE)
             url = url_m.group(1) if url_m else ''
             if not url or 'brave.com' in url:
@@ -235,23 +235,24 @@ class WebSearcher:
                 title_m = re.search(title_pat, block, re.DOTALL | re.IGNORECASE)
                 if title_m:
                     title = re.sub(r'<[^>]+>', '', title_m.group(1)).strip()
-                    # 去掉日期后缀（如 "Title 2025年11月6日 -"）
-                    title = re.sub(r'\s*\d{4}年\d{1,2}月\d{1,2}日\s*-?\s*$', '', title)
+                    # Drop Chinese-format date suffix (e.g. "Title 2025-YY-11-MM-6-DD -").
+                    # Year/Month/Day Han glyphs use \\u escapes so the source file stays Chinese-free.
+                    title = re.sub('\\s*\\d{4}\\u5e74\\d{1,2}\\u6708\\d{1,2}\\u65e5\\s*-?\\s*$', '', title)
                     break
-            
+
             if not title:
-                # 退而求其次：块内有意义文本（跳过网站名/URL片段）
+                # Fallback: any meaningful text inside the block (skip site name / URL fragments)
                 segments = re.findall(r'>([^<]{8,})<', block)
                 for seg in segments:
                     seg = seg.strip()
                     if (seg and 'svg' not in seg.lower()
                             and 'path' not in seg.lower()
                             and not seg.startswith('›')
-                            and '.' not in seg[:10]):  # 跳过 URL 片段
+                            and '.' not in seg[:10]):  # skip URL fragments
                         title = self._decode_entities(seg[:120])
                         break
-            
-            # Description: 各种可能的容器
+
+            # Description: various possible containers
             desc = ''
             for desc_pat in (
                 r'class="[^"]*snippet-description[^"]*"[^>]*>(.*?)</(?:div|p|span)>',
@@ -263,16 +264,16 @@ class WebSearcher:
                     desc = self._decode_entities(desc)
                     break
             
-            # 如果没有 snippet-description，从文本段落中提取
+            # If no snippet-description, pull from text paragraphs
             if not desc:
                 segments = re.findall(r'>([^<]{20,})<', block)
                 for seg in segments:
                     seg = seg.strip()
-                    # 跳过标题本身、URL 面包屑、SVG 数据
+                    # Skip the title itself, URL breadcrumbs, SVG data
                     if (seg and seg != title
                             and 'svg' not in seg.lower()
                             and not seg.startswith('›')
-                            and not re.match(r'^[\d年月日\s\-]+$', seg)):
+                            and not re.match('^[\\d\\u5e74\\u6708\\u65e5\\s\\-]+$', seg)):
                         desc = self._decode_entities(seg[:300])
                         break
             
@@ -289,7 +290,7 @@ class WebSearcher:
     # ---------- DuckDuckGo ----------
 
     def _search_duckduckgo(self, query: str, max_results: int, timeout: int) -> Dict[str, Any]:
-        """使用 DuckDuckGo 搜索（HTML lite 版本，备用）"""
+        """Search via DuckDuckGo (HTML lite version, fallback)."""
         if not HAS_REQUESTS:
             return {"success": False, "error": "requests not installed", "results": []}
         
@@ -311,15 +312,15 @@ class WebSearcher:
             return {"success": False, "error": str(e), "results": []}
     
     def _parse_duckduckgo_html(self, page_html: str, max_results: int) -> List[Dict[str, str]]:
-        """解析 DuckDuckGo HTML 搜索结果（兼容多种页面结构）"""
+        """Parse DuckDuckGo HTML search results (compatible with multiple page structures)."""
         from urllib.parse import unquote, parse_qs, urlparse
         results = []
-        
-        # 模式 1: class="result__a"（经典版）
+
+        # Pattern 1: class="result__a" (classic version)
         pattern = r'<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>(.*?)</a>'
         matches = re.findall(pattern, page_html, re.IGNORECASE | re.DOTALL)
-        
-        # 模式 2: lite 版 <a rel="nofollow">
+
+        # Pattern 2: lite version <a rel="nofollow">
         if not matches:
             pattern = r'<a[^>]*rel="nofollow"[^>]*href="(https?://[^"]+)"[^>]*>(.*?)</a>'
             matches = re.findall(pattern, page_html, re.IGNORECASE | re.DOTALL)
@@ -344,7 +345,7 @@ class WebSearcher:
             
             results.append({"title": title, "url": real_url, "snippet": ""})
         
-        # 提取摘要
+        # Extract snippets
         for pat in (r'<a[^>]*class="result__snippet"[^>]*>(.*?)</a>',
                     r'<td[^>]*class="result-snippet"[^>]*>(.*?)</td>'):
             snippet_matches = re.findall(pat, page_html, re.IGNORECASE | re.DOTALL)
@@ -358,27 +359,27 @@ class WebSearcher:
         
         return results
     
-    # (Bing API 已移除 — 需要付费 Azure Key，不实用)
+    # (Bing API removed -- requires a paid Azure key, not practical)
 
     # ------------------------------------------------------------------
-    # 网页抓取（trafilatura 优先 → 正则降级 + 页面缓存）
+    # Page fetch (trafilatura preferred -> regex fallback + page cache)
     # ------------------------------------------------------------------
 
     def fetch_page_content(self, url: str, max_lines: int = 80,
                            start_line: int = 1, timeout: int = 15) -> Dict[str, Any]:
-        """获取网页内容（trafilatura 正文提取 + 按行分页，支持翻页）
-        
+        """Fetch page content (trafilatura main-text extraction + line-based pagination).
+
         Args:
             url: Page URL
-            max_lines: 每页最大行数
-            start_line: 从第几行开始（1-based），用于翻页
-            timeout: 请求超时秒数
+            max_lines: Max lines per page
+            start_line: Starting line (1-based), used for pagination
+            timeout: Request timeout in seconds
         """
         if not HAS_REQUESTS:
-            return {"success": False, "error": "需要安装 requests 库"}
+            return {"success": False, "error": "The 'requests' library must be installed"}
 
         try:
-            # --- 页面缓存查找（翻页时复用已抓取的内容） ---
+            # --- Page cache lookup (reuse fetched content across pages) ---
             cached = self._page_cache.get(url)
             if cached:
                 ts, cached_lines = cached
@@ -387,11 +388,11 @@ class WebSearcher:
 
             response = requests.get(url, headers=self._HEADERS, timeout=timeout)
             response.raise_for_status()
-            
-            # 修正编码（防乱码核心）
+
+            # Fix encoding (core mojibake prevention)
             page_html = self._fix_encoding(response)
 
-            # --- 正文提取：trafilatura 优先，正则降级 ---
+            # --- Main-text extraction: trafilatura preferred, regex fallback ---
             text = None
             if self._HAS_TRAFILATURA:
                 try:
@@ -407,19 +408,19 @@ class WebSearcher:
                     text = None
 
             if not text:
-                # 降级到正则剥标签
+                # Fall back to regex tag stripping
                 text = self._fallback_html_to_text(page_html)
 
-            # 清理：每行合并多余空格，保留换行结构
+            # Clean: collapse whitespace within each line, keep newline structure
             lines = []
             for line in text.split('\n'):
                 cleaned = re.sub(r'[ \t]+', ' ', line).strip()
                 if cleaned:
                     lines.append(cleaned)
 
-            # 缓存此页面（翻页时复用）
+            # Cache this page (reused when paging)
             self._page_cache[url] = (time.time(), lines)
-            # 限制缓存大小
+            # Cap cache size
             if len(self._page_cache) > 50:
                 oldest_key = min(self._page_cache, key=lambda k: self._page_cache[k][0])
                 del self._page_cache[oldest_key]
@@ -430,27 +431,27 @@ class WebSearcher:
             return {"success": False, "error": str(e), "url": url}
 
     def _fallback_html_to_text(self, page_html: str) -> str:
-        """正则剥标签降级方案（trafilatura 不可用时）"""
-        # 移除无用区块
+        """Regex tag-strip fallback (used when trafilatura is unavailable)."""
+        # Remove non-content blocks
         for tag in ('script', 'style', 'nav', 'footer', 'header', 'aside', 'noscript'):
             page_html = re.sub(
                 rf'<{tag}[^>]*>.*?</{tag}>',
                 '', page_html, flags=re.DOTALL | re.IGNORECASE,
             )
-        # 块级标签 → 换行
+        # Block-level tags -> newline
         page_html = re.sub(r'<br\s*/?\s*>', '\n', page_html, flags=re.IGNORECASE)
         page_html = re.sub(
             r'</(?:p|div|li|tr|td|th|h[1-6]|blockquote|section|article)>',
             '\n', page_html, flags=re.IGNORECASE,
         )
-        # 移除剩余 HTML 标签
+        # Strip remaining HTML tags
         text = re.sub(r'<[^>]+>', ' ', page_html)
-        # 解码 HTML 实体
+        # Decode HTML entities
         return self._decode_entities(text)
 
     @staticmethod
     def _paginate_lines(url: str, lines: List[str], start_line: int, max_lines: int) -> Dict[str, Any]:
-        """对已提取的行列表做分页返回"""
+        """Paginate over an already-extracted list of lines."""
         total_lines = len(lines)
         offset = max(0, start_line - 1)
         page_lines = lines[offset:offset + max_lines]
@@ -460,7 +461,7 @@ class WebSearcher:
             return {
                 "success": True,
                 "url": url,
-                "content": f"[已到末尾] 该网页共 {total_lines} 行，start_line={start_line} 超出范围。"
+                "content": f"[End of page] This page has {total_lines} lines, start_line={start_line} is out of range."
             }
 
         content = '\n'.join(page_lines)
@@ -468,17 +469,17 @@ class WebSearcher:
         if end_line < total_lines:
             next_start = end_line + 1
             content += (
-                f"\n\n[分页提示] 当前显示第 {offset+1}-{end_line} 行，共 {total_lines} 行。"
-                f"如需后续内容，请调用 fetch_webpage(url=\"{url}\", start_line={next_start})。"
+                f"\n\n[Pagination] Showing lines {offset+1}-{end_line} of {total_lines}."
+                f" For more, call fetch_webpage(url=\"{url}\", start_line={next_start})."
             )
         else:
-            content += f"\n\n[全部内容已显示] 第 {offset+1}-{end_line} 行，共 {total_lines} 行。"
+            content += f"\n\n[All content shown] Lines {offset+1}-{end_line} of {total_lines}."
 
         return {"success": True, "url": url, "content": content}
 
 
 # ============================================================
-# Houdini 工具定义
+# Houdini tool definitions
 # ============================================================
 
 HOUDINI_TOOLS = [
@@ -1119,7 +1120,7 @@ HOUDINI_TOOLS = [
         }
     },
     # ============================================================
-    # 节点布局工具 — 自动整理节点位置
+    # Node layout tools -- auto-arrange node positions
     # ============================================================
     {
         "type": "function",
@@ -1175,7 +1176,7 @@ HOUDINI_TOOLS = [
         }
     },
     # ============================================================
-    # NetworkBox 工具 — 节点分组与可视化组织
+    # NetworkBox tools -- node grouping and visual organization
     # ============================================================
     {
         "type": "function",
@@ -1260,7 +1261,7 @@ HOUDINI_TOOLS = [
         }
     },
     # ============================================================
-    # PerfMon 性能分析工具
+    # PerfMon performance profiling tools
     # ============================================================
     {
         "type": "function",
@@ -1304,7 +1305,7 @@ HOUDINI_TOOLS = [
             }
         }
     },
-    # ★ 长期记忆主动搜索工具
+    # ★ Long-term memory active search tool
     {
         "type": "function",
         "function": {
@@ -1331,7 +1332,7 @@ HOUDINI_TOOLS = [
             }
         }
     },
-    # ★ 视口截图工具（视觉验证）
+    # ★ Viewport screenshot tool (visual verification)
     {
         "type": "function",
         "function": {
@@ -1359,7 +1360,7 @@ HOUDINI_TOOLS = [
     }
 ]
 
-# ★ 将核心工具注册到 ToolRegistry（模块加载时自动执行）
+# ★ Register core tools to ToolRegistry (runs automatically when the module loads)
 try:
     from .tool_registry import get_tool_registry as _get_reg
     _reg = _get_reg()
@@ -1370,24 +1371,24 @@ except Exception as _e:
 
 
 # ============================================================
-# AI 客户端
+# AI Client
 # ============================================================
 
 class AIClient:
-    """AI 客户端，支持流式传输、Function Calling、联网搜索"""
-    
+    """AI client with streaming, Function Calling, and web search support."""
+
     OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
     DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
     GLM_API_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
-    OLLAMA_API_URL = "http://localhost:11434/v1/chat/completions"  # Ollama OpenAI 兼容接口
-    DUOJIE_API_URL = "https://api.duojie.games/v1/chat/completions"  # 拼好饭中转站（OpenAI 协议）
-    DUOJIE_ANTHROPIC_API_URL = "https://api.duojie.games/v1/messages"  # 拼好饭中转站（Anthropic 协议）
-    OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"  # OpenRouter（OpenAI 兼容）
-    
-    # 使用 Anthropic 协议的 Duojie 模型（GLM 系等）
+    OLLAMA_API_URL = "http://localhost:11434/v1/chat/completions"  # Ollama OpenAI-compatible endpoint
+    DUOJIE_API_URL = "https://api.duojie.games/v1/chat/completions"  # Duojie proxy (OpenAI protocol)
+    DUOJIE_ANTHROPIC_API_URL = "https://api.duojie.games/v1/messages"  # Duojie proxy (Anthropic protocol)
+    OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"  # OpenRouter (OpenAI-compatible)
+
+    # Duojie models that use the Anthropic protocol (GLM series, etc.)
     _DUOJIE_ANTHROPIC_MODELS = frozenset({'glm-4.7', 'glm-5', 'glm-5-turbo', 'glm-5.1'})
 
-    # ★ 预编译流式内容清洗正则（避免每个 SSE chunk 都重新编译）
+    # ★ Pre-compiled stream content cleanup regex (avoids re-compiling on every SSE chunk)
     _RE_CLEAN_PATTERNS = [
         re.compile(r'</?tool_call[^>]*>'),
         re.compile(r'<arg_key>([^<]+)</arg_key>\s*<arg_value>([^<]+)</arg_value>'),
@@ -1396,7 +1397,7 @@ class AIClient:
         re.compile(r'</?redacted_reasoning[^>]*>'),
     ]
 
-    # Custom provider 运行时配置
+    # Custom provider runtime config
     _CUSTOM_API_URL: str = ''
     _CUSTOM_SUPPORTS_FC: bool = True
 
@@ -1405,7 +1406,7 @@ class AIClient:
             'openai': api_key or self._read_api_key('openai'),
             'deepseek': self._read_api_key('deepseek'),
             'glm': self._read_api_key('glm'),
-            'ollama': 'ollama',  # Ollama 不需要真正的 API key，但需要非空值
+            'ollama': 'ollama',  # Ollama doesn't need a real API key, just a non-empty value
             'duojie': self._read_api_key('duojie'),
             'openrouter': self._read_api_key('openrouter'),
             'custom': self._read_api_key('custom'),
@@ -1414,57 +1415,57 @@ class AIClient:
         self._web_searcher = WebSearcher()
         self._tool_executor: Optional[Callable[[str, dict], dict]] = None
         self._batch_tool_executor: Optional[Callable[[list], list]] = None
-        
-        # Ollama 配置
+
+        # Ollama config
         self._ollama_base_url = "http://localhost:11434"
-        
-        # 网络配置
+
+        # Network config
         self._max_retries = 3
         self._retry_delay = 1.0
-        self._chunk_timeout = 60  # Ollama 本地模型可能较慢，增加超时
-        
-        # ★ 持久化 HTTP Session（连接池 + Keep-Alive，避免每轮重新 TLS 握手）
+        self._chunk_timeout = 60  # Ollama local models can be slow, raise timeout
+
+        # ★ Persistent HTTP session (connection pool + keep-alive, avoids TLS handshake per round)
         self._http_session = requests.Session()
         self._http_session.headers.update({
             'Content-Type': 'application/json',
         })
-        
-        # 停止控制（使用 threading.Event 保证线程安全）
+
+        # Stop control (threading.Event for thread safety)
         import threading
         self._stop_event = threading.Event()
-    
+
     def request_stop(self):
-        """请求停止当前请求（线程安全）"""
+        """Request that the current request stops (thread-safe)."""
         self._stop_event.set()
-    
+
     def reset_stop(self):
-        """重置停止标志（线程安全）"""
+        """Reset the stop flag (thread-safe)."""
         self._stop_event.clear()
-    
+
     def is_stop_requested(self) -> bool:
-        """检查是否请求了停止（线程安全）"""
+        """Check whether a stop has been requested (thread-safe)."""
         return self._stop_event.is_set()
 
     def set_tool_executor(self, executor: Callable[..., dict]):
-        """设置工具执行器
-        
-        executor 签名: (tool_name: str, **kwargs) -> dict
+        """Set the tool executor.
+
+        executor signature: (tool_name: str, **kwargs) -> dict
         """
         self._tool_executor = executor
 
     def set_batch_tool_executor(self, executor: Callable[[list], list]):
-        """设置批量工具执行器（用于只读工具并行批处理）
+        """Set the batch tool executor (used for parallel batching of read-only tools).
 
-        executor 签名: (batch: [(tool_name, kwargs), ...]) -> [result_dict, ...]
-        如果未设置，批量执行会退化为逐个调用 _tool_executor。
+        executor signature: (batch: [(tool_name, kwargs), ...]) -> [result_dict, ...]
+        If unset, batch execution falls back to calling _tool_executor one at a time.
         """
         self._batch_tool_executor = executor
 
     # ----------------------------------------------------------
-    # 工具结果分页：按行分段，让 AI 自主判断是否需要更多
+    # Tool result pagination: split by lines, let the AI decide if it needs more
     # ----------------------------------------------------------
 
-    # 查询型工具 & 操作型工具分类（共用常量）
+    # Query-type and operation-type tool classifications (shared constants)
     _QUERY_TOOLS = frozenset({
         'get_network_structure', 'get_node_parameters',
         'list_children',
@@ -1482,17 +1483,17 @@ class AIClient:
 
     @staticmethod
     def _paginate_result(text: str, max_lines: int = 50) -> str:
-        """将工具结果按行分页，超出部分截断并附带分页提示。
+        """Paginate tool result by lines, truncating overflow with a pagination hint.
 
-        - 不超过 max_lines 行时原样返回
-        - 超过时保留前 max_lines 行，并追加分页说明
+        - If under max_lines, return as-is
+        - Otherwise keep the first max_lines and append a pagination note
 
         Args:
-            text: 原始工具输出文本
-            max_lines: 每页最大行数（默认 50）
+            text: Raw tool output text
+            max_lines: Max lines per page (default 50)
 
         Returns:
-            分页后的文本
+            Paginated text
         """
         if not text:
             return text
@@ -1503,31 +1504,31 @@ class AIClient:
         page = '\n'.join(lines[:max_lines])
         return (
             f"{page}\n\n"
-            f"[分页提示] 显示第 1-{max_lines} 行，共 {total} 行（已截断）。"
-            f"当前信息如已足够请直接使用。"
-            f"注意：用相同参数重复调用会得到相同结果。"
-            f"如需更多信息请换用更精确的查询条件，或使用 fetch_webpage 获取特定 URL 的完整内容（支持 start_line 翻页）。"
+            f"[Pagination] Showing lines 1-{max_lines} of {total} (truncated)."
+            f" If the current info is enough, use it directly."
+            f" Note: calling again with the same arguments returns the same result."
+            f" For more, refine the query, or use fetch_webpage to load a specific URL (supports start_line paging)."
         )
 
     # ------------------------------------------------------------------
-    # 消息清洗：确保发送给 API 的消息格式正确
+    # Message sanitization: ensure messages sent to the API are well-formed
     # ------------------------------------------------------------------
 
     @staticmethod
     def _ensure_tool_call_ids(tool_calls: list) -> list:
-        """确保每个 tool_call 都有有效的 id 字段
-        
-        代理 API（如 Duojie）有时不在第一个 chunk 提供 tool_call_id，
-        导致后续 role:tool 消息的 tool_call_id 为空 → API 400 错误。
+        """Ensure every tool_call has a valid id field.
+
+        Proxy APIs (e.g. Duojie) sometimes omit tool_call_id in the first chunk,
+        leaving subsequent role:tool messages with empty tool_call_id -> API 400.
         """
         import uuid
         for tc in tool_calls:
             if not tc.get('id'):
                 tc['id'] = f"call_{uuid.uuid4().hex[:24]}"
-            # 确保 type 字段存在
+            # Ensure the type field exists
             if not tc.get('type'):
                 tc['type'] = 'function'
-            # 确保 function 字段完整
+            # Ensure the function field is complete
             fn = tc.get('function', {})
             if not fn.get('name'):
                 fn['name'] = 'unknown'
@@ -1537,67 +1538,68 @@ class AIClient:
         return tool_calls
 
     # ----------------------------------------------------------
-    # 智能摘要：提取工具结果的关键信息
+    # Smart summarization: extract the key info from tool results
     # ----------------------------------------------------------
 
     _PATH_RE = re.compile(r'/(?:obj|out|stage|tasks|ch|shop|img|mat|vex)/[\w/]+')
-    _COUNT_RE = re.compile(r'(?:节点数量|点数量|错误数|警告数|count|total)[：:\s]*(\d+)', re.IGNORECASE)
+    _COUNT_RE = re.compile(r'(?:nodecount|pointcount|errorcount|warningcount|count|total)[: :\s]*(\d+)', re.IGNORECASE)
 
     @classmethod
     def _summarize_tool_content(cls, content: str, max_len: int = 200) -> str:
-        """智能摘要工具结果——提取关键信息而非简单截断
+        """Smart-summarize a tool result -- extract key info rather than blindly truncate.
 
-        提取优先级: 路径 > 数值统计 > 第一行摘要 > 截断
+        Extraction priority: paths > numeric stats > first-line summary > truncation
         """
         if not content or len(content) <= max_len:
             return content
 
         parts = []
 
-        # 1. 提取Node path
+        # 1. Extract node paths
         paths = cls._PATH_RE.findall(content)
         if paths:
-            unique_paths = list(dict.fromkeys(paths))[:5]  # 去重保留顺序
-            parts.append("路径: " + ", ".join(unique_paths))
+            unique_paths = list(dict.fromkeys(paths))[:5]  # dedupe, preserve order
+            parts.append("Paths: " + ", ".join(unique_paths))
 
-        # 2. 提取数量信息
+        # 2. Extract count info
         counts = cls._COUNT_RE.findall(content)
         if counts:
-            parts.append("统计: " + ", ".join(counts[:4]))
+            parts.append("Stats: " + ", ".join(counts[:4]))
 
-        # 3. 检测成功/失败状态
-        if '错误' in content[:100] or 'error' in content[:100].lower():
-            # 错误信息——保留更多内容
+        # 3. Detect success/failure state
+        # noqa: CN — kept for API error detection from non-English server responses
+        if 'error' in content[:100] or 'error' in content[:100].lower():
+            # Error info -- keep more content
             first_line = content.split('\n', 1)[0][:200]
             parts.append(first_line)
         elif not parts:
-            # 没提取到结构化信息，保留第一行
+            # No structured info extracted, keep first line
             first_line = content.split('\n', 1)[0][:150]
             parts.append(first_line)
 
         summary = " | ".join(parts)
         if len(summary) > max_len:
             summary = summary[:max_len]
-        return summary + '...[摘要]'
+        return summary + '...[summary]'
 
     # ----------------------------------------------------------
-    # 图片内容剥离
+    # Image content stripping
     # ----------------------------------------------------------
 
     @staticmethod
     def _strip_image_content(messages: list, keep_recent_user: int = 0) -> int:
-        """就地剥离消息中的 image_url 内容，将多模态 content 转为纯文本
+        """In-place: strip image_url content from messages, converting multimodal content to plain text.
 
         Args:
-            messages: 消息列表（就地修改）
-            keep_recent_user: 保留最近 N 条 user 消息的图片（0 = 全部剥离）
+            messages: Message list (modified in place)
+            keep_recent_user: Keep images on the N most-recent user messages (0 = strip all)
 
         Returns:
-            剥离的图片数量
+            Number of images stripped
         """
         stripped = 0
 
-        # 找出最近 N 条 user 消息的索引（从后往前）
+        # Find the indices of the N most-recent user messages (scanning backwards)
         protected_indices: set = set()
         if keep_recent_user > 0:
             count = 0
@@ -1615,7 +1617,7 @@ class AIClient:
             if idx in protected_indices:
                 continue
 
-            # 多模态 content: [{"type":"text","text":"..."},{"type":"image_url",...}]
+            # Multimodal content: [{"type":"text","text":"..."},{"type":"image_url",...}]
             text_parts = []
             has_image = False
             for part in content:
@@ -1631,45 +1633,45 @@ class AIClient:
             if has_image:
                 combined = '\n'.join(t for t in text_parts if t)
                 if combined:
-                    combined += '\n[图片已移除以节省上下文空间]'
+                    combined += '\n[Image removed to save context]'
                 else:
-                    combined = '[图片已移除]'
+                    combined = '[Image removed]'
                 msg['content'] = combined
 
         return stripped
 
     # ----------------------------------------------------------
-    # 渐进式裁剪
+    # Progressive trimming
     # ----------------------------------------------------------
 
     def _progressive_trim(self, working_messages: list, tool_calls_history: list,
                           trim_level: int = 1, supports_vision: bool = True) -> list:
-        """渐进式裁剪上下文，根据 trim_level 逐步加大裁剪力度
+        """Progressively trim the context, ramping up aggressiveness with trim_level.
 
-        Cursor 风格核心原则:
-        - **永不截断 user 消息的文本部分**
-        - **永不截断 assistant 消息**（保留完整回复——这是 Cursor 的关键设计）
-        - 只压缩 tool 结果（role='tool'）
-        - 剥离旧轮次中的图片（base64 图片是 body 膨胀的主因）
-        - 按「轮次」裁剪，保留最近 N 轮完整对话
-        - 最早的轮次优先删除
+        Cursor-style core principles:
+        - **Never truncate the text portion of user messages**
+        - **Never truncate assistant messages** (keep complete replies -- this is Cursor's key design)
+        - Only compress tool results (role='tool')
+        - Strip images from older rounds (base64 images are the main body-bloat culprit)
+        - Trim by "rounds", keep the most-recent N full rounds
+        - Oldest rounds are dropped first
 
-        trim_level=1: 轻度 - 压缩旧轮 tool 结果，保留最近 70% 轮次，剥离旧轮图片
-        trim_level=2: 中度 - 保留最近 3 轮，较短的 tool 摘要，剥离所有旧图片
-        trim_level=3+: 重度 - 保留最近 2 轮，激进压缩 tool 结果，剥离全部图片
+        trim_level=1: light  - compress old-round tool results, keep ~70% recent rounds, strip old images
+        trim_level=2: medium - keep last 3 rounds, shorter tool summaries, strip all old images
+        trim_level=3+: heavy - keep last 2 rounds, aggressive tool result compression, strip all images
         """
         if not working_messages:
             return working_messages
 
-        # ── 第 0 步：剥离图片（base64 图片是 413 的主因）──
+        # -- Step 0: strip images (base64 images are the main cause of 413) --
         if not supports_vision or trim_level >= 3:
-            # 非视觉模型 或 重度裁剪：剥离所有图片
+            # Non-vision model or heavy trim: strip all images
             n_stripped = self._strip_image_content(working_messages, keep_recent_user=0)
         elif trim_level == 2:
-            # 中度裁剪：只保留最近 1 条 user 消息的图片
+            # Medium trim: keep images only on the most-recent user message
             n_stripped = self._strip_image_content(working_messages, keep_recent_user=1)
         else:
-            # 轻度裁剪：保留最近 2 条 user 消息的图片
+            # Light trim: keep images on the last 2 user messages
             n_stripped = self._strip_image_content(working_messages, keep_recent_user=2)
 
         if n_stripped > 0:
@@ -1681,7 +1683,7 @@ class AIClient:
         if not body:
             return working_messages
 
-        # --- 划分轮次：以 user 消息为分界 ---
+        # --- Split into rounds: user message marks the boundary ---
         rounds = []  # [[msg, msg, ...], ...]
         current_round = []
         for m in body:
@@ -1693,9 +1695,9 @@ class AIClient:
             rounds.append(current_round)
 
         if trim_level <= 1:
-            # 轻度：只压缩非最近 30% 轮次的 tool 结果
+            # Light: only compress tool results from the oldest 30% of rounds
             n_rounds = len(rounds)
-            protect_n = max(3, int(n_rounds * 0.7))  # 保护最近 70%
+            protect_n = max(3, int(n_rounds * 0.7))  # Protect most-recent 70%
             for r_idx, rnd in enumerate(rounds):
                 if r_idx >= n_rounds - protect_n:
                     break
@@ -1703,39 +1705,39 @@ class AIClient:
                     c = m.get('content') or ''
                     if m.get('role') == 'tool' and isinstance(c, str) and len(c) > 300:
                         m['content'] = self._summarize_tool_content(c, 300)
-                    # ★ assistant 和 user 文本完全保留 ★
+                    # ★ assistant and user text fully preserved ★
 
             keep_rounds = max(5, int(n_rounds * 0.7))
             if n_rounds > keep_rounds:
                 rounds = rounds[-keep_rounds:]
 
         elif trim_level == 2:
-            # 中度：保留最近 3 轮（而非 5 轮，避免 level 1 → level 2 无效裁剪）
+            # Medium: keep most-recent 3 rounds (not 5, avoids no-op at level 1 -> 2)
             rounds = rounds[-3:] if len(rounds) > 3 else rounds
             for r_idx, rnd in enumerate(rounds):
                 if r_idx >= len(rounds) - 2:
-                    break  # 最近 2 轮的 tool 结果不压缩
+                    break  # Don't compress tool results from the last 2 rounds
                 for m in rnd:
                     c = m.get('content') or ''
                     if m.get('role') == 'tool' and isinstance(c, str) and len(c) > 150:
                         m['content'] = self._summarize_tool_content(c, 150)
-                    # ★ assistant 和 user 文本完全保留 ★
+                    # ★ assistant and user text fully preserved ★
 
         else:
-            # 重度：保留最近 2 轮，激进压缩 tool 结果
+            # Heavy: keep last 2 rounds, aggressively compress tool results
             rounds = rounds[-2:] if len(rounds) > 2 else rounds
-            for rnd in rounds[:-1]:  # 最后一轮不压缩
+            for rnd in rounds[:-1]:  # Don't compress the last round
                 for m in rnd:
                     c = m.get('content') or ''
                     if m.get('role') == 'tool' and isinstance(c, str) and len(c) > 100:
                         m['content'] = self._summarize_tool_content(c, 100)
-                    # ★ assistant 和 user 文本完全保留 ★
+                    # ★ assistant and user text fully preserved ★
 
-        # 重组
+        # Reassemble
         body = [m for rnd in rounds for m in rnd]
         result = ([sys_msg] if sys_msg else []) + body
 
-        # 恢复提示
+        # Recovery hint
         history_summary = ""
         if tool_calls_history:
             op_history = [h for h in tool_calls_history
@@ -1748,31 +1750,31 @@ class AIClient:
                     status = 'ok' if (isinstance(r, dict) and r.get('success')) else 'err'
                     r_str = str(r.get('result', '') if isinstance(r, dict) else r)[:60]
                     lines.append(f"  [{status}] {h['tool_name']}: {r_str}")
-                history_summary = "\n已完成的操作:\n" + "\n".join(lines)
+                history_summary = "\nCompleted operations:\n" + "\n".join(lines)
 
         result.append({
             'role': 'system',
             'content': (
-                f'[上下文管理] 已自动裁剪历史（级别 {trim_level}）。'
+                f'[Context management] History was auto-trimmed (level {trim_level}).'
                 f'{history_summary}'
-                f'\n请继续完成当前任务。不要提及此裁剪。'
+                f'\nPlease continue with the current task. Do not mention this trim.'
             )
         })
 
         _dbg(f"[AI Client] Progressive trim: level={trim_level}, "
-              f"消息 {len(working_messages)} → {len(result)}, "
-              f"轮次 {len(rounds)}")
+              f"messages {len(working_messages)} -> {len(result)}, "
+              f"rounds {len(rounds)}")
         return result
-    
+
     def _sanitize_working_messages(self, messages: list) -> list:
-        """在发送给 API 之前清洗消息列表，修复常见格式问题
-        
-        修复项：
-        1. assistant 消息中 tool_calls 的 id 为空
-        2. role:tool 消息的 tool_call_id 与 assistant 中的 id 不匹配
-        3. 移除无效的 tool 消息（没有对应 assistant tool_call）
+        """Clean up the message list before sending to the API, fixing common format issues.
+
+        Fixes:
+        1. Missing id on tool_calls inside assistant messages
+        2. tool_call_id on role:tool messages not matching any assistant id
+        3. Remove invalid tool messages (no matching assistant tool_call)
         """
-        # 收集所有有效的 tool_call_id
+        # Collect all valid tool_call_ids
         valid_tc_ids = set()
         for msg in messages:
             if msg.get('role') == 'assistant' and 'tool_calls' in msg:
@@ -1780,37 +1782,37 @@ class AIClient:
                 for tc in msg['tool_calls']:
                     if tc.get('id'):
                         valid_tc_ids.add(tc['id'])
-        
-        # 修复 tool 消息的 tool_call_id
+
+        # Fix tool message tool_call_ids
         sanitized = []
         for msg in messages:
             if msg.get('role') == 'tool':
                 tc_id = msg.get('tool_call_id', '')
                 if not tc_id or tc_id not in valid_tc_ids:
-                    # 跳过孤儿 tool 消息（没有对应的 assistant tool_call）
+                    # Skip orphan tool messages (no matching assistant tool_call)
                     continue
             sanitized.append(msg)
         return sanitized
 
-    # 已自带分页的工具，不再二次截断
+    # Tools that already paginate themselves; skip extra truncation
     _SELF_PAGED_TOOLS = frozenset({
         'get_houdini_node_doc', 'get_network_structure', 'get_node_parameters',
         'list_children', 'execute_python', 'execute_shell',
     })
 
     def _compress_tool_result(self, tool_name: str, result: dict) -> str:
-        """统一工具结果压缩逻辑（供两种 agent loop 共用）
+        """Unified tool-result compression (shared by both agent loops).
 
-        策略：
-        - 已自带分页的工具 → 直接返回（如 get_houdini_node_doc）
-        - 查询工具 → 按行分页（默认 50 行）
-        - 操作工具 → 提取路径，保留关键信息
-        - 其他工具 → 适度截断
-        - 失败 → 保留完整错误
+        Strategy:
+        - Self-paginating tools -> return as-is (e.g. get_houdini_node_doc)
+        - Query tools -> line-based pagination (default 50 lines)
+        - Operation tools -> extract paths, keep key info
+        - Other tools -> mild truncation
+        - Failure -> keep full error
         """
         if result.get('success'):
             content = result.get('result', '')
-            # 已自带分页逻辑的工具，直接返回不再截断
+            # Tools that handle their own pagination, return unchanged
             if tool_name in self._SELF_PAGED_TOOLS:
                 return content
             if tool_name in self._QUERY_TOOLS:
@@ -1827,120 +1829,120 @@ class AIClient:
                         content = content[:300]
                 return content
             else:
-                # 其他工具也按行分页，但更宽松
+                # Other tools: line-paginate but more leniently
                 return self._paginate_result(content, max_lines=80)
         else:
-            error = result.get('error', '未知错误')
+            error = result.get('error', 'Unknown error')
             return error[:500] if len(error) > 500 else error
 
     # ----------------------------------------------------------
-    # ★ 分级工具结果压缩（用于上下文压缩阶段，比 _summarize_tool_content 更智能）
+    # ★ Tiered tool result compression (smarter than _summarize_tool_content; used in context-compression stage)
     # ----------------------------------------------------------
 
-    # 工具名 → 压缩钩子映射（tool_call_id 上的 assistant.tool_calls 保留名称信息）
-    _TIERED_COMPRESS_NEVER = frozenset({'check_errors'})  # 错误信息永不压缩
+    # Tool name -> compression hook (the assistant.tool_calls on a tool_call_id preserves the name)
+    _TIERED_COMPRESS_NEVER = frozenset({'check_errors'})  # Error info is never compressed
 
     @classmethod
     def _tiered_compress_tool(cls, tool_name: str, content: str, max_len: int = 300) -> str:
-        """根据工具类型做分级压缩，保留最有用的信息而非简单截断。
+        """Tier-compress by tool type, keeping the most useful info instead of plain truncation.
 
-        与 _summarize_tool_content（通用路径/数量提取）不同，本方法针对具体工具
-        定制压缩策略，在上下文管理阶段使用。
+        Unlike _summarize_tool_content (generic path/count extraction), this method uses
+        tool-specific compression strategies, applied during context management.
         """
         if not content or len(content) <= max_len:
             return content
 
-        # check_errors: 永不压缩（错误消息是最重要的反馈）
+        # check_errors: never compress (error messages are the highest-value feedback)
         if tool_name in cls._TIERED_COMPRESS_NEVER:
             return content
 
-        # get_network_structure: 保留节点名/类型/连接，去掉位置坐标
+        # get_network_structure: keep node name/type/connections, drop coordinates
         if tool_name == 'get_network_structure':
             lines = content.split('\n')
             kept = []
             for line in lines:
-                # 跳过纯位置信息行
-                if re.match(r'\s*(位置|position|pos)\s*[:：]', line, re.IGNORECASE):
+                # Skip pure-position lines
+                if re.match(r'\s*(position|position|pos)\s*[:: ]', line, re.IGNORECASE):
                     continue
-                # 跳过空行和装饰线
+                # Skip blank lines and decoration rules
                 stripped = line.strip()
                 if not stripped or stripped.startswith('---') or stripped.startswith('==='):
                     continue
                 kept.append(line)
             result = '\n'.join(kept)
             if len(result) > max_len:
-                result = result[:max_len] + '...[结构已压缩]'
+                result = result[:max_len] + '...[structure compressed]'
             return result
 
-        # get_node_parameters: 保留非默认/已修改参数，折叠默认值
+        # get_node_parameters: keep non-default / modified params, fold defaults
         if tool_name == 'get_node_parameters':
             lines = content.split('\n')
             kept = []
             default_count = 0
             for line in lines:
-                # 含 "默认" 或 "(default)" 的参数行被折叠
-                if re.search(r'\(default\)|默认值|unchanged', line, re.IGNORECASE):
+                # Fold param lines containing "default" or "(default)"
+                if re.search(r'\(default\)|defaultvalue|unchanged', line, re.IGNORECASE):
                     default_count += 1
                     continue
                 kept.append(line)
             if default_count > 0:
-                kept.append(f'  ...({default_count} 个默认参数已省略)')
+                kept.append(f'  ...({default_count} default parameters omitted)')
             result = '\n'.join(kept)
             if len(result) > max_len:
-                result = result[:max_len] + '...[参数已压缩]'
+                result = result[:max_len] + '...[parameters compressed]'
             return result
 
-        # execute_python: 保留 stdout，截断 traceback（保留首行错误）
+        # execute_python: keep stdout, truncate traceback (keep first error line)
         if tool_name == 'execute_python':
-            # 如果有 traceback，只保留最后的错误行
+            # If there's a traceback, only keep the final error line
             tb_idx = content.find('Traceback (most recent call last)')
             if tb_idx >= 0:
                 before_tb = content[:tb_idx].strip()
-                # 提取 traceback 最后一行（实际错误描述）
+                # Extract the last traceback line (the actual error)
                 tb_lines = content[tb_idx:].strip().split('\n')
                 error_line = tb_lines[-1] if tb_lines else ''
                 result = before_tb
                 if error_line:
                     result += f'\n[Error] {error_line}'
                 if len(result) > max_len:
-                    result = result[:max_len] + '...[已压缩]'
+                    result = result[:max_len] + '...[compressed]'
                 return result
-            # 无 traceback：正常截断
+            # No traceback: normal truncation
             if len(content) > max_len:
-                return content[:max_len] + '...[输出已压缩]'
+                return content[:max_len] + '...[output compressed]'
             return content
 
-        # search_node_types / semantic_search_nodes: 保留 Top N 结果
+        # search_node_types / semantic_search_nodes: keep top-N results
         if tool_name in ('search_node_types', 'semantic_search_nodes'):
             lines = content.split('\n')
-            # 保留前 5 个有实质内容的行
+            # Keep first 5 substantive lines
             kept = [l for l in lines if l.strip()][:5]
             total = len([l for l in lines if l.strip()])
             result = '\n'.join(kept)
             if total > 5:
-                result += f'\n...共 {total} 条结果，已显示前 5 条'
+                result += f'\n...{total} results total, first 5 shown'
             if len(result) > max_len:
-                result = result[:max_len] + '...[搜索结果已压缩]'
+                result = result[:max_len] + '...[search results compressed]'
             return result
 
-        # web_search: 保留标题 + 摘要，丢弃 URL
+        # web_search: keep title + summary, drop URLs
         if tool_name == 'web_search':
-            # 移除 URL 行（http:// 或 https:// 开头）
+            # Remove URL lines (lines starting with http:// or https://)
             lines = content.split('\n')
             kept = [l for l in lines if not re.match(r'\s*https?://', l.strip())]
             result = '\n'.join(kept)
             if len(result) > max_len:
-                result = result[:max_len] + '...[搜索已压缩]'
+                result = result[:max_len] + '...[search compressed]'
             return result
 
-        # 默认：使用通用智能摘要
+        # Default: generic smart summary
         return cls._summarize_tool_content(content, max_len)
 
     # ----------------------------------------------------------
-    # ★ 过时工具结果检测与标记
+    # ★ Stale tool result detection and marking
     # ----------------------------------------------------------
 
-    # 可被后续同名调用"覆盖"的工具（查询类）
+    # Tools whose results can be "overridden" by a later same-name call (query type)
     _STALEABLE_TOOLS = frozenset({
         'get_network_structure', 'get_node_parameters', 'list_children',
         'check_errors', 'get_node_inputs', 'read_selection',
@@ -1948,17 +1950,18 @@ class AIClient:
 
     @classmethod
     def _mark_stale_tool_results(cls, working_messages: list) -> int:
-        """检测并压缩过时的工具结果。
+        """Detect and compress stale tool results.
 
-        当同一个查询工具以相同/重叠参数被多次调用时，早期的结果已过时
-        （AI 已有更新的数据）。将早期结果替换为简短标记以节省 token。
+        When the same query tool is called multiple times with the same/overlapping
+        args, the earlier results are stale (the AI has fresher data). Replace early
+        results with a short marker to save tokens.
 
         Returns:
-            被标记为过时的工具结果数量
+            Number of tool results marked stale
         """
-        # 收集 tool 消息的 (tool_call_id → 工具名, 参数) 映射
-        # 需要从 assistant 的 tool_calls 中提取工具名和参数
-        tc_id_to_info: Dict[str, Tuple[str, str]] = {}  # tc_id → (tool_name, key_arg)
+        # Build a (tool_call_id -> tool_name, key_arg) map for tool messages
+        # Tool name and args have to be pulled from the assistant's tool_calls
+        tc_id_to_info: Dict[str, Tuple[str, str]] = {}  # tc_id -> (tool_name, key_arg)
         for msg in working_messages:
             if msg.get('role') == 'assistant' and 'tool_calls' in msg:
                 for tc in msg.get('tool_calls', []):
@@ -1966,7 +1969,7 @@ class AIClient:
                     fn = tc.get('function', {})
                     name = fn.get('name', '')
                     args_str = fn.get('arguments', '{}')
-                    # 提取关键参数（通常是 node_path 或 network_path）
+                    # Extract the key arg (usually node_path or network_path)
                     try:
                         args = json.loads(args_str)
                     except Exception:
@@ -1975,8 +1978,8 @@ class AIClient:
                     if tc_id and name:
                         tc_id_to_info[tc_id] = (name, key_arg)
 
-        # 从后往前扫描 tool 消息，记录每个 (tool_name, key_arg) 最后出现的位置
-        latest_seen: Dict[str, int] = {}  # "(tool_name):(key_arg)" → 最后出现的消息索引
+        # Scan tool messages forward, recording the last index where each (tool_name, key_arg) appears
+        latest_seen: Dict[str, int] = {}  # "(tool_name):(key_arg)" -> last message index
         tool_msg_indices = []
         for i, msg in enumerate(working_messages):
             if msg.get('role') == 'tool':
@@ -1985,38 +1988,38 @@ class AIClient:
                 if info:
                     tool_msg_indices.append((i, info[0], info[1]))
 
-        # 反向记录最后出现位置
+        # Record last-seen positions in reverse
         for idx, tool_name, key_arg in reversed(tool_msg_indices):
             sig = f"{tool_name}:{key_arg}"
             if sig not in latest_seen:
                 latest_seen[sig] = idx
 
-        # 标记较早的重复查询为过时
+        # Mark earlier duplicate queries as stale
         stale_count = 0
         for idx, tool_name, key_arg in tool_msg_indices:
             if tool_name not in cls._STALEABLE_TOOLS:
                 continue
             sig = f"{tool_name}:{key_arg}"
             if sig in latest_seen and latest_seen[sig] != idx:
-                # 此消息不是最新的 → 过时
+                # This message is not the most recent -> stale
                 content = working_messages[idx].get('content', '')
                 if content and not content.startswith('[Stale]'):
                     working_messages[idx]['content'] = (
-                        f'[Stale] 此 {tool_name} 结果已被后续查询更新，详见最新结果。'
+                        f'[Stale] This {tool_name} result has been superseded by a later query. See the latest result.'
                     )
                     stale_count += 1
 
         return stale_count
 
     # ----------------------------------------------------------
-    # ★ 主动式上下文压缩（agent_loop 内使用）
+    # ★ Proactive context compression (used inside agent_loop)
     # ----------------------------------------------------------
 
     @classmethod
     def _estimate_messages_tokens(cls, messages: list, tools: Optional[list] = None) -> int:
-        """快速估算消息列表 + 工具定义的 token 数。
+        """Quickly estimate the token count of a message list + tool definitions.
 
-        使用启发式方法，避免每轮都调用 tiktoken（性能开销）。
+        Uses a heuristic to avoid calling tiktoken every round (perf overhead).
         """
         total = 0
         for msg in messages:
@@ -2030,25 +2033,25 @@ class AIClient:
                     elif isinstance(part, str):
                         total += len(part) // 3
             else:
-                # 快速估算：英文 ~4 chars/token, 中文 ~1.5 chars/token
-                # 综合取 ~3 chars/token
+                # Quick estimate: English ~4 chars/token, Chinese ~1.5 chars/token
+                # Blended at ~3 chars/token
                 total += len(content) // 3
-            # tool_calls 开销
+            # tool_calls overhead
             tcs = msg.get('tool_calls')
             if tcs:
                 for tc in tcs:
                     fn = tc.get('function', {})
                     total += len(fn.get('name', '')) + len(fn.get('arguments', '')) // 3 + 8
-            total += 4  # 消息格式开销
+            total += 4  # Per-message format overhead
 
-        # 工具定义 token（每个工具 ~100-200 tokens）
+        # Tool definition tokens (~100-200 tokens each)
         if tools:
             for t in tools:
                 fn = t.get('function', {})
                 total += len(fn.get('description', '')) // 4
                 params = fn.get('parameters', {})
                 total += len(json.dumps(params)) // 4 if params else 0
-                total += 30  # 函数结构开销
+                total += 30  # Function structure overhead
 
         return total
 
@@ -2056,46 +2059,46 @@ class AIClient:
                                 tool_calls_history: list,
                                 context_limit: int,
                                 supports_vision: bool = True) -> list:
-        """主动式上下文压缩，在 agent loop 内每轮迭代前调用。
+        """Proactive context compression, invoked before each agent-loop iteration.
 
-        分层压缩策略：
-        1. 标记过时工具结果 → 替换为简短标记
-        2. 对旧轮次工具结果做分级压缩（按工具类型）
-        3. 剥离旧轮次图片
-        4. 仍超限则按轮次裁剪
+        Tiered strategy:
+        1. Mark stale tool results -> replace with short marker
+        2. Tiered compression of old-round tool results (by tool type)
+        3. Strip old-round images
+        4. If still over limit, trim by rounds
 
-        与 _progressive_trim 的区别：
-        - _progressive_trim 是错误恢复（被动），本方法是主动预防
-        - 本方法使用分级压缩而非简单截断
-        - 本方法不会删除最近轮次的数据
+        Difference vs _progressive_trim:
+        - _progressive_trim is reactive recovery, this method is proactive prevention
+        - This method uses tiered compression instead of plain truncation
+        - This method never deletes data from the most recent rounds
         """
         if not working_messages:
             return working_messages
 
-        target = int(context_limit * 0.75)  # 压缩目标：75% 容量
+        target = int(context_limit * 0.75)  # Compression target: 75% capacity
 
-        # ── 第 1 步：标记过时的工具结果 ──
+        # -- Step 1: mark stale tool results --
         stale_count = self._mark_stale_tool_results(working_messages)
         if stale_count > 0:
-            _dbg(f"[AI Client] 🔄 Marked {stale_count} stale tool result(s)")
+            _dbg(f"[AI Client] Marked {stale_count} stale tool result(s)")
 
         current = self._estimate_messages_tokens(working_messages)
         if current <= target:
             return working_messages
 
-        # ── 第 2 步：剥离旧轮次图片 ──
+        # -- Step 2: strip images from older rounds --
         n_stripped = self._strip_image_content(working_messages, keep_recent_user=2)
         if n_stripped > 0:
-            _dbg(f"[AI Client] 🖼 Stripped {n_stripped} old image(s)")
+            _dbg(f"[AI Client] Stripped {n_stripped} old image(s)")
             current = self._estimate_messages_tokens(working_messages)
             if current <= target:
                 return working_messages
 
-        # ── 第 3 步：分级压缩旧轮次的工具结果 ──
+        # -- Step 3: tiered compression of older-round tool results --
         sys_msg = working_messages[0] if working_messages[0].get('role') == 'system' else None
         body = working_messages[1:] if sys_msg else working_messages[:]
 
-        # 划分轮次（以 user 消息为分界）
+        # Split into rounds (user message marks the boundary)
         rounds: list = []
         cur_round: list = []
         for m in body:
@@ -2107,10 +2110,10 @@ class AIClient:
             rounds.append(cur_round)
 
         n_rounds = len(rounds)
-        protect_n = max(2, n_rounds // 2)  # 保护最近 50% 的轮次
+        protect_n = max(2, n_rounds // 2)  # Protect most-recent 50% of rounds
 
-        # 从最老的轮次开始，使用分级压缩
-        # 先从 assistant.tool_calls 中提取工具名映射
+        # Starting from the oldest rounds, apply tiered compression
+        # First build a tool-name map from assistant.tool_calls
         tc_id_to_name: Dict[str, str] = {}
         for m in body:
             if m.get('role') == 'assistant' and 'tool_calls' in m:
@@ -2125,7 +2128,7 @@ class AIClient:
                 if m.get('role') == 'tool':
                     c = m.get('content') or ''
                     if len(c) > 200:
-                        # 获取工具名（从 tool_call_id 反查）
+                        # Look up the tool name (reverse lookup from tool_call_id)
                         tc_id = m.get('tool_call_id', '')
                         t_name = tc_id_to_name.get(tc_id, '')
                         m['content'] = self._tiered_compress_tool(t_name, c, 200)
@@ -2137,12 +2140,12 @@ class AIClient:
             body = [m for rnd in rounds for m in rnd]
             return ([sys_msg] if sys_msg else []) + body
 
-        # ── 第 4 步：仍超限 → 尝试 LLM 摘要（如果轮次足够多） ──
+        # -- Step 4: if still over the limit, try LLM summarization (when there are enough rounds) --
         if len(rounds) >= 6:
             try:
                 llm_result = self._llm_summarize_history(
                     ([sys_msg] if sys_msg else []) + [m for rnd in rounds for m in rnd],
-                    tool_calls_history, int(target / 0.75),  # 传入原始 context_limit
+                    tool_calls_history, int(target / 0.75),  # Pass through original context_limit
                 )
                 llm_tokens = self._estimate_messages_tokens(llm_result)
                 if llm_tokens < current:
@@ -2150,7 +2153,7 @@ class AIClient:
             except Exception as e:
                 _dbg(f"[AI Client] LLM summarize failed, falling back to trim: {e}")
 
-        # ── 第 5 步：仍超限 → 裁剪最老的轮次 ──
+        # -- Step 5: still over the limit -> drop the oldest rounds --
         while len(rounds) > 2 and current > target:
             rounds.pop(0)
             current = self._estimate_messages_tokens(
@@ -2160,12 +2163,12 @@ class AIClient:
         body = [m for rnd in rounds for m in rnd]
         result = ([sys_msg] if sys_msg else []) + body
 
-        # 添加裁剪提示
+        # Add a trim notice
         n_dropped = n_rounds - len(rounds)
         if n_dropped > 0:
-            # 在系统消息后插入裁剪提示
+            # Insert the notice after the system message
             insert_idx = 1 if sys_msg else 0
-            # 附带操作历史摘要
+            # Attach an operation history summary
             history_lines = []
             if tool_calls_history:
                 op_history = [h for h in tool_calls_history
@@ -2176,14 +2179,14 @@ class AIClient:
                     r_str = str(r.get('result', '') if isinstance(r, dict) else r)[:50]
                     history_lines.append(f"  [{status}] {h['tool_name']}: {r_str}")
 
-            hint = f'[Context] 已自动压缩 {n_dropped} 个早期对话轮次以保持上下文窗口。'
+            hint = f'[Context] Auto-compressed {n_dropped} early conversation rounds to stay within the context window.'
             if history_lines:
-                hint += '\n已完成的操作:\n' + '\n'.join(history_lines)
-            hint += '\n请继续当前任务，不要提及此压缩。'
+                hint += '\nCompleted operations:\n' + '\n'.join(history_lines)
+            hint += '\nPlease continue the current task; do not mention this compression.'
             result.insert(insert_idx, {'role': 'system', 'content': hint})
 
-        _dbg(f"[AI Client] 🗜️ Proactive compress: {n_rounds} → {len(rounds)} round(s), "
-              f"~{self._estimate_messages_tokens(result)} tokens (目标 {target})")
+        _dbg(f"[AI Client] Proactive compress: {n_rounds} -> {len(rounds)} round(s), "
+              f"~{self._estimate_messages_tokens(result)} tokens (target {target})")
 
         return result
 
@@ -2192,22 +2195,22 @@ class AIClient:
                                 context_limit: int,
                                 model: str = '',
                                 provider: str = '') -> list:
-        """使用 LLM 生成上下文摘要，替换旧轮次。
+        """Use an LLM to summarize history, replacing older rounds.
 
-        仅在 _smart_compress_in_loop 裁剪后仍然过长时调用。
-        使用廉价模型生成摘要，避免阻塞主 agent loop 过久。
+        Only invoked when _smart_compress_in_loop trim still leaves it too large.
+        Uses a cheap model to avoid blocking the main agent loop for too long.
 
         Returns:
-            替换后的消息列表
+            The replacement message list
         """
         try:
             from morfyai.utils.token_optimizer import LLMSummarizer
 
-            # 分离系统消息和正文
+            # Separate system message from body
             sys_msg = working_messages[0] if working_messages[0].get('role') == 'system' else None
             body = working_messages[1:] if sys_msg else working_messages[:]
 
-            # 划分轮次
+            # Split into rounds
             rounds = []
             cur = []
             for m in body:
@@ -2220,16 +2223,16 @@ class AIClient:
 
             n_rounds = len(rounds)
             if n_rounds < 4:
-                return working_messages  # 太少，不值得摘要
+                return working_messages  # Too few rounds; not worth summarizing
 
-            # 摘要前半部分（保留最近 3 轮完整）
+            # Summarize the first half (keep last 3 rounds intact)
             to_summarize = rounds[:-3]
             to_keep = rounds[-3:]
 
-            # 确定摘要模型（优先用 deepseek-v4-flash，否则用当前模型）
+            # Pick the summary model (prefer deepseek-v4-flash, else current model)
             summary_model = 'deepseek-v4-flash'
             summary_provider = 'deepseek'
-            # 检查是否有 deepseek key
+            # Check for a deepseek key
             if not self._get_api_key('deepseek'):
                 summary_model = model or 'gpt-5.2'
                 summary_provider = provider or 'openai'
@@ -2245,7 +2248,7 @@ class AIClient:
                 _dbg("[AI Client] LLM summary generation failed, falling back to trim strategy")
                 return working_messages
 
-            # 构建新消息列表：系统消息 + 摘要 + 保留的最近轮次
+            # Build the new message list: system message + summary + retained recent rounds
             result = []
             if sys_msg:
                 result.append(sys_msg)
@@ -2253,8 +2256,8 @@ class AIClient:
             result.append({
                 'role': 'system',
                 'content': (
-                    f'[对话历史摘要] 以下是早期 {len(to_summarize)} 轮对话的摘要，'
-                    '请基于此上下文继续当前任务：\n\n' + summary_text
+                    f'[Conversation history summary] Below is a summary of the earlier {len(to_summarize)} rounds; '
+                    'please continue the current task based on this context:\n\n' + summary_text
                 )
             })
 
@@ -2262,7 +2265,7 @@ class AIClient:
                 result.extend(rnd)
 
             new_tokens = self._estimate_messages_tokens(result)
-            _dbg(f"[AI Client] 📝 LLM summary: {n_rounds} → summary + {len(to_keep)} round(s), "
+            _dbg(f"[AI Client] LLM summary: {n_rounds} -> summary + {len(to_keep)} round(s), "
                   f"~{new_tokens} tokens")
 
             return result
@@ -2272,13 +2275,13 @@ class AIClient:
             return working_messages
 
     def _create_ssl_context(self):
-        """创建 SSL 上下文。验证失败时回退到未验证模式（带警告）。"""
+        """Create an SSL context. Falls back to unverified mode (with warning) if verification fails."""
         try:
             context = ssl.create_default_context()
             context.minimum_version = ssl.TLSVersion.TLSv1_2
             return context
         except Exception as e:
-            _dbg(f"[AI Client] ⚠️ SSL cert verification failed ({e}), falling back to unverified mode. This may pose a security risk.")
+            _dbg(f"[AI Client] SSL cert verification failed ({e}), falling back to unverified mode. This may pose a security risk.")
             try:
                 return ssl._create_unverified_context()
             except Exception:
@@ -2286,8 +2289,8 @@ class AIClient:
 
     def _read_api_key(self, provider: str) -> Optional[str]:
         provider = (provider or 'openai').lower()
-        
-        # Ollama 不需要 API key
+
+        # Ollama doesn't need an API key
         if provider == 'ollama':
             return 'ollama'
         
@@ -2316,10 +2319,10 @@ class AIClient:
 
     def has_api_key(self, provider: str = 'openai') -> bool:
         provider = (provider or 'openai').lower()
-        # Ollama 总是可用（本地服务）
+        # Ollama is always available (local service)
         if provider == 'ollama':
             return True
-        # Custom: 只要配置了 URL 就算可用（Key 可选）
+        # Custom: available as long as URL is configured (key optional)
         if provider == 'custom':
             return bool(self._CUSTOM_API_URL)
         return bool(self._api_keys.get(provider))
@@ -2345,14 +2348,14 @@ class AIClient:
 
     def get_masked_key(self, provider: str = 'openai') -> str:
         provider = (provider or 'openai').lower()
-        # Ollama 显示本地状态
+        # Ollama shows a local status
         if provider == 'ollama':
             return 'Local'
-        # Custom: 显示 URL 缩略
+        # Custom: show abbreviated URL
         if provider == 'custom':
             if self._CUSTOM_API_URL:
                 url = self._CUSTOM_API_URL
-                # 提取域名部分作为显示
+                # Pull out the hostname for display
                 try:
                     from urllib.parse import urlparse
                     parsed = urlparse(url)
@@ -2369,7 +2372,7 @@ class AIClient:
         return key[:5] + '...' + key[-4:]
 
     def _is_anthropic_protocol(self, provider: str, model: str) -> bool:
-        """判断是否应使用 Anthropic Messages 协议（而非 OpenAI 协议）"""
+        """Return whether to use the Anthropic Messages protocol (vs. OpenAI protocol)."""
         return provider == 'duojie' and model.lower() in self._DUOJIE_ANTHROPIC_MODELS
 
     def _get_api_url(self, provider: str, model: str = '') -> str:
@@ -2393,35 +2396,35 @@ class AIClient:
     def _get_vendor_name(self, provider: str) -> str:
         names = {
             'openai': 'OpenAI', 'deepseek': 'DeepSeek',
-            'glm': 'GLM（智谱AI）', 'ollama': 'Ollama',
-            'duojie': '拼好饭', 'openrouter': 'OpenRouter',
+            'glm': 'GLM (Zhipu AI)', 'ollama': 'Ollama',
+            'duojie': 'Duojie', 'openrouter': 'OpenRouter',
             'custom': 'Custom',
         }
         return names.get(provider, provider)
 
     def set_custom_provider(self, api_url: str, api_key: str = '', supports_fc: bool = True):
-        """设置 Custom Provider 的运行时配置
+        """Set runtime config for the Custom provider.
 
         Args:
-            api_url: OpenAI 兼容的 API 端点 URL
-            api_key: API Key（可为空）
-            supports_fc: 是否支持原生 Function Calling
+            api_url: OpenAI-compatible API endpoint URL
+            api_key: API key (may be empty)
+            supports_fc: Whether the endpoint supports native Function Calling
         """
         self._CUSTOM_API_URL = api_url.strip()
         self._CUSTOM_SUPPORTS_FC = supports_fc
         if api_key:
             self._api_keys['custom'] = api_key.strip()
-    
+
     def set_ollama_url(self, base_url: str):
-        """设置 Ollama 服务地址"""
+        """Set the Ollama service base URL."""
         self._ollama_base_url = base_url.rstrip('/')
         self.OLLAMA_API_URL = f"{self._ollama_base_url}/v1/chat/completions"
-    
+
     def get_ollama_models(self) -> List[str]:
-        """获取 Ollama 可用的模型列表"""
+        """Get the list of models available on Ollama."""
         if not HAS_REQUESTS:
             return ['qwen2.5:14b']
-        
+
         try:
             response = self._http_session.get(
                 f"{self._ollama_base_url}/api/tags",
@@ -2433,14 +2436,14 @@ class AIClient:
                 return models if models else ['qwen2.5:14b']
         except Exception:
             pass
-        
-        return ['qwen2.5:14b']  # 默认模型
+
+        return ['qwen2.5:14b']  # Default model
 
     def test_connection(self, provider: str = 'deepseek') -> Dict[str, Any]:
-        """测试连接"""
+        """Test the connection."""
         provider = (provider or 'deepseek').lower()
-        
-        # Ollama 特殊处理
+
+        # Ollama special-case
         if provider == 'ollama':
             try:
                 if HAS_REQUESTS:
@@ -2450,14 +2453,14 @@ class AIClient:
                     )
                     if response.status_code == 200:
                         return {'ok': True, 'url': self._ollama_base_url, 'status': 200}
-                    return {'ok': False, 'error': f'Ollama 服务响应异常: {response.status_code}'}
+                    return {'ok': False, 'error': f'Ollama service returned unexpected status: {response.status_code}'}
             except Exception as e:
-                return {'ok': False, 'error': f'无法连接 Ollama 服务: {str(e)}'}
-        
+                return {'ok': False, 'error': f'Cannot reach Ollama service: {str(e)}'}
+
         api_key = self._get_api_key(provider)
-        # Custom provider 允许无 API Key（本地服务等）
+        # Custom provider allows no API key (e.g. local services)
         if not api_key and provider != 'custom':
-            return {'ok': False, 'error': f'缺少 API Key'}
+            return {'ok': False, 'error': 'Missing API key'}
         
         try:
             if HAS_REQUESTS:
@@ -2486,16 +2489,17 @@ class AIClient:
         return defaults.get(provider, 'gpt-5.2')
 
     # ============================================================
-    # 模型特性判断
+    # Model capability checks
     # ============================================================
-    
+
     @staticmethod
     def is_reasoning_model(model: str) -> bool:
-        """判断模型是否为原生推理模型（API 返回 reasoning_content 字段）
+        """Check whether the model is a native reasoning model (API returns reasoning_content).
 
-        仅限明确通过 reasoning_content 字段返回推理的模型：
-        DeepSeek V4 (flash/pro), DeepSeek-R1/Reasoner, GLM-4.7
-        注：Duojie 模型思考模式通过系统提示词 <think> 标签实现，不依赖 API 参数
+        Limited to models that explicitly return reasoning via the reasoning_content field:
+        DeepSeek V4 (flash/pro), DeepSeek-R1/Reasoner, GLM-4.7.
+        Note: Duojie models implement thinking mode via <think> tags in the system prompt,
+        not via API params.
         """
         m = model.lower()
         return (
@@ -2503,35 +2507,36 @@ class AIClient:
             or 'reasoner' in m or 'r1' in m
             or m == 'glm-4.7'
         )
-    
+
     @staticmethod
     def is_glm47(model: str) -> bool:
-        """判断是否为 GLM-4.7 模型"""
+        """Return whether the model is GLM-4.7."""
         return model.lower() == 'glm-4.7'
-    
-    # Duojie 思考模式说明：
-    # 经测试 thinking/reasoningEffort API 参数对 Duojie 均无效（reasoning_tokens 始终 0）
-    # 思考通过系统提示词中的 <think> 标签指令实现，模型名保持不变
-    
+
+    # Duojie thinking mode notes:
+    # Testing showed thinking/reasoningEffort API params have no effect on Duojie (reasoning_tokens always 0)
+    # Thinking is driven by <think> tags in the system prompt; the model name stays the same.
+
     # ============================================================
-    # Usage 解析
+    # Usage parsing
     # ============================================================
-    
-    _usage_keys_logged = False  # 类变量：只打印一次原始 usage 完整结构
+
+    _usage_keys_logged = False  # Class var: only log the raw usage structure once
 
     @staticmethod
     def _parse_usage(usage: dict) -> dict:
-        """解析 API 返回的 usage 数据为统一格式（含 reasoning tokens 和缓存指标）
-        
-        缓存字段兼容多种 API 返回格式：
+        """Parse the usage payload returned by the API into a uniform shape
+        (includes reasoning tokens and cache metrics).
+
+        Cache fields cover multiple API response formats:
         - DeepSeek/OpenAI: prompt_cache_hit_tokens / prompt_cache_miss_tokens
-        - Anthropic 原生: cache_read_input_tokens / cache_creation_input_tokens
-        - Factory/Duojie 代理: claude_cache_creation_*_tokens, input_tokens_details 内嵌
+        - Anthropic native: cache_read_input_tokens / cache_creation_input_tokens
+        - Factory/Duojie proxy: claude_cache_creation_*_tokens, nested in input_tokens_details
         """
         if not usage:
             return {}
-        
-        # 诊断：首次收到 usage 时打印完整结构（含嵌套 details）
+
+        # Diagnostic: log the full structure (including nested details) the first time
         if not AIClient._usage_keys_logged:
             AIClient._usage_keys_logged = True
             _dbg(f"[AI Client] Raw usage keys (first): {sorted(usage.keys())}")
@@ -2539,22 +2544,22 @@ class AIClient:
                 v = usage.get(k)
                 if v:
                     _dbg(f"[AI Client]   {k}: {v}")
-        
+
         prompt_tokens = usage.get('prompt_tokens', 0) or usage.get('input_tokens', 0)
-        
-        # ── 缓存读取（hit）：从多级来源查找 ──
-        # 优先从 details 子字段中提取（Factory/Anthropic 风格）
+
+        # -- Cache read (hit): look across multiple sources --
+        # Prefer details sub-fields (Factory/Anthropic style)
         input_details = usage.get('input_tokens_details') or usage.get('prompt_tokens_details') or {}
         if isinstance(input_details, dict):
             cache_hit = (
-                input_details.get('cached_tokens')           # OpenAI 新格式
+                input_details.get('cached_tokens')           # OpenAI new format
                 or input_details.get('cache_read_input_tokens')  # Anthropic
                 or input_details.get('cache_read_tokens')
                 or 0
             )
         else:
             cache_hit = 0
-        # 顶级字段后备
+        # Fall back to top-level fields
         if not cache_hit:
             cache_hit = (
                 usage.get('prompt_cache_hit_tokens')
@@ -2563,13 +2568,13 @@ class AIClient:
                 or usage.get('cache_hit_tokens')
                 or 0
             )
-        
-        # ── 缓存写入（miss/creation） ──
-        # Factory 特有: claude_cache_creation_1_h_tokens / claude_cache_creation_5_m_tokens
+
+        # -- Cache write (miss/creation) --
+        # Factory-specific: claude_cache_creation_1_h_tokens / claude_cache_creation_5_m_tokens
         cache_write_1h = usage.get('claude_cache_creation_1_h_tokens', 0) or 0
         cache_write_5m = usage.get('claude_cache_creation_5_m_tokens', 0) or 0
         factory_cache_write = cache_write_1h + cache_write_5m
-        
+
         if isinstance(input_details, dict):
             cache_miss_from_details = (
                 input_details.get('cache_creation_input_tokens')
@@ -2578,7 +2583,7 @@ class AIClient:
             )
         else:
             cache_miss_from_details = 0
-        
+
         cache_miss = (
             cache_miss_from_details
             or usage.get('prompt_cache_miss_tokens')
@@ -2588,13 +2593,13 @@ class AIClient:
             or factory_cache_write
             or 0
         )
-        
+
         completion = usage.get('completion_tokens', 0) or usage.get('output_tokens', 0)
         total = usage.get('total_tokens', 0) or (prompt_tokens + completion)
-        
-        # ── 提取 reasoning / thinking tokens ──
+
+        # -- Extract reasoning / thinking tokens --
         # OpenAI/DeepSeek: completion_tokens_details.reasoning_tokens
-        # Anthropic: 可能在 output_tokens_details.thinking 中
+        # Anthropic: may live in output_tokens_details.thinking
         reasoning_tokens = 0
         comp_details = usage.get('completion_tokens_details') or {}
         if isinstance(comp_details, dict):
@@ -2613,34 +2618,34 @@ class AIClient:
         }
     
     # ============================================================
-    # Anthropic Messages 协议适配层
+    # Anthropic Messages protocol adapter
     # ============================================================
 
     @staticmethod
     def _convert_messages_to_anthropic(messages: List[Dict[str, Any]]) -> tuple:
-        """将 OpenAI 格式的消息列表转换为 Anthropic Messages API 格式。
-        
+        """Convert an OpenAI-format message list to Anthropic Messages API format.
+
         Returns:
             (system_text, anthropic_messages)
-            - system_text: 系统提示（Anthropic 要求单独传 system 参数）
-            - anthropic_messages: Anthropic 格式的 messages 列表
+            - system_text: system prompt (Anthropic takes this as a separate `system` parameter)
+            - anthropic_messages: messages list in Anthropic format
         """
         system_text = ""
         anthropic_msgs: List[Dict[str, Any]] = []
-        
+
         for msg in messages:
             role = msg.get('role', '')
-            
+
             if role == 'system':
-                # Anthropic 的 system 不在 messages 里，单独传
+                # Anthropic's system isn't in messages; passed separately
                 system_text += (("\n\n" if system_text else "") + (msg.get('content', '') or ''))
                 continue
-            
+
             if role == 'user':
                 content = msg.get('content', '')
-                # 支持 OpenAI 多模态格式: content 可能是 list
+                # Support OpenAI multimodal format: content may be a list
                 if isinstance(content, list):
-                    # 转换 OpenAI 多模态格式 → Anthropic 格式
+                    # Convert OpenAI multimodal -> Anthropic format
                     anth_content = []
                     for part in content:
                         if part.get('type') == 'text':
@@ -2694,13 +2699,13 @@ class AIClient:
                 continue
             
             if role == 'tool':
-                # OpenAI tool result → Anthropic tool_result (放在 user 消息中)
+                # OpenAI tool result -> Anthropic tool_result (lives inside a user message)
                 tool_result_block = {
                     'type': 'tool_result',
                     'tool_use_id': msg.get('tool_call_id', ''),
                     'content': str(msg.get('content', '')),
                 }
-                # 如果上一条也是 user（连续的 tool results），合并到同一条 user 消息
+                # If the previous entry is also a user (consecutive tool results), merge into the same user message
                 if anthropic_msgs and anthropic_msgs[-1]['role'] == 'user':
                     last_content = anthropic_msgs[-1]['content']
                     if isinstance(last_content, list):
@@ -2716,20 +2721,20 @@ class AIClient:
                         'content': [tool_result_block],
                     })
                 continue
-        
-        # Anthropic 要求消息以 user 开头，如果第一条是 assistant 则补一条 user
+
+        # Anthropic requires messages start with user; if the first is assistant, prepend a user
         if anthropic_msgs and anthropic_msgs[0]['role'] == 'assistant':
-            anthropic_msgs.insert(0, {'role': 'user', 'content': '请继续。'})
-        
-        # Anthropic 要求角色严格交替（user/assistant/user/...）
-        # 合并连续相同角色的消息
+            anthropic_msgs.insert(0, {'role': 'user', 'content': 'Please continue.'})
+
+        # Anthropic requires roles strictly alternate (user/assistant/user/...)
+        # Merge consecutive same-role messages
         merged: List[Dict[str, Any]] = []
         for m in anthropic_msgs:
             if merged and merged[-1]['role'] == m['role']:
-                # 合并内容
+                # Merge content
                 prev_content = merged[-1]['content']
                 curr_content = m['content']
-                # 统一为 list 格式
+                # Normalize to list format
                 if isinstance(prev_content, str):
                     prev_content = [{'type': 'text', 'text': prev_content}]
                 if isinstance(curr_content, str):
@@ -2746,8 +2751,8 @@ class AIClient:
 
     @staticmethod
     def _convert_tools_to_anthropic(tools: List[dict]) -> List[dict]:
-        """将 OpenAI Function Calling 格式的工具列表转换为 Anthropic 格式。
-        
+        """Convert an OpenAI Function Calling tool list to Anthropic format.
+
         OpenAI:  {"type": "function", "function": {"name": ..., "description": ..., "parameters": {...}}}
         Anthropic: {"name": ..., "description": ..., "input_schema": {...}}
         """
@@ -2755,7 +2760,7 @@ class AIClient:
             return []
         anthropic_tools = []
         for tool in tools:
-            func = tool.get('function', tool)  # 兼容裸 function dict
+            func = tool.get('function', tool)  # Tolerate a bare function dict
             anthropic_tools.append({
                 'name': func.get('name', ''),
                 'description': func.get('description', ''),
@@ -2773,34 +2778,35 @@ class AIClient:
                                 tool_choice: str = 'auto',
                                 enable_thinking: bool = True,
                                 api_key: str = '') -> Generator[Dict[str, Any], None, None]:
-        """Anthropic Messages 协议的流式 Chat。
-        
-        将 OpenAI 格式的输入转换为 Anthropic 格式，调用 /v1/messages，
-        解析 Anthropic SSE 事件流，yield 与 OpenAI 分支相同的内部 chunk 格式。
+        """Streaming Chat over the Anthropic Messages protocol.
+
+        Converts OpenAI-format input to Anthropic format, calls /v1/messages,
+        parses the Anthropic SSE event stream, and yields the same internal chunk
+        format as the OpenAI branch.
         """
         api_url = self._get_api_url(provider, model)
-        
-        # 消息转换
+
+        # Message conversion
         system_text, anth_messages = self._convert_messages_to_anthropic(messages)
-        
+
         payload: Dict[str, Any] = {
             'model': model,
             'messages': anth_messages,
             'max_tokens': max_tokens or 16384,
             'stream': True,
         }
-        # temperature（Anthropic 范围 0-1）
+        # temperature (Anthropic range 0-1)
         if temperature is not None:
             payload['temperature'] = min(max(temperature, 0.0), 1.0)
-        
+
         if system_text:
             payload['system'] = system_text
-        
-        # 思考模式
+
+        # Thinking mode
         if enable_thinking:
             payload['thinking'] = {'type': 'enabled', 'budget_tokens': min(max_tokens or 16384, 10000)}
-        
-        # 工具
+
+        # Tools
         if tools:
             payload['tools'] = self._convert_tools_to_anthropic(tools)
             if tool_choice == 'auto':
@@ -2809,8 +2815,8 @@ class AIClient:
                 payload['tool_choice'] = {'type': 'none'}
             elif tool_choice == 'required':
                 payload['tool_choice'] = {'type': 'any'}
-        
-        # 请求头（Anthropic 格式）
+
+        # Request headers (Anthropic format)
         headers = {
             'Content-Type': 'application/json',
             'Accept': 'text/event-stream',
@@ -2850,22 +2856,22 @@ class AIClient:
                         yield {"type": "error", "error": f"HTTP {response.status_code}: {err_msg}"}
                         return
                     
-                    # ── 解析 Anthropic SSE 事件流 ──
-                    # 状态
-                    _content_blocks: Dict[int, Dict[str, Any]] = {}  # index → block info
-                    _tool_args_acc: Dict[int, str] = {}  # index → accumulated JSON args
+                    # -- Parse the Anthropic SSE event stream --
+                    # State
+                    _content_blocks: Dict[int, Dict[str, Any]] = {}  # index -> block info
+                    _tool_args_acc: Dict[int, str] = {}  # index -> accumulated JSON args
                     _pending_usage: Dict[str, Any] = {}
                     _last_stop_reason = None
                     _got_thinking = False
-                    _enable_thinking_flag = enable_thinking  # 闭包变量
-                    
+                    _enable_thinking_flag = enable_thinking  # Closure var
+
                     import codecs
                     _utf8_decoder = codecs.getincrementaldecoder('utf-8')(errors='ignore')
                     _line_buf = ""
-                    _event_type = ""  # 当前 SSE event 类型
-                    
+                    _event_type = ""  # Current SSE event type
+
                     def _process_anthropic_event(event_type: str, data_str: str):
-                        """处理单个 Anthropic SSE 事件，返回要 yield 的 dict 列表"""
+                        """Process a single Anthropic SSE event; return the list of dicts to yield."""
                         nonlocal _content_blocks, _tool_args_acc, _pending_usage, _last_stop_reason, _got_thinking
                         results = []
                         
@@ -2917,7 +2923,7 @@ class AIClient:
                                 partial = delta.get('partial_json', '')
                                 if partial and idx in _tool_args_acc:
                                     _tool_args_acc[idx] += partial
-                                    # 广播 tool_args_delta → UI 流式预览
+                                    # Emit tool_args_delta -> UI streaming preview
                                     tool_name = block_info.get('name', '')
                                     if tool_name:
                                         results.append({
@@ -2932,7 +2938,7 @@ class AIClient:
                             idx = data.get('index', 0)
                             block_info = _content_blocks.get(idx, {})
                             if block_info.get('type') == 'tool_use':
-                                # 工具调用完成 → 转换为 OpenAI 格式的 tool_call
+                                # Tool call complete -> convert to OpenAI-format tool_call
                                 tool_id = block_info.get('id', '')
                                 tool_name = block_info.get('name', '')
                                 args_str = _tool_args_acc.get(idx, '{}')
@@ -2953,14 +2959,14 @@ class AIClient:
                             _last_stop_reason = delta.get('stop_reason')
                             usage = data.get('usage', {})
                             if usage:
-                                # 合并 usage
+                                # Merge usage
                                 parsed = self._parse_usage(usage)
                                 for k, v in parsed.items():
                                     if isinstance(v, (int, float)):
                                         _pending_usage[k] = _pending_usage.get(k, 0) + v
-                        
+
                         elif ev_type == 'message_stop':
-                            # 映射 stop_reason: end_turn → stop, tool_use → tool_calls
+                            # Map stop_reason: end_turn -> stop, tool_use -> tool_calls
                             finish = 'stop'
                             if _last_stop_reason == 'tool_use':
                                 finish = 'tool_calls'
@@ -2978,42 +2984,42 @@ class AIClient:
                         
                         return results
                     
-                    # ── 主循环 ──
+                    # -- Main loop --
                     _should_return = False
                     for raw_chunk in response.iter_content(chunk_size=4096, decode_unicode=False):
                         if not raw_chunk:
                             continue
                         if self._stop_event.is_set():
-                            yield {"type": "stopped", "message": "用户停止了请求"}
+                            yield {"type": "stopped", "message": "User stopped the request"}
                             return
-                        
+
                         decoded = _utf8_decoder.decode(raw_chunk)
                         _line_buf += decoded
-                        
+
                         while '\n' in _line_buf:
                             one_line, _line_buf = _line_buf.split('\n', 1)
                             one_line = one_line.rstrip('\r')
-                            
+
                             if not one_line:
                                 continue
-                            
-                            # Anthropic SSE: "event: xxx" 行后跟 "data: {...}" 行
+
+                            # Anthropic SSE: "event: xxx" line followed by "data: {...}" line
                             if one_line.startswith('event: '):
                                 _event_type = one_line[7:].strip()
                                 continue
-                            
+
                             if one_line.startswith('data: '):
                                 data_str = one_line[6:]
                                 for item in _process_anthropic_event(_event_type, data_str):
                                     yield item
                                     if item.get('type') in ('done', 'error'):
                                         _should_return = True
-                                _event_type = ""  # 重置
-                        
+                                _event_type = ""  # Reset
+
                         if _should_return:
                             return
-                    
-                    # 处理残留
+
+                    # Flush leftover
                     _line_buf += _utf8_decoder.decode(b'', final=True)
                     if _line_buf.strip():
                         for line in _line_buf.strip().split('\n'):
@@ -3025,23 +3031,23 @@ class AIClient:
                                     yield item
                                     if item.get('type') in ('done', 'error'):
                                         return
-                    
-                    # 流结束但未收到 message_stop
+
+                    # Stream ended without a message_stop
                     if not _should_return:
                         yield {"type": "done", "finish_reason": _last_stop_reason or "stop", "usage": _pending_usage}
                     return
-                    
+
             except requests.exceptions.Timeout:
                 if attempt < self._max_retries - 1:
                     time.sleep(self._retry_delay * (attempt + 1))
                     continue
-                yield {"type": "error", "error": f"请求超时（已重试 {self._max_retries} 次）"}
+                yield {"type": "error", "error": f"Request timed out (retried {self._max_retries} times)"}
                 return
             except requests.exceptions.ConnectionError as e:
                 if attempt < self._max_retries - 1:
                     time.sleep(self._retry_delay * (attempt + 1))
                     continue
-                yield {"type": "error", "error": f"连接错误: {str(e)}"}
+                yield {"type": "error", "error": f"Connection error: {str(e)}"}
                 return
             except Exception as e:
                 err_str = str(e)
@@ -3055,7 +3061,7 @@ class AIClient:
                     _dbg(f"[AI Client] Anthropic connection interrupted ({err_str[:80]}), retrying in {wait}s")
                     time.sleep(wait)
                     continue
-                yield {"type": "error", "error": f"请求失败: {err_str}"}
+                yield {"type": "error", "error": f"Request failed: {err_str}"}
                 return
 
     def _chat_anthropic(self,
@@ -3068,7 +3074,7 @@ class AIClient:
                         tool_choice: str = 'auto',
                         api_key: str = '',
                         timeout: int = 60) -> Dict[str, Any]:
-        """Anthropic Messages 协议的非流式 Chat。"""
+        """Non-streaming Chat over the Anthropic Messages protocol."""
         api_url = self._get_api_url(provider, model)
         system_text, anth_messages = self._convert_messages_to_anthropic(messages)
         
@@ -3100,8 +3106,8 @@ class AIClient:
                 )
                 response.raise_for_status()
                 obj = response.json()
-                
-                # 解析 Anthropic 响应 → OpenAI 统一格式
+
+                # Parse Anthropic response -> unified OpenAI shape
                 content_text = ''
                 tool_calls_list = []
                 for block in obj.get('content', []):
@@ -3132,19 +3138,19 @@ class AIClient:
                 if attempt < self._max_retries - 1:
                     time.sleep(self._retry_delay)
                     continue
-                return {'ok': False, 'error': '请求超时'}
+                return {'ok': False, 'error': 'Request timed out'}
             except Exception as e:
                 if attempt < self._max_retries - 1:
                     time.sleep(self._retry_delay)
                     continue
                 return {'ok': False, 'error': str(e)}
-        
-        return {'ok': False, 'error': '请求失败'}
+
+        return {'ok': False, 'error': 'Request failed'}
 
     # ============================================================
-    # 流式传输 Chat
+    # Streaming Chat
     # ============================================================
-    
+
     def chat_stream(self,
                     messages: List[Dict[str, str]],
                     model: str = 'gpt-5.2',
@@ -3155,28 +3161,28 @@ class AIClient:
                     tool_choice: str = 'auto',
                     enable_thinking: bool = True,
                     response_format: Optional[dict] = None) -> Generator[Dict[str, Any], None, None]:
-        """流式 Chat API
+        """Streaming Chat API.
 
         Yields:
-            {"type": "content", "content": str}  # 内容片段
-            {"type": "tool_call", "tool_call": dict}  # 工具调用
-            {"type": "thinking", "content": str}  # 思考内容（DeepSeek / GLM 原生 reasoning_content）
-            {"type": "done", "finish_reason": str}  # 完成
-            {"type": "error", "error": str}  # 错误
+            {"type": "content", "content": str}  # Content fragment
+            {"type": "tool_call", "tool_call": dict}  # Tool call
+            {"type": "thinking", "content": str}  # Thinking content (DeepSeek / GLM native reasoning_content)
+            {"type": "done", "finish_reason": str}  # Completion
+            {"type": "error", "error": str}  # Error
         """
         if not HAS_REQUESTS:
-            yield {"type": "error", "error": "需要安装 requests 库"}
+            yield {"type": "error", "error": "The 'requests' library must be installed"}
             return
-        
+
         provider = (provider or 'openai').lower()
         api_key = self._get_api_key(provider)
-        
-        # Ollama / Custom（无 Key）不需要 API Key 验证
+
+        # Ollama / Custom (no key) don't require API key validation
         if provider not in ('ollama', 'custom') and not api_key:
-            yield {"type": "error", "error": f"缺少 {self._get_vendor_name(provider)} API Key"}
+            yield {"type": "error", "error": f"Missing {self._get_vendor_name(provider)} API key"}
             return
-        
-        # ★ Anthropic 协议分支（Duojie GLM 等）
+
+        # ★ Anthropic protocol branch (Duojie GLM etc.)
         if self._is_anthropic_protocol(provider, model):
             yield from self._chat_stream_anthropic(
                 messages=messages, model=model, provider=provider,
@@ -3185,61 +3191,63 @@ class AIClient:
                 enable_thinking=enable_thinking, api_key=api_key,
             )
             return
-        
+
         api_url = self._get_api_url(provider, model)
-        
+
         payload = {
             'model': model,
             'messages': messages,
             'temperature': temperature,
             'stream': True,
-            # 必须加 stream_options 才能在流式响应中获取 usage 统计
+            # stream_options is required to receive usage stats in a streaming response
             'stream_options': {'include_usage': True},
         }
-        if max_tokens:
-            payload['max_tokens'] = max_tokens
+        # Always cap output. If omitted, providers (esp. OpenRouter/Anthropic) default to
+        # the model's FULL max output (e.g. 65536 for Opus), which inflates cost AND trips
+        # OpenRouter's affordability pre-check (HTTP 402). 16384 is ample for one agent step.
+        payload['max_tokens'] = max_tokens if max_tokens else 16384
         if response_format:
             payload['response_format'] = response_format
 
-        # GLM-4.7 专属参数（仅原生 GLM 接口）：深度思考 + 流式工具调用
+        # GLM-4.7 specific params (only on the native GLM endpoint): deep thinking + streaming tool calls
         if self.is_glm47(model) and provider == 'glm' and enable_thinking:
             payload['thinking'] = {'type': 'enabled'}
             if tools:
                 payload['tool_stream'] = True
 
-        # DeepSeek V4 thinking 参数（v4-flash / v4-pro 显式启用思考）
+        # DeepSeek V4 thinking params (v4-flash / v4-pro enable thinking explicitly)
         if provider == 'deepseek' and enable_thinking and 'deepseek-v4' in model.lower():
             payload['thinking'] = {'type': 'enabled'}
             if 'v4-pro' in model.lower():
                 payload['reasoning_effort'] = 'high'
 
-        # Duojie 中转：思考模式通过系统提示词中的 <think> 标签实现
-        # 经测试 thinking/reasoningEffort 参数对 Duojie API 无效（reasoning_tokens 始终为 0）
-        # 且 thinking 参数偶尔导致 403，因此不发送任何额外参数
+        # Duojie proxy: thinking mode is implemented via <think> tags in the system prompt
+        # Testing showed thinking/reasoningEffort params have no effect on Duojie API (reasoning_tokens always 0)
+        # The thinking param also occasionally triggers 403, so we don't send any extra params
 
-        # DeepSeek / OpenAI prompt caching 自动启用（保持前缀稳定即可命中）
-        
-        # 工具调用（所有支持 function calling 的 provider 通用）
+        # DeepSeek / OpenAI prompt caching is enabled automatically (keep the prefix stable to hit)
+
+        # Tool calls (universal across providers that support function calling)
         if tools:
             payload['tools'] = tools
             payload['tool_choice'] = tool_choice
-        
-        # 构建请求头
+
+        # Build request headers
         headers = {
             'Content-Type': 'application/json',
             'Accept': 'text/event-stream',
         }
-        
-        # Ollama 和无 Key 的 Custom 不需要 Authorization 头
+
+        # Ollama and key-less Custom don't need an Authorization header
         if provider != 'ollama' and api_key:
             headers['Authorization'] = f'Bearer {api_key}'
-        
-        # OpenRouter 需要额外的请求头用于标识来源（参见 https://openrouter.ai/docs/quickstart）
+
+        # OpenRouter requires extra headers to identify the caller (see https://openrouter.ai/docs/quickstart)
         if provider == 'openrouter':
             headers['HTTP-Referer'] = 'https://github.com/Kazama-Suichiku/Houdini-Agent'
             headers['X-OpenRouter-Title'] = 'MorfyAI - Houdini Assistant'
-        
-        # 重试逻辑
+
+        # Retry loop
         _dbg(f"[AI Client] Requesting {api_url} with model {model}")
         for attempt in range(self._max_retries):
             try:
@@ -3248,13 +3256,13 @@ class AIClient:
                     json=payload,
                     headers=headers,
                     stream=True,
-                    timeout=(10, self._chunk_timeout),  # (连接超时, 读取超时)
+                    timeout=(10, self._chunk_timeout),  # (connect timeout, read timeout)
                     proxies={'http': None, 'https': None}
                 ) as response:
-                    # 强制 UTF-8 编码（requests 对 text/event-stream 默认 ISO-8859-1，会导致中文乱码）
+                    # Force UTF-8 (requests defaults text/event-stream to ISO-8859-1, mangling CJK)
                     response.encoding = 'utf-8'
                     _dbg(f"[AI Client] Response status: {response.status_code}")
-                    
+
                     if response.status_code != 200:
                         try:
                             err = response.json()
@@ -3262,71 +3270,71 @@ class AIClient:
                         except:
                             err_msg = response.text
                         _dbg(f"[AI Client] Error: {err_msg}")
-                        
-                        # 5xx 服务端错误（502/503/529 等）可重试
+
+                        # 5xx server errors (502/503/529 etc.) are retryable
                         if response.status_code >= 500 and attempt < self._max_retries - 1:
                             wait = self._retry_delay * (attempt + 1)
                             _dbg(f"[AI Client] Server error {response.status_code}, retrying in {wait}s...")
                             time.sleep(wait)
-                            continue  # 重试
-                        
+                            continue  # Retry
+
                         yield {"type": "error", "error": f"HTTP {response.status_code}: {err_msg}"}
                         return
-                    
-                    # 解析 SSE 流
-                    tool_calls_buffer = {}  # 缓存工具调用片段
-                    pending_usage = {}  # 收集 usage 数据
+
+                    # Parse the SSE stream
+                    tool_calls_buffer = {}  # Buffer tool call fragments
+                    pending_usage = {}  # Collect usage data
                     last_finish_reason = None
-                    _got_reasoning = False  # 诊断：本轮是否收到 reasoning_content
-                    _enable_thinking = enable_thinking  # 闭包变量，供 _process_sse_line 使用
-                    
-                    # ── 使用 iter_content + 增量解码器 + 手动分行 ──
-                    # 比 iter_lines() 更健壮：
-                    #   1. iter_content() 返回 HTTP body 原始字节块
-                    #   2. 增量解码器正确处理跨 chunk 切断的多字节 UTF-8
-                    #   3. 手动按 \n 分行，避免 requests 内部分行时的编码干扰
+                    _got_reasoning = False  # Diagnostic: did we receive reasoning_content this turn?
+                    _enable_thinking = enable_thinking  # Closure var for _process_sse_line
+
+                    # -- Use iter_content + incremental decoder + manual line splitting --
+                    # More robust than iter_lines():
+                    #   1. iter_content() returns raw byte chunks from the HTTP body
+                    #   2. Incremental decoder correctly handles multibyte UTF-8 split across chunks
+                    #   3. Manual \n splitting avoids requests' internal line-splitting encoding quirks
                     import codecs
                     _utf8_decoder = codecs.getincrementaldecoder('utf-8')(errors='ignore')
-                    _line_buf = ""  # 解码后、尚未遇到 \n 的文本缓冲
-                    
+                    _line_buf = ""  # Decoded text awaiting a \n
+
                     def _process_sse_line(line):
-                        """处理单行 SSE data，返回要 yield 的 dict 列表"""
+                        """Process a single SSE data line; return the list of dicts to yield."""
                         nonlocal tool_calls_buffer, pending_usage, last_finish_reason, _got_reasoning, _enable_thinking
                         results = []
-                        
+
                         if not line.startswith('data: '):
                             return results
-                        
+
                         data_str = line[6:]
-                        
+
                         if data_str.strip() == '[DONE]':
                             _reason_tokens = pending_usage.get('reasoning_tokens', 0)
                             _dbg(f"[AI Client] Received [DONE], reasoning={'YES' if _got_reasoning else 'NO'}(tokens={_reason_tokens}), usage={pending_usage}")
                             results.append({"type": "done", "finish_reason": last_finish_reason or "stop", "usage": pending_usage})
                             return results
-                        
+
                         try:
                             data = json.loads(data_str)
                         except json.JSONDecodeError:
                             return results
-                        
+
                         choices = data.get('choices', [])
                         usage_data = data.get('usage')
-                        
+
                         # usage-only chunk
                         if usage_data:
                             pending_usage = self._parse_usage(usage_data)
-                        
+
                         if not choices:
                             return results
-                        
+
                         choice = choices[0]
                         delta = choice.get('delta', {})
                         finish_reason = choice.get('finish_reason')
-                        
-                        # 思考内容（仅在 enable_thinking=True 时显示）
-                        # 不同代理可能使用不同字段名：reasoning_content / thinking_content / reasoning
-                        # 统一拦截，Think 关闭时全部静默丢弃
+
+                        # Thinking content (only shown when enable_thinking=True)
+                        # Different proxies use different field names: reasoning_content / thinking_content / reasoning
+                        # Intercept all of them; when Think is off, silently drop
                         _thinking_text = (
                             delta.get('reasoning_content')
                             or delta.get('thinking_content')
@@ -3336,19 +3344,19 @@ class AIClient:
                         if _thinking_text:
                             if not _got_reasoning:
                                 _got_reasoning = True
-                                # 诊断：记录字段名以便排查
+                                # Diagnostic: log the field name for debugging
                                 _field = ('reasoning_content' if 'reasoning_content' in delta
                                           else 'thinking_content' if 'thinking_content' in delta
                                           else 'reasoning')
-                                _dbg(f"[AI Client] 🧠 Received {_field} (first chunk, len={len(_thinking_text)}, enable_thinking={_enable_thinking})")
+                                _dbg(f"[AI Client] Received {_field} (first chunk, len={len(_thinking_text)}, enable_thinking={_enable_thinking})")
                             if _enable_thinking:
                                 results.append({"type": "thinking", "content": _thinking_text})
-                        
-                        # 普通内容
+
+                        # Normal content
                         if 'content' in delta and delta['content']:
                             results.append({"type": "content", "content": delta['content']})
-                        
-                        # 工具调用
+
+                        # Tool calls
                         if delta.get('tool_calls'):
                             for tc in delta['tool_calls']:
                                 idx = tc.get('index', 0)
@@ -3374,7 +3382,7 @@ class AIClient:
                                         tool_calls_buffer[idx]['function']['name'] = fn['name']
                                     if 'arguments' in fn:
                                         tool_calls_buffer[idx]['function']['arguments'] += fn['arguments']
-                                        # ★ 广播 tool_call 参数增量 → UI 流式预览
+                                        # ★ Emit tool_call arg deltas -> UI streaming preview
                                         _tname = tool_calls_buffer[idx]['function'].get('name', '')
                                         if _tname:
                                             results.append({
@@ -3385,11 +3393,11 @@ class AIClient:
                                                 "accumulated": tool_calls_buffer[idx]['function']['arguments'],
                                             })
                         
-                        # 完成（先发送工具调用，但不 return，等后续 usage chunk / [DONE]）
+                        # Completion (emit tool calls first, don't return; wait for the trailing usage chunk / [DONE])
                         if finish_reason:
                             if tool_calls_buffer:
-                                # ★ 修复：检测并拆分被代理错误拼接的 arguments（如 duojie Claude 代理）
-                                # 某些代理在流式传输时对多个工具调用使用相同 index，导致 arguments 被拼接为 {...}{...}
+                                # ★ Fix: detect and split arguments that the proxy concatenated by mistake (e.g. duojie Claude proxy)
+                                # Some proxies use the same index for multiple tool calls while streaming, resulting in {...}{...}
                                 import uuid as _uuid
                                 fixed_buffer = {}
                                 next_fix_idx = max(tool_calls_buffer.keys()) + 1
@@ -3401,7 +3409,7 @@ class AIClient:
                                             json.loads(args_str)
                                             fixed_buffer[idx_k] = tc_entry
                                         except (json.JSONDecodeError, ValueError):
-                                            # 尝试拆分拼接的多个 JSON 对象: {...}{...}
+                                            # Try to split into multiple concatenated JSON objects: {...}{...}
                                             split_parts = []
                                             depth = 0
                                             start = -1
@@ -3447,46 +3455,46 @@ class AIClient:
                         
                         return results
                     
-                    # ── 主循环：读取原始字节块 → 解码 → 分行 → 处理 ──
+                    # -- Main loop: read raw byte chunks -> decode -> split lines -> process --
                     _should_return = False
                     for raw_chunk in response.iter_content(chunk_size=4096, decode_unicode=False):
                         if not raw_chunk:
                             continue
-                        
+
                         if self._stop_event.is_set():
-                            yield {"type": "stopped", "message": "用户停止了请求"}
+                            yield {"type": "stopped", "message": "User stopped the request"}
                             return
-                        
-                        # 增量解码：跨 chunk 的多字节 UTF-8 字符在此正确拼合
+
+                        # Incremental decode: multibyte UTF-8 chars split across chunks reassemble here
                         decoded = _utf8_decoder.decode(raw_chunk)
                         _line_buf += decoded
-                        
-                        # 逐行分割并处理
+
+                        # Split by line and process
                         while '\n' in _line_buf:
                             one_line, _line_buf = _line_buf.split('\n', 1)
                             one_line = one_line.rstrip('\r')
                             if not one_line:
                                 continue
-                            
+
                             for item in _process_sse_line(one_line):
                                 yield item
                                 if item.get('type') == 'done':
                                     _should_return = True
-                        
+
                         if _should_return:
                             return
-                    
-                    # 处理缓冲区残留（流结束时没有以 \n 结尾的尾行）
+
+                    # Flush trailing buffer (stream ended without a \n-terminated final line)
                     _line_buf += _utf8_decoder.decode(b'', final=True)
                     if _line_buf.strip():
                         for item in _process_sse_line(_line_buf.strip()):
                             yield item
                             if item.get('type') == 'done':
                                 return
-                    
-                    # 流结束但没有收到 [DONE]
+
+                    # Stream ended without [DONE]
                     if tool_calls_buffer:
-                        # ★ 同样需要修复拼接的 arguments（与 finish_reason 分支保持一致）
+                        # ★ Also fix concatenated arguments (consistent with the finish_reason branch)
                         import uuid as _uuid2
                         fixed_buffer2 = {}
                         next_fix_idx2 = max(tool_calls_buffer.keys()) + 1
@@ -3544,17 +3552,17 @@ class AIClient:
                 if attempt < self._max_retries - 1:
                     time.sleep(self._retry_delay * (attempt + 1))
                     continue
-                yield {"type": "error", "error": f"请求超时（已重试 {self._max_retries} 次）"}
+                yield {"type": "error", "error": f"Request timed out (retried {self._max_retries} times)"}
                 return
             except requests.exceptions.ConnectionError as e:
                 if attempt < self._max_retries - 1:
                     time.sleep(self._retry_delay * (attempt + 1))
                     continue
-                yield {"type": "error", "error": f"连接错误: {str(e)}"}
+                yield {"type": "error", "error": f"Connection error: {str(e)}"}
                 return
             except Exception as e:
                 err_str = str(e)
-                # InvalidChunkLength / ChunkedEncodingError 等连接中断可重试
+                # InvalidChunkLength / ChunkedEncodingError etc. are retryable connection-drop errors
                 is_transient = any(k in err_str for k in (
                     'InvalidChunkLength', 'ChunkedEncodingError',
                     'Connection broken', 'IncompleteRead',
@@ -3565,13 +3573,13 @@ class AIClient:
                     _dbg(f"[AI Client] Connection interrupted ({err_str[:80]}), retrying in {wait}s ({attempt+1}/{self._max_retries})")
                     time.sleep(wait)
                     continue
-                yield {"type": "error", "error": f"请求失败: {err_str}"}
+                yield {"type": "error", "error": f"Request failed: {err_str}"}
                 return
 
     # ============================================================
-    # 非流式 Chat（保留兼容性）
+    # Non-streaming Chat (kept for compatibility)
     # ============================================================
-    
+
     def chat(self,
              messages: List[Dict[str, str]],
              model: str = 'gpt-5.2',
@@ -3582,53 +3590,52 @@ class AIClient:
              tools: Optional[List[dict]] = None,
              tool_choice: str = 'auto',
              response_format: Optional[dict] = None) -> Dict[str, Any]:
-        """非流式 Chat（兼容旧接口）"""
+        """Non-streaming Chat (legacy-compatible)."""
 
         if not HAS_REQUESTS:
-            return {'ok': False, 'error': '需要安装 requests 库'}
+            return {'ok': False, 'error': "The 'requests' library must be installed"}
 
         provider = (provider or 'openai').lower()
         api_key = self._get_api_key(provider)
         if not api_key and provider not in ('ollama', 'custom'):
-            return {'ok': False, 'error': f'缺少 API Key'}
+            return {'ok': False, 'error': 'Missing API key'}
 
         payload = {
             'model': model,
             'messages': messages,
             'temperature': temperature,
         }
-        if max_tokens:
-            payload['max_tokens'] = max_tokens
+        payload['max_tokens'] = max_tokens if max_tokens else 16384
         if response_format:
             payload['response_format'] = response_format
-        
-        # GLM-4.7 专属参数（仅原生 GLM 接口）
+
+        # GLM-4.7 specific params (only on the native GLM endpoint)
         if self.is_glm47(model) and provider == 'glm':
             payload['thinking'] = {'type': 'enabled'}
 
-        # DeepSeek V4-Pro：非流式也启用思考（Pro 的核心能力）
+        # DeepSeek V4-Pro: enable thinking even non-streaming (it's Pro's core capability)
         if provider == 'deepseek' and 'v4-pro' in model.lower():
             payload['thinking'] = {'type': 'enabled'}
             payload['reasoning_effort'] = 'high'
 
-        # DeepSeek / OpenAI prompt caching 自动启用
-        
+        # DeepSeek / OpenAI prompt caching is enabled automatically
+
         if tools:
             payload['tools'] = tools
             payload['tool_choice'] = tool_choice
-        
+
         headers = {
             'Content-Type': 'application/json',
         }
         if api_key:
             headers['Authorization'] = f'Bearer {api_key}'
-        
-        # OpenRouter 需要额外的请求头用于标识来源（参见 https://openrouter.ai/docs/quickstart）
+
+        # OpenRouter requires extra headers to identify the caller (see https://openrouter.ai/docs/quickstart)
         if provider == 'openrouter':
             headers['HTTP-Referer'] = 'https://github.com/Kazama-Suichiku/Houdini-Agent'
             headers['X-OpenRouter-Title'] = 'MorfyAI - Houdini Assistant'
-        
-        # ★ Anthropic 协议分支（非流式）
+
+        # ★ Anthropic protocol branch (non-streaming)
         if self._is_anthropic_protocol(provider, model):
             return self._chat_anthropic(
                 messages=messages, model=model, provider=provider,
@@ -3664,17 +3671,17 @@ class AIClient:
                 if attempt < self._max_retries - 1:
                     time.sleep(self._retry_delay)
                     continue
-                return {'ok': False, 'error': '请求超时'}
+                return {'ok': False, 'error': 'requesttimeout'}
             except Exception as e:
                 if attempt < self._max_retries - 1:
                     time.sleep(self._retry_delay)
                     continue
                 return {'ok': False, 'error': str(e)}
         
-        return {'ok': False, 'error': '请求失败'}
+        return {'ok': False, 'error': 'requestfailed'}
 
     # ============================================================
-    # Agent Loop（流式版本）
+    # Agent Loop (streamingversion) 
     # ============================================================
     
     def agent_loop_stream(self,
@@ -3695,51 +3702,51 @@ class AIClient:
                           on_iteration_start: Optional[Callable[[int], None]] = None,
                           on_plan_incomplete: Optional[Callable[[], Optional[str]]] = None,
                           context_limit: int = 128000) -> Dict[str, Any]:
-        """流式 Agent Loop
+        """streaming Agent Loop
         
         Args:
-            enable_thinking: 是否启用思考模式（影响原生推理模型的 thinking 参数）
-            supports_vision: 模型是否支持图片输入（False 时自动剥离 image_url 内容）
-            on_content: 内容回调 (content) -> None
-            on_thinking: 思考回调 (content) -> None
-            on_tool_call: 工具调用开始回调 (name, args) -> None
-            on_tool_result: 工具结果回调 (name, args, result) -> None
-            on_iteration_start: 每轮 API 请求开始时的回调 (iteration) -> None
-                                用于 UI 显示 "Generating..." 等待状态
-            on_plan_incomplete: Plan 未完成检测回调 () -> Optional[str]
-                                当 AI 返回纯文本（无 tool_calls）时调用此回调。
-                                如果 Plan 尚有未完成步骤，返回一条提醒消息字符串，
-                                agent loop 会将其注入为 user 消息并继续迭代。
-                                如果 Plan 已全部完成或不需要续接，返回 None。
-            context_limit: 上下文 token 上限（默认 128000），用于主动压缩判断
+            enable_thinking: whetherenablethinkingmode (shadowrespondnativeinferencemodel  thinking parameter) 
+            supports_vision: modelwhethersupportimageinput (False whenautostrip image_url content) 
+            on_content: contentcallback (content) -> None
+            on_thinking: thinkingcallback (content) -> None
+            on_tool_call: toolcallstartcallback (name, args) -> None
+            on_tool_result: toolresultcallback (name, args, result) -> None
+            on_iteration_start: eachround API requeststartwhen callback (iteration) -> None
+                                used for UI show "Generating..." etc.pendingstate
+            on_plan_incomplete: Plan notcompletedetectcallback () -> Optional[str]
+                                when AI returnpuretext (no tool_calls) whencallthiscallback. 
+                                if Plan stillhasnotcompletestep, returnoneitemremindmessagestring, 
+                                agent loop willwillitsinjectas user messageandresumeiterate. 
+                                if Plan alreadyallpartcompleteornotneedscontinueconnect, return None. 
+            context_limit: context token onlimit (default 128000) , used formainmovecompressdecidebreak
         
         Returns:
             {"ok": bool, "content": str, "final_content": str,
              "new_messages": list, "tool_calls_history": list, "iterations": int}
         """
         if not self._tool_executor:
-            return {'ok': False, 'error': '未设置工具执行器', 'content': '', 'tool_calls_history': [], 'iterations': 0}
+            return {'ok': False, 'error': 'notsettoolexecute ', 'content': '', 'tool_calls_history': [], 'iterations': 0}
         
         working_messages = list(messages)
         
-        # ── 预处理：非视觉模型剥离所有 image_url 内容 ──
+        # ── pre-process: notvisualmodelstripall image_url content ──
         if not supports_vision:
             n_stripped = self._strip_image_content(working_messages, keep_recent_user=0)
             if n_stripped > 0:
                 _dbg(f"[AI Client] Non-vision model ({model}): stripped {n_stripped} image(s)")
         
-        initial_msg_count = len(working_messages)  # 跟踪初始消息数量，用于提取新消息链
+        initial_msg_count = len(working_messages)  # trackinitialmessagecount, used forextractnewmessagechain
         tool_calls_history = []
-        call_records = []  # 每次 API 调用的详细记录（对齐 Cursor）
+        call_records = []  # each time API call detailfinerecord (align Cursor) 
         full_content = ""
         iteration = 0
         
-        # ★ 工具列表：支持外部覆盖（用于 Ask 模式等场景）
-        # 注意：外部插件工具已在 ai_tab._run_agent 中合并到 tools_override，
-        # 此处不再重复合并，避免工具重复。
+        # ★ toollist: supportexternaloverride (used for Ask modeetc.scene) 
+        # note: externalplugintoolalreadyin ai_tab._run_agent inmergeto tools_override, 
+        # herenotagainduplicatemerge, avoidtoolduplicate. 
         effective_tools = tools_override if tools_override is not None else HOUDINI_TOOLS
         
-        # 累积 usage 统计（用于 cache 命中率统计）
+        # accumulate usage statistics (used for cache commandinratestatistics) 
         total_usage = {
             'prompt_tokens': 0,
             'completion_tokens': 0,
@@ -3749,29 +3756,29 @@ class AIClient:
             'cache_miss_tokens': 0,
         }
         
-        # 防止死循环：检测重复工具调用
-        recent_tool_signatures = []  # 最近的工具调用签名
-        max_tool_calls = 999  # 不限制总调用次数（仅保留连续重复检测）
+        # preventdeadloop: detectduplicatetoolcall
+        recent_tool_signatures = []  # recent toolcallsignature
+        max_tool_calls = 999  # notlimittotalcalltimecount (onlykeepconsecutiveduplicatedetect) 
         total_tool_calls = 0
-        consecutive_same_calls = 0  # 连续相同调用计数
+        consecutive_same_calls = 0  # consecutivesamecallcountcount
         last_call_signature = None
-        server_error_retries = 0    # 连续服务端错误重试计数
-        max_server_retries = 3      # 最多重试 3 次服务端错误
+        server_error_retries = 0    # consecutiveserviceenderrorretrycountcount
+        max_server_retries = 3      # at mostretry 3 timeserviceenderror
         
-        # ★ Cursor 风格：同轮去重缓存
-        # 如果 AI 在同一 turn 中用相同参数调用相同工具，直接返回缓存结果
+        # ★ Cursor style: sameroundgorecache
+        # if AI insameone turn inusesameparametercallsametool, directlyreturncacheresult
         # key: "tool_name:sorted_args_json" → value: result dict
         _turn_dedup_cache: Dict[str, dict] = {}
         
-        # ★ 消息清洗 dirty 标志（避免每轮都 O(n) 遍历消息列表）
+        # ★ Message-sanitize dirty flag (avoids an O(n) traversal of the message list every round)
         _needs_sanitize = True
         
         while iteration < max_iterations:
-            # 检查停止请求
+            # checkstoprequest
             if self._stop_event.is_set():
                 return {
                     'ok': False,
-                    'error': '用户停止了请求',
+                    'error': 'User requested stop',
                     'content': full_content,
                     'final_content': '',
                     'new_messages': working_messages[initial_msg_count:],
@@ -3783,31 +3790,31 @@ class AIClient:
                 }
             
             iteration += 1
-            _call_start = time.time()  # 记录本次 API 调用起始时间（对齐 Cursor 延迟统计）
+            _call_start = time.time()  # Record API call start time (matches Cursor's latency statistic)
             
-            # 收集本轮的内容和工具调用
+            # Collect this round's content and tool calls
             round_content = ""
             round_thinking = ""
             round_tool_calls = []
-            should_retry = False  # 错误恢复标志
-            should_abort = False  # 不可恢复错误标志
+            should_retry = False  # error-recoverable flag
+            should_abort = False  # unrecoverable-error flag
             abort_error = ""
-            _round_content_started = False  # ★ 标记本轮是否已发出首个 content chunk
-            
-            # 发送前清洗消息（仅在新增 tool 消息后才需要，避免无谓的 O(n) 遍历）
+            _round_content_started = False  # ★ Marks whether the first content chunk has been emitted this round
+
+            # Sanitize messages before send (only needed after appending tool messages; avoids gratuitous O(n) traversal)
             if _needs_sanitize:
                 working_messages = self._sanitize_working_messages(working_messages)
                 _needs_sanitize = False
             
-            # 诊断：仅打印消息数量摘要（完整内容通过"导出训练数据"功能获取）
+            # Diagnostic: only print a message-count summary (full content available via "Export training data")
             if iteration > 1:
                 from collections import Counter
                 role_counts = Counter(m.get('role', '?') for m in working_messages)
                 summary = ', '.join(f"{r}={c}" for r, c in role_counts.items())
                 _dbg(f"[AI Client] iteration={iteration}, messages={len(working_messages)} ({summary})")
             
-            # ★ 主动式上下文压缩（每轮迭代前，从第 4 轮开始检查）
-            # 不等到 context_length_exceeded 错误才压缩，而是提前检测并压缩
+            # ★ Proactive context compression (each round, starting from round 4)
+            # Don't wait for context_length_exceeded; detect and compress proactively
             if iteration > 3 and len(working_messages) > 15:
                 est_tokens = self._estimate_messages_tokens(working_messages, effective_tools)
                 if est_tokens > context_limit * 0.85:
@@ -3818,11 +3825,11 @@ class AIClient:
                     )
                     _needs_sanitize = True
             
-            # ★ 通知 UI 新一轮 API 请求即将开始（用于显示 "Generating..." 状态）
+            # ★ notify UI newoneround API requesti.e.willstart (used forshow "Generating..." state) 
             if on_iteration_start:
                 on_iteration_start(iteration)
             
-            # ★ Hook: on_before_request — 允许插件修改 messages
+            # ★ Hook: on_before_request — allowpluginmodify messages
             try:
                 from .hooks import get_hook_manager as _ghm
                 working_messages = _ghm().fire_filter(
@@ -3831,7 +3838,7 @@ class AIClient:
             except Exception:
                 pass
             
-            # 流式请求
+            # streamingrequest
             for chunk in self.chat_stream(
                 messages=working_messages,
                 model=model,
@@ -3842,11 +3849,11 @@ class AIClient:
                 tool_choice='auto',
                 enable_thinking=enable_thinking
             ):
-                # 检查停止请求
+                # checkstoprequest
                 if self._stop_event.is_set():
                     return {
                         'ok': False,
-                        'error': '用户停止了请求',
+                        'error': 'User requested stop',
                         'content': full_content + round_content,
                         'final_content': round_content,
                         'new_messages': working_messages[initial_msg_count:],
@@ -3862,7 +3869,7 @@ class AIClient:
                 if chunk_type == 'stopped':
                     return {
                         'ok': False,
-                        'error': '用户停止了请求',
+                        'error': 'User requested stop',
                         'content': full_content + round_content,
                         'final_content': round_content,
                         'new_messages': working_messages[initial_msg_count:],
@@ -3875,16 +3882,16 @@ class AIClient:
                 
                 if chunk_type == 'content':
                     content = chunk.get('content', '')
-                    # 清理XML标签（使用预编译正则，避免每 chunk 重复编译）
+                    # cleanupXMLlabel (usepre-compilepositivethen, avoideach chunk duplicatecompile) 
                     cleaned_chunk = content
                     for _pat in self._RE_CLEAN_PATTERNS:
                         cleaned_chunk = _pat.sub('', cleaned_chunk)
                     
-                    # ★ 修复多轮 iteration 内容粘连：
-                    # 如果上一轮已有 content（full_content 非空），且本轮是首个 content chunk，
-                    # 自动注入 \n\n 段落分隔符，避免 AI 跨 iteration 的文字粘在一起
+                    # ★ fixmultiround iteration contentpasteconnect: 
+                    # ifononeroundalreadyhas content (full_content notempty) , andthisroundisfirst content chunk, 
+                    # autoinject \n\n paragraphpartintervalsymbol, avoid AI cross iteration  textpasteinonestart
                     if cleaned_chunk and not _round_content_started and full_content:
-                        # 检查 full_content 末尾是否已有足够换行
+                        # Check whether full_content already ends with enough newlines
                         if not full_content.endswith('\n\n'):
                             sep = '\n\n' if not full_content.endswith('\n') else '\n'
                             round_content += sep
@@ -3897,7 +3904,7 @@ class AIClient:
                     round_content += cleaned_chunk
                     if on_content and cleaned_chunk:
                         on_content(cleaned_chunk)
-                    # ★ Hook: on_content_chunk — 插件实时过滤/转换内容
+                    # ★ Hook: on_content_chunk — pluginrealwhenfilter/convertswapcontent
                     if cleaned_chunk:
                         try:
                             from .hooks import get_hook_manager as _ghm
@@ -3929,8 +3936,8 @@ class AIClient:
                     error_lower = error_msg.lower()
                     _dbg(f"[AI Client] Agent loop error at iteration {iteration}: {error_msg}")
                     
-                    # ---- 精确分类错误类型 ----
-                    # 1. 真正的上下文超限（API 明确告知 token 超限）
+                    # ---- finecertainpartclasserrortype ----
+                    # 1. Genuine context-limit exceeded (API explicitly says token overflow)
                     is_context_exceeded = any(k in error_lower for k in (
                         'context_length_exceeded', 'maximum context length',
                         'max_tokens', 'token limit', 'too many tokens',
@@ -3938,69 +3945,69 @@ class AIClient:
                         'context window', 'input too long',
                     )) or ('HTTP 413' in error_msg)
                     
-                    # 2. 临时服务器错误 / 连接中断（502/503/529 / InvalidChunkLength 等）
+                    # 2. temporarywhenservice error / connectinbreak (502/503/529 / InvalidChunkLength etc.) 
                     is_server_transient = any(k in error_msg for k in (
                         'HTTP 502', 'HTTP 503', 'HTTP 529', 'no available',
                         'InvalidChunkLength', 'ChunkedEncodingError',
                         'Connection broken', 'IncompleteRead',
                         'ConnectionReset', 'RemoteDisconnected',
-                        '连接错误', '连接中断',
+                        'connecterror', 'connectinbreak',
                     ))
                     
-                    # 3. 压缩/格式问题
+                    # 3. compress/formatissue
                     is_format_error = ('HTTP 4' in error_msg and not is_context_exceeded and iteration > 1)
-                    is_compress_fail = '压缩失败' in error_msg
+                    is_compress_fail = 'compressfailed' in error_msg
                     
                     is_recoverable = is_context_exceeded or is_server_transient or is_format_error or is_compress_fail
                     
                     if is_recoverable:
                         server_error_retries += 1
                         
-                        # 超过最大重试次数 → 停止
+                        # exceedsmaxretrytimecount → stop
                         if server_error_retries > max_server_retries:
                             _dbg(f"[AI Client] Error retried {max_server_retries} times, giving up")
                             if on_content:
-                                on_content(f"\n[连续出错 {max_server_retries} 次，已停止重试。请稍后再试。]\n")
+                                on_content(f"\n[Failed {max_server_retries} times in a row, stopped retrying. Please try again later.]\n")
                             should_abort = True
-                            abort_error = f"连续出错 {max_server_retries} 次: {error_msg}"
+                            abort_error = f"Failed {max_server_retries} times in a row: {error_msg}"
                             break
                         
                         cleanup_count = 0
                         
                         if is_context_exceeded:
-                            # ---- 真正的上下文超限：渐进式裁剪 ----
+                            # ---- truepositive contextexceedlimit: gradualenterstyletrim ----
                             _dbg(f"[AI Client] Context over limit, progressive trim (attempt #{server_error_retries})")
                             if on_content:
-                                on_content(f"\n[上下文超限，正在智能裁剪后重试 ({server_error_retries}/{max_server_retries})...]\n")
+                                on_content(f"\n[Context limit exceeded — auto-trimming and retrying ({server_error_retries}/{max_server_retries})...]\n")
                             
                             old_len = len(working_messages)
                             working_messages = self._progressive_trim(
                                 working_messages, tool_calls_history,
-                                trim_level=server_error_retries,  # 逐次加大裁剪力度
+                                trim_level=server_error_retries,  # progressively trim harder each attempt
                                 supports_vision=supports_vision
                             )
                             cleanup_count = old_len - len(working_messages)
                             
                         elif is_server_transient or is_compress_fail:
-                            # ---- 临时服务器错误：先等待重试，不急着裁剪 ----
+                            # ---- Transient server error: wait & retry first, don't rush to trim ----
                             wait_seconds = 5 * server_error_retries
                             if on_content:
-                                on_content(f"\n[服务端暂时不可用，{wait_seconds}秒后重试 ({server_error_retries}/{max_server_retries})...]\n")
+                                on_content(f"\n[Server temporarily unavailable — retrying in {wait_seconds}s ({server_error_retries}/{max_server_retries})...]\n")
                             time.sleep(wait_seconds)
                             
-                            # 只在第2次及以后重试时才裁剪（第1次纯等待重试，给服务器恢复机会）
+                            # Only trim from the 2nd retry onward (the 1st is pure wait+retry, giving the server a chance to recover)
                             if server_error_retries >= 2:
                                 _dbg(f"[AI Client] Server errors repeating, attempting light context trim")
                                 old_len = len(working_messages)
                                 working_messages = self._progressive_trim(
                                     working_messages, tool_calls_history,
-                                    trim_level=server_error_retries - 1,  # 比上下文超限更温和
+                                    trim_level=server_error_retries - 1,  # gentler than the context-exceeded path
                                     supports_vision=supports_vision
                                 )
                                 cleanup_count = old_len - len(working_messages)
                             
                         else:
-                            # ---- 4xx 格式问题 → 移除末尾可能有问题的消息 ----
+                            # ---- 4xx formatissue → removeendmayhasissue message ----
                             while (working_messages and cleanup_count < 20 and
                                    working_messages[-1].get('role') in ('tool', 'system')
                                    and working_messages[-1] is not messages[0]):
@@ -4012,17 +4019,17 @@ class AIClient:
                         
                         _dbg(f"[AI Client] Retry {server_error_retries}/{max_server_retries}, removed {cleanup_count} message(s)")
                         should_retry = True
-                        break  # 退出 for 循环，回到 while 循环重试
+                        break  # exit for loop, backto while loopretry
                     
-                    # 无法恢复
+                    # nomethodrestore
                     should_abort = True
                     abort_error = error_msg
-                    break  # 退出 for 循环
+                    break  # exit for loop
                 
                 elif chunk_type == 'done':
-                    # 成功收到响应 → 重置服务端错误重试计数
+                    # succeededcollecttorespondshould → replaceserviceenderrorretrycountcount
                     server_error_retries = 0
-                    # 收集 usage 信息（包含 cache 统计）
+                    # collectset usage info (packagecontaining cache statistics) 
                     usage = chunk.get('usage', {})
                     if usage:
                         total_usage['prompt_tokens'] += usage.get('prompt_tokens', 0)
@@ -4032,7 +4039,7 @@ class AIClient:
                         total_usage['cache_hit_tokens'] += usage.get('cache_hit_tokens', 0)
                         total_usage['cache_miss_tokens'] += usage.get('cache_miss_tokens', 0)
                     
-                    # ---- 记录本次 API 调用详情（对齐 Cursor） ----
+                    # ---- recordthistime API calldetails (align Cursor)  ----
                     import datetime as _dt
                     _call_latency = time.time() - _call_start
                     _rec_inp = usage.get('prompt_tokens', 0)
@@ -4061,12 +4068,12 @@ class AIClient:
                     })
                     break
             
-            # 错误恢复：跳过本轮剩余逻辑，重新请求 API
+            # errorrestore: skipthisroundremaininglogic, renewrequest API
             if should_retry:
                 full_content += round_content
-                continue  # 正确地重新进入 while 循环
+                continue  # correctplacerenewenter while loop
             
-            # 不可恢复错误：返回
+            # notcanrestoreerror: return
             if should_abort:
                 return {
                     'ok': False,
@@ -4080,10 +4087,10 @@ class AIClient:
                     'usage': total_usage
                 }
             
-            # 如果没有工具调用，完成
+            # ifnothastoolcall, complete
             if not round_tool_calls:
-                # ★ Plan 续接检测：AI 输出了纯文本，但 Plan 可能还有未完成步骤
-                # 通过回调询问 UI 层 Plan 是否已完成
+                # ★ Plan continueconnectdetect: AI outputpuretext, but Plan maystillhasnotcompletestep
+                # viacallbackask UI layer Plan whethercompleted
                 _plan_resume_msg = None
                 if on_plan_incomplete and iteration > 1:
                     try:
@@ -4092,24 +4099,24 @@ class AIClient:
                         _dbg(f"[AI Client] on_plan_incomplete error: {_pe}")
                 
                 if _plan_resume_msg:
-                    # Plan 尚未完成 → 将 AI 的当前回复存入历史，注入提醒消息，继续循环
+                    # Plan stillnotcomplete → will AI  currentreplysaveenterhistory, injectremindmessage, resumeloop
                     _dbg(f"[AI Client] ★ Plan resume: AI ended early, injecting reminder message to continue")
                     full_content += round_content
                     
-                    # 1. 将 AI 的纯文本回复作为 assistant 消息存入 working_messages
+                    # 1. will AI  puretextreplyas assistant messagesaveenter working_messages
                     _assistant_msg = {'role': 'assistant', 'content': round_content or ''}
                     if round_thinking:
                         _assistant_msg['reasoning_content'] = round_thinking
                     working_messages.append(_assistant_msg)
                     
-                    # 2. 注入 "Plan 未完成" 的提醒消息作为 user 消息
+                    # 2. inject "Plan notcomplete"  remindmessageas user message
                     working_messages.append({'role': 'user', 'content': _plan_resume_msg})
                     _needs_sanitize = True
                     _round_content_started = False
-                    continue  # 继续 while 循环，开始新一轮 API 请求
+                    continue  # resume while loop, startnewoneround API request
                 
                 full_content += round_content
-                # 计算 cache 命中率
+                # compute cache commandinrate
                 prompt_total = total_usage['cache_hit_tokens'] + total_usage['cache_miss_tokens']
                 if prompt_total > 0:
                     total_usage['cache_hit_rate'] = total_usage['cache_hit_tokens'] / prompt_total
@@ -4119,15 +4126,15 @@ class AIClient:
                 _result = {
                     'ok': True,
                     'content': full_content,
-                    'final_content': round_content,  # 最后一轮的回复（不含中间轮次）
-                    'new_messages': working_messages[initial_msg_count:],  # 原生工具交互链
+                    'final_content': round_content,  # lastoneround reply (notcontaininginbetweenroundtime) 
+                    'new_messages': working_messages[initial_msg_count:],  # nativetoolsubmitmutualchain
                     'tool_calls_history': tool_calls_history,
                     'call_records': call_records,
                     'iterations': iteration,
                     'usage': total_usage
                 }
                 
-                # ★ Hook: on_after_response — 通知插件 Agent Loop 结束
+                # ★ Hook: on_after_response — notifyplugin Agent Loop end
                 try:
                     from .hooks import get_hook_manager as _ghm
                     _ghm().fire('on_after_response',
@@ -4137,17 +4144,17 @@ class AIClient:
                 
                 return _result
             
-            # 添加助手消息（确保 tool_call ID 完整）
+            # addassistantmessage (ensure tool_call ID complete) 
             self._ensure_tool_call_ids(round_tool_calls)
             
-            # ★ 防御性修复：确保每个 tool_call 的 arguments 是合法 JSON
-            # 某些代理（如 duojie）可能产生拼接的无效 JSON，存入历史后会导致下一轮 API 400 错误
+            # ★ defensivepropertyfix: ensureeach tool_call   arguments ismergemethod JSON
+            # Some providers (e.g., duojie) may produce concatenated invalid JSON; saving to history causes a 400 on the next round
             for _tc in round_tool_calls:
                 _args_str = _tc.get('function', {}).get('arguments', '{}')
                 try:
                     json.loads(_args_str)
                 except (json.JSONDecodeError, ValueError):
-                    # arguments 不是合法 JSON，尝试提取第一个完整 JSON 对象
+                    # arguments nomergemethod JSON, tryextractfirstcomplete JSON object
                     _depth = 0
                     _start = -1
                     _fixed = None
@@ -4170,17 +4177,17 @@ class AIClient:
                     _dbg(f"[AI Client] Fixed invalid tool_call arguments -> {_tc['function']['arguments'][:80]}")
             
             assistant_msg = {'role': 'assistant', 'tool_calls': round_tool_calls}
-            # content 为空时必须传 None（null）而非空字符串
-            # Claude/Anthropic 兼容代理拒绝 content="" + tool_calls 共存
+            # content asemptywhenmustpass None (null) andnotemptystring
+            # Claude/Anthropic compatible withgenerationmanagereject content="" + tool_calls sharedsave
             assistant_msg['content'] = round_content or None
-            # reasoning_content 仅在回传消息时对 DeepSeek / 原生 GLM 有效
-            # Duojie 的 reasoning_content 无需在后续请求中回传
+            # reasoning_content onlyinbackpassmessagewhenfor DeepSeek / native GLM valid
+            # Duojie   reasoning_content noneedsinaftercontinuerequestinbackpass
             if self.is_reasoning_model(model) and provider in ('deepseek', 'glm'):
                 assistant_msg['reasoning_content'] = round_thinking or ''
             working_messages.append(assistant_msg)
             
-            # 执行工具调用（web 工具并行，Houdini 工具串行）
-            # 预处理所有工具调用
+            # executetoolcall (web toolandrow, Houdini toolstringrow) 
+            # pre-processalltoolcall
             parsed_calls = []
             for tool_call in round_tool_calls:
                 tool_id = tool_call.get('id', '')
@@ -4193,8 +4200,8 @@ class AIClient:
                     arguments = {}
                 parsed_calls.append((tool_id, tool_name, arguments, tool_call))
 
-            # ★ 同轮去重：纯查询类工具用相同参数重复调用时直接返回缓存
-            # 只对无副作用的查询工具去重（execute_python/run_skill/web_search 等有副作用的不去重）
+            # ★ sameroundgore: purequeryclasstoolusesameparameterduplicatecallwhendirectlyreturncache
+            # Only dedupe side-effect-free query tools (execute_python/run_skill/web_search etc. have side effects — don't dedupe)
             _DEDUP_TOOLS = frozenset({
                 'get_network_structure', 'get_node_parameters', 'list_children',
                 'read_selection', 'search_node_types', 'semantic_search_nodes',
@@ -4203,31 +4210,31 @@ class AIClient:
                 'perf_stop_and_report',
             })
             
-            # 分离可并行工具（web + shell）和 Houdini 工具（需主线程串行）
+            # partleavecanandrowtool (web + shell) and Houdini tool (needsmainthreadstringrow) 
             _ASYNC_TOOL_NAMES = frozenset({'web_search', 'fetch_webpage', 'execute_shell'})
             async_calls = [(i, pc) for i, pc in enumerate(parsed_calls) if pc[1] in _ASYNC_TOOL_NAMES]
             houdini_calls = [(i, pc) for i, pc in enumerate(parsed_calls) if pc[1] not in _ASYNC_TOOL_NAMES]
 
-            # 结果槽位：保持原始顺序
+            # resultslotbit: keeporiginalorderorder
             results_ordered = [None] * len(parsed_calls)
-            dedup_flags = [False] * len(parsed_calls)  # 标记哪些是缓存命中
+            dedup_flags = [False] * len(parsed_calls)  # markwhichsomeiscachecommandin
 
-            # --- 先检查去重缓存 ---
+            # --- firstcheckgorecache ---
             for idx, (tid, tname, targs, _tc) in enumerate(parsed_calls):
                 dedup_key = f"{tname}:{json.dumps(targs, sort_keys=True)}"
                 if tname in _DEDUP_TOOLS and dedup_key in _turn_dedup_cache:
-                    # ★ 缓存命中：直接返回之前的结果
+                    # ★ cachecommandin: directlyreturnbefore result
                     results_ordered[idx] = _turn_dedup_cache[dedup_key]
                     dedup_flags[idx] = True
                     _dbg(f"[AI Client] ♻️ Same-round dedup hit: {tname}({json.dumps(targs, ensure_ascii=False)[:80]})")
 
-            # 分离未缓存的调用
+            # partleavenotcache call
             uncached_async = [(i, pc) for i, pc in enumerate(parsed_calls) 
                              if pc[1] in _ASYNC_TOOL_NAMES and not dedup_flags[i]]
             uncached_houdini = [(i, pc) for i, pc in enumerate(parsed_calls) 
                                if pc[1] not in _ASYNC_TOOL_NAMES and not dedup_flags[i]]
 
-            # --- 并行执行未缓存的 async 工具（web + shell） ---
+            # --- androwexecutenotcache  async tool (web + shell)  ---
             if len(uncached_async) > 1:
                 import concurrent.futures
                 def _exec_async(idx_pc):
@@ -4250,8 +4257,8 @@ class AIClient:
                 else:  # execute_shell
                     results_ordered[idx] = self._tool_executor(tname, **targs)
 
-            # --- 执行未缓存的 Houdini 工具（需主线程） ---
-            # ★ 只读工具批量执行：减少 N 次信号往返为 1 次
+            # --- executenotcache  Houdini tool (needsmainthread)  ---
+            # ★ Read-only tool batch execution: reduce N signal round-trips to 1
             _BATCH_READONLY = frozenset({
                 'get_network_structure', 'get_node_parameters', 'list_children',
                 'read_selection', 'search_node_types', 'semantic_search_nodes',
@@ -4260,11 +4267,11 @@ class AIClient:
                 'get_node_positions', 'list_network_boxes',
                 'perf_start_profile', 'perf_stop_and_report',
             })
-            # 分离只读和写入工具
+            # partleaveread-onlyandwritetool
             readonly_batch = [(i, pc) for i, pc in uncached_houdini if pc[1] in _BATCH_READONLY]
             mutating_calls = [(i, pc) for i, pc in uncached_houdini if pc[1] not in _BATCH_READONLY]
 
-            # 批量执行只读工具（如果有 batch executor 且 >1 个只读调用）
+            # batchexecuteread-onlytool (ifhas batch executor and >1 read-onlycall) 
             if len(readonly_batch) > 1 and self._batch_tool_executor:
                 batch_input = [(tname, targs) for _, (_, tname, targs, _) in readonly_batch]
                 try:
@@ -4276,65 +4283,65 @@ class AIClient:
                     for idx, (tid, tname, targs, _tc) in readonly_batch:
                         results_ordered[idx] = self._tool_executor(tname, **targs)
             else:
-                # 单个只读工具或无 batch executor → 串行
+                # singleread-onlytoolorno batch executor → stringrow
                 for idx, (tid, tname, targs, _tc) in readonly_batch:
                     results_ordered[idx] = self._tool_executor(tname, **targs)
 
-            # 写入工具始终串行（有副作用，顺序敏感）
+            # Write tools always run serially (have side effects, order-sensitive)
             for idx, (tid, tname, targs, _tc) in mutating_calls:
                 results_ordered[idx] = self._tool_executor(tname, **targs)
 
-            # ★ 早期终止：跳过冗余查询
-            # 当已执行的工具结果已提供足够信息时，跳过剩余同类查询
+            # ★ Early abort: skip redundant queries
+            # When already-executed tool results provide enough info, skip remaining same-class queries
             _early_skip_count = 0
             if len(parsed_calls) > 2:
-                # 收集已有结果中的信息
+                # collectsetalreadyhasresultin info
                 _check_errors_paths = set()
                 _empty_network_paths = set()
                 for idx, (_, tname, targs, _) in enumerate(parsed_calls):
                     if results_ordered[idx] is None:
                         continue
                     result = results_ordered[idx]
-                    # check_errors 发现错误 → 同路径的 get_node_parameters 不再需要
+                    # check_errors discovererror → samepath  get_node_parameters notagainneeds
                     if tname == 'check_errors' and result.get('success'):
                         r_text = result.get('result', '')
-                        if '错误' in r_text or 'error' in r_text.lower():
+                        if 'error' in r_text or 'error' in r_text.lower():
                             path = targs.get('node_path', '')
                             if path:
                                 _check_errors_paths.add(path)
-                    # get_network_structure 返回空 → 同路径的子查询不需要
+                    # get_network_structure returnempty → samepath subquerynotneeds
                     if tname == 'get_network_structure' and result.get('success'):
                         r_text = result.get('result', '')
-                        if '节点数量: 0' in r_text or 'Nodes: 0' in r_text or not r_text.strip():
+                        if 'nodecount: 0' in r_text or 'Nodes: 0' in r_text or not r_text.strip():
                             path = targs.get('network_path', '') or targs.get('node_path', '')
                             if path:
                                 _empty_network_paths.add(path)
 
-                # 标记可跳过的工具（仅对尚未执行的 readonly 调用）
+                # markcanskip tool (onlyforstillnotexecute  readonly call) 
                 for idx, (tid, tname, targs, _tc) in enumerate(parsed_calls):
                     if results_ordered[idx] is not None:
-                        continue  # 已有结果
+                        continue  # alreadyhasresult
                     path = targs.get('node_path', '') or targs.get('network_path', '')
-                    # 规则 1：check_errors 已发现错误 → 跳过同路径的 get_node_parameters
+                    # rule 1: check_errors alreadydiscovererror → skipsamepath  get_node_parameters
                     if tname == 'get_node_parameters' and path in _check_errors_paths:
                         results_ordered[idx] = {
                             "success": True,
-                            "result": f"[已跳过] {path} 已有错误信息，请先修复错误。"
+                            "result": f"[alreadyskip] {path} alreadyhaserrorinfo, pleasefirstfixerror. "
                         }
                         _early_skip_count += 1
-                    # 规则 2：网络为空 → 跳过 list_children / get_node_parameters
+                    # rule 2: networkasempty → skip list_children / get_node_parameters
                     elif tname in ('list_children', 'get_node_parameters') and path in _empty_network_paths:
                         results_ordered[idx] = {
                             "success": True,
-                            "result": f"[已跳过] {path} 网络为空，无子节点。"
+                            "result": f"[alreadyskip] {path} networkasempty, nosubnode. "
                         }
                         _early_skip_count += 1
                 if _early_skip_count > 0:
                     _dbg(f"[AI Client] ⏭️ Early termination: skipped {_early_skip_count} redundant query(ies)")
             
-            # --- 缓存维护 ---
-            # 如果本轮有操作类工具（创建/删除/连接节点等），清除网络结构相关缓存
-            # 因为操作改变了网络状态，之前缓存的查询结果可能已过期
+            # --- Cache maintenance ---
+            # ifthisroundhasoperationclasstool (create/delete/connectnodeetc.) , clearremovenetworkstructurerelatedcache
+            # becauseoperationchangechangenetworkstate, beforecache queryresultmayalreadypassedperiod
             _NETWORK_MUTATING_TOOLS = frozenset({
                 'create_node', 'create_nodes_batch', 'delete_node', 'connect_nodes',
                 'create_wrangle_node', 'copy_node', 'set_display_flag', 'undo_redo',
@@ -4345,24 +4352,24 @@ class AIClient:
                 if not dedup_flags[idx_m]
             )
             if has_mutation:
-                # 清除 get_network_structure / list_children / check_errors 的缓存
+                # clearremove get_network_structure / list_children / check_errors  cache
                 keys_to_remove = [k for k in _turn_dedup_cache 
                                   if k.startswith(('get_network_structure:', 'list_children:', 'check_errors:'))]
                 for k in keys_to_remove:
                     del _turn_dedup_cache[k]
             
-            # 将新执行的查询工具结果写入去重缓存
+            # willnewexecute querytoolresultwritegorecache
             for idx, (tid, tname, targs, _tc) in enumerate(parsed_calls):
                 if not dedup_flags[idx] and tname in _DEDUP_TOOLS and results_ordered[idx]:
                     dedup_key = f"{tname}:{json.dumps(targs, sort_keys=True)}"
                     _turn_dedup_cache[dedup_key] = results_ordered[idx]
 
-            # --- 统一处理结果（保持原始顺序） ---
+            # --- statsoneprocessresult (keeporiginalorderorder)  ---
             should_break_tool_limit = False
             for i, (tool_id, tool_name, arguments, _tc) in enumerate(parsed_calls):
                 result = results_ordered[i]
 
-                # 防止死循环：检测重复工具调用
+                # preventdeadloop: detectduplicatetoolcall
                 total_tool_calls += 1
                 call_signature = f"{tool_name}:{json.dumps(arguments, sort_keys=True)}"
 
@@ -4377,7 +4384,7 @@ class AIClient:
                     consecutive_same_calls = 1
                     last_call_signature = call_signature
 
-                # 回调
+                # callback
                 if on_tool_call:
                     on_tool_call(tool_name, arguments)
 
@@ -4392,19 +4399,19 @@ class AIClient:
 
                 result_content = self._compress_tool_result(tool_name, result)
                 
-                # ★ 去重命中时追加提示，引导 AI 不要再重复调用
+                # ★ gorecommandinwhenappendhint, guideimport AI don'tagainduplicatecall
                 if dedup_flags[i]:
-                    result_content = f"[缓存] 本轮已用相同参数调用过此工具，以下是之前的结果（无需再次调用）:\n{result_content}"
+                    result_content = f"[cache] thisroundalreadyusesameparametercallpassedthistool, or lessisbefore result (noneedsagaintimecall) :\n{result_content}"
 
                 working_messages.append({
                     'role': 'tool',
                     'tool_call_id': tool_id,
                     'content': result_content
                 })
-                _needs_sanitize = True  # 新增 tool 消息，下轮需要清洗
+                _needs_sanitize = True  # Added a tool message; next round needs sanitization
 
-                # ★ 视口截图注入：如果工具返回了 _viewport_image，
-                # 追加一条包含图片的 user 消息，让模型可以视觉分析
+                # ★ viewportscreenshotinject: iftoolreturn _viewport_image, 
+                # appendoneitempackagecontainingimage  user message, letmodelcanvisualanalyze
                 if supports_vision and result.get('_viewport_image'):
                     _img_b64 = result['_viewport_image']
                     _img_mt = result.get('_image_media_type', 'image/jpeg')
@@ -4420,8 +4427,8 @@ class AIClient:
             if should_break_tool_limit:
                 return {
                     'ok': True,
-                    'content': full_content + f"\n\n已达到工具调用次数限制({max_tool_calls})，自动停止。",
-                    'final_content': f"\n\n已达到工具调用次数限制({max_tool_calls})，自动停止。",
+                    'content': full_content + f"\n\nalreadyreachtotoolcalltimecountlimit({max_tool_calls}), autostop. ",
+                    'final_content': f"\n\nalreadyreachtotoolcalltimecountlimit({max_tool_calls}), autostop. ",
                     'new_messages': working_messages[initial_msg_count:],
                     'tool_calls_history': tool_calls_history,
                     'call_records': call_records,
@@ -4429,8 +4436,8 @@ class AIClient:
                     'usage': total_usage
                 }
             
-            # 多轮思考引导：在最后一条工具结果后附加提示
-            # 检测本轮是否有工具调用失败
+            # multiroundthinkingguideimport: inlastoneitemtoolresultafterattachhint
+            # detectthisroundwhetherhastoolcall failed
             _round_failed = False
             for _ri, (_tid, _tn, _ta, _tc) in enumerate(parsed_calls):
                 if not results_ordered[_ri].get('success'):
@@ -4440,39 +4447,39 @@ class AIClient:
             if working_messages and working_messages[-1].get('role') == 'tool':
                 if _round_failed:
                     working_messages[-1]['content'] += (
-                        '\n\n[注意：上述工具调用返回了错误，这是工具调用层面的参数或执行错误，'
-                        '不是Houdini节点cooking错误，无需调用check_errors。'
-                        '请直接根据错误信息修正参数后重新调用该工具。]'
+                        "\n\n[Note: the tool call above returned an error — this is a tool-layer parameter or execution error, "
+                        'noHoudininodecookingerror, noneedscallcheck_errors. '
+                        'pleasedirectlybased onerrorinfofixpositiveparameterafterrenewcallthistool. ]'
                     )
                 if enable_thinking:
                     working_messages[-1]['content'] += (
-                        '\n\n[重要：你的下一条回复必须以 <think> 标签开头。'
-                        '在标签内分析以上执行结果和当前进度，'
-                        '检查 Todo 列表中哪些步骤已完成（用 update_todo 标记为 done），'
-                        '确认下一步计划后再继续执行。不要跳过 <think> 标签。]'
+                        "\n\n[Reminder: your next reply MUST start with a <think> tag. "
+                        "Inside the tag, analyze the latest tool-execution results and current progress, "
+                        "review the Todo list to see which steps are complete (use update_todo to mark done), "
+                        "confirm the next step's plan, then resume execution. Do not skip the <think> tag.]"
                     )
             
-            # 保存当前轮次的内容
+            # savecurrentroundtime content
             full_content += round_content
         
-        # 如果循环结束但内容为空，且有工具调用历史，强制要求生成总结
+        # ifloopendbutcontentasempty, andhastoolcallhistory, forceneedrequestgeneratesummary
         if not full_content.strip() and tool_calls_history:
             _dbg("[AI Client] ⚠️ Stream mode: tool calls done but no reply content, forcing summary generation")
-            # 最后一次请求，强制要求总结
+            # lastoncerequest, forceneedrequestsummary
             working_messages.append({
                 'role': 'user',
-                'content': '请生成最终总结，说明已完成的操作和结果。'
+                'content': 'pleasegeneratefinalsummary, descriptioncompleted operationandresult. '
             })
             
-            # 再次请求生成总结
+            # againtimerequestgeneratesummary
             summary_content = ""
             for chunk in self.chat_stream(
                 messages=working_messages,
                 model=model,
                 provider=provider,
                 temperature=temperature,
-                max_tokens=max_tokens or 500,  # 限制总结长度
-                tools=None,  # 总结阶段不需要工具
+                max_tokens=max_tokens or 500,  # limitsummarylength
+                tools=None,  # summarystagenotneedstool
                 tool_choice=None
             ):
                 if chunk.get('type') == 'content':
@@ -4486,7 +4493,7 @@ class AIClient:
             full_content = summary_content if summary_content else full_content
         
         _dbg(f"[AI Client] Reached max iterations ({iteration})")
-        # 计算 cache 命中率
+        # compute cache commandinrate
         prompt_total = total_usage['cache_hit_tokens'] + total_usage['cache_miss_tokens']
         if prompt_total > 0:
             total_usage['cache_hit_rate'] = total_usage['cache_hit_tokens'] / prompt_total
@@ -4494,8 +4501,8 @@ class AIClient:
             total_usage['cache_hit_rate'] = 0
         return {
             'ok': True,
-            'content': full_content if full_content.strip() else "(工具调用完成，但未生成回复)",
-            'final_content': '',  # max iterations 时无明确的最终回复
+            'content': full_content if full_content.strip() else "(toolcallcomplete, butnotgeneratereply)",
+            'final_content': '',  # max iterations whennoclearcertain finalreply
             'new_messages': working_messages[initial_msg_count:],
             'tool_calls_history': tool_calls_history,
             'call_records': call_records,
@@ -4504,45 +4511,45 @@ class AIClient:
         }
 
     def _execute_web_search(self, arguments: dict) -> dict:
-        """执行网络搜索（通用：天气/新闻/文档/任何话题）"""
+        """Run a web search (general use: weather / news / docs / any topic)."""
         query = arguments.get('query', '')
         max_results = arguments.get('max_results', 5)
         
         if not query:
-            return {"success": False, "error": "缺少Search keyword"}
+            return {"success": False, "error": "missingSearch keyword"}
         
         result = self._web_searcher.search(query, max_results)
         
         if result.get('success'):
             items = result.get('results', [])
             if not items:
-                return {"success": True, "result": f"搜索 '{query}' 未找到结果。可尝试换用不同关键词。"}
+                return {"success": True, "result": f"search '{query}' notfindtoresult. cantryswapusedifferentkeyword. "}
             
-            # 格式化结果：标题 + URL + 摘要
-            lines = [f"搜索 '{query}' 的结果（来源: {result.get('source', 'Unknown')}，共 {len(items)} 条）：\n"]
+            # formatizationresult: title + URL + summary
+            lines = [f"search '{query}'  result (comesource: {result.get('source', 'Unknown')}, shared {len(items)} item) : \n"]
             for i, item in enumerate(items, 1):
-                lines.append(f"{i}. {item.get('title', '无标题')}")
+                lines.append(f"{i}. {item.get('title', 'notitle')}")
                 lines.append(f"   URL: {item.get('url', '')}")
                 snippet = item.get('snippet', '')
                 if snippet:
-                    lines.append(f"   摘要: {snippet[:300]}")
+                    lines.append(f"   summary: {snippet[:300]}")
                 lines.append("")
             
-            lines.append("提示: 如需查看详细内容，请用 fetch_webpage(url=...) 获取网页正文。引用信息时务必在段落末标注 [来源: 标题](URL)。请勿用相同关键词重复搜索。")
+            lines.append("Hint: to view full details, use fetch_webpage(url=...) to fetch the page body. When referencing information, you MUST add an inline citation at the end of the paragraph in the form [Source: title](URL). Do NOT repeat the search with the same keywords.")
             
             return {"success": True, "result": "\n".join(lines)}
         else:
-            return {"success": False, "error": result.get('error', '搜索失败')}
+            return {"success": False, "error": result.get('error', 'searchfailed')}
 
     def _execute_fetch_webpage(self, arguments: dict) -> dict:
-        """获取网页内容（分页返回，支持翻页）"""
+        """Fetch web page content (paginated return, supports paging)."""
         url = arguments.get('url', '')
         start_line = arguments.get('start_line', 1)
         
         if not url:
-            return {"success": False, "error": "缺少 URL"}
+            return {"success": False, "error": "missing URL"}
         
-        # 确保 start_line 合法
+        # ensure start_line mergemethod
         try:
             start_line = max(1, int(start_line))
         except (TypeError, ValueError):
@@ -4552,33 +4559,33 @@ class AIClient:
         
         if result.get('success'):
             content = result.get('content', '')
-            return {"success": True, "result": f"网页正文（{url}）：\n\n{content}"}
+            return {"success": True, "result": f"netpagebody text ({url}) : \n\n{content}"}
         else:
-            return {"success": False, "error": result.get('error', '获取失败')}
+            return {"success": False, "error": result.get('error', 'getfailed')}
 
-    # 保持兼容性
+    # keepcompatible withproperty
     def agent_loop(self, *args, **kwargs):
-        """兼容旧接口"""
+        """compatible witholdconnectport"""
         return self.agent_loop_stream(*args, **kwargs)
 
     # ============================================================
-    # JSON 解析模式（用于不支持 Function Calling 的模型）
+    # JSON parsemode (used fornot supported Function Calling  model) 
     # ============================================================
     
     def _supports_function_calling(self, provider: str, model: str) -> bool:
-        """检查模型是否支持原生 Function Calling"""
-        # Ollama 模型默认不支持
+        """checkmodelwhethersupportnative Function Calling"""
+        # Ollama modeldefaultnot supported
         if provider == 'ollama':
             return False
-        # Custom provider 根据用户配置决定
+        # Custom provider based onuserconfigdecidefixed
         if provider == 'custom':
             return self._CUSTOM_SUPPORTS_FC
-        # 其他云端模型都支持
+        # Other cloud models all support it
         return True
     
     def _get_json_mode_system_prompt(self, tools_list: Optional[List[dict]] = None) -> str:
-        """获取 JSON 模式的系统提示（执行器模式）"""
-        # 构建工具列表说明
+        """get JSON mode systemhint (execute mode) """
+        # buildtoollistdescription
         tool_descriptions = []
         for tool in (tools_list or HOUDINI_TOOLS):
             func = tool['function']
@@ -4587,103 +4594,103 @@ class AIClient:
             
             param_desc = []
             for pname, pinfo in params.items():
-                req_mark = "(必填)" if pname in required else "(可选)"
+                req_mark = "(required)" if pname in required else "(optional)"
                 param_desc.append(f"    - {pname} {req_mark}: {pinfo.get('description', '')}")
             
             tool_descriptions.append(f"""
 **{func['name']}** - {func['description']}
-参数:
-{chr(10).join(param_desc) if param_desc else '    无'}
+parameter:
+{chr(10).join(param_desc) if param_desc else '    no'}
 """)
         
-        return f"""你是Houdini执行器。只执行，不思考，不解释。
+        return f"""You are a Houdini executor. Only execute — do not think, do not explain.
 
-严格禁止（违反会浪费token）:
--禁止生成任何思考过程、推理步骤、分析过程
--禁止说明"为什么"、"让我先"、"我需要"
--禁止逐步说明、分步解释
--禁止输出任何非执行性内容
+STRICTLY DISALLOWED (violating these wastes tokens):
+- Do not generate any thinking process, reasoning steps, or analysis
+- Do not say "why", "let me first", "I need"
+- Do not describe steps one by one or explain anything
+- Do not output any non-executable content
 
-只允许:
--直接调用工具执行操作
--直接给出执行结果(1句以内)
--不输出任何思考内容
+ALLOWED ONLY:
+- Directly call tools to execute operations
+- Directly give the execution result (1 sentence max)
+- Do not output any thinking content
 
-Node path输出规范:
--回复中提及节点时必须写完整绝对路径(如/obj/geo1/box1),不能只写节点名(如box1)
--路径会自动变为可点击链接,用户可直接跳转到对应节点
+Node-path output convention:
+- When mentioning a node in a reply, always use the full absolute path (e.g., /obj/geo1/box1), never just the node name (e.g., box1)
+- The path will auto-render as a clickable link that the user can use to jump to the node
 
-工具调用参数规范（最高优先级）:
--调用前必须确认所有(必填)参数都已填写,缺少必填参数会导致调用失败
--node_path必须用完整绝对路径(如"/obj/geo1/box1"),不能只写节点名
--参数值类型必须正确:string/number/boolean/array,不要混用
--工具返回"缺少参数"错误时,直接修正参数重试,不要调用check_errors
--每次调用都要完整填写所有必填参数,不要假设系统记住上次参数
+Tool-call parameter convention (HIGHEST PRIORITY):
+- Before calling, confirm all required parameters are filled in; missing required params cause failure
+- node_path must be the full absolute path (e.g., "/obj/geo1/box1"), never just the node name
+- Parameter value types must be correct: string / number / boolean / array — don't mix them
+- When a tool returns a "missing parameter" error, fix the parameter and retry directly — do not call check_errors
+- Every call must fully fill in all required parameters; don't assume the system remembers them from a previous call
 
-安全操作规则（必须遵守）:
--首次了解网络时调用get_network_structure,已查询过的网络不要重复调用(系统缓存同轮查询结果)
--设置参数前必须先用get_node_parameters查询正确的Parameter name和类型,不要猜测Parameter name
--execute_python中必须检查None:node=hou.node(path);if node:...
--创建节点后用返回的路径操作,不要猜测路径
--连接节点前确认两个节点都已存在
+Safe-operation rules (MUST follow):
+- First time inspecting a network, call get_network_structure; if already queried this turn, do not call it again (the system caches same-turn query results)
+- Before setting parameters, use get_node_parameters to look up the correct parameter name and type — don't guess
+- Inside execute_python, always None-check: node = hou.node(path); if node: ...
+- After creating a node, operate on the returned path — don't guess the path
+- Before connecting nodes, confirm both nodes exist
 
-完成前必须检查（任务结束前强制执行）:
--调用verify_and_summarize自动检测(已内置网络检查,不需先调get_network_structure)
--如有问题修复后重新调用verify_and_summarize直到通过
+Mandatory pre-completion check (forced at end of task):
+- Call verify_and_summarize for auto-detection (includes a built-in network check; no need to call get_network_structure first)
+- If issues are found, fix them, then call verify_and_summarize again and pass through
 
-## 工具调用格式
+## Tool-call format
 
 ```json
-{{"tool": "工具名称", "args": {{"Parameter name": "参数值"}}}}
+{{"tool": "tool_name", "args": {{"parameter_name": "value"}}}}
 ```
 
-规则:
-1.每次只调用一个工具
-2.工具调用在独立JSON代码块中
-3.调用后等待结果再继续
-4.不解释，直接执行
-5.先查询确认再操作
-6.调用前检查所有(必填)参数是否已填写,不要遗漏node_path等必填参数
-7.node_path必须写完整绝对路径(如"/obj/geo1/box1"),不能只写节点名
+Rules:
+1. Only one tool call at a time
+2. Each tool call goes in its own JSON code block
+3. After calling, wait for the result before continuing
+4. Don't explain — execute directly
+5. Query first to confirm, then operate
+6. Before calling, verify all required parameters are filled; don't omit node_path or other required params
+7. node_path must be the full absolute path (e.g., "/obj/geo1/box1"), never just the node name
 
-## 可用工具
+## Available tools
 
 {chr(10).join(tool_descriptions)}
 
-## 示例
+## Example
 
-创建节点（不解释，直接执行）:
+createnode (notresolverelease, directlyexecute) :
 ```json
 {{"tool": "create_node", "args": {{"node_type": "box"}}}}
 ```
 """
     
     def _parse_json_tool_calls(self, content: str) -> List[Dict]:
-        """从文本内容中解析 JSON 格式的工具调用（改进版：支持多种格式）"""
+        """fromtextcontentinparse JSON format toolcall (improvedversion: supportmultikindformat) """
         import re
         
         tool_calls = []
         
-        # 1. 清理XML标签（如果AI错误输出了XML格式）
+        # 1. cleanupXMLlabel (ifAIerroroutputXMLformat) 
         content = re.sub(r'</?tool_call[^>]*>', '', content)
         content = re.sub(r'<arg_key>([^<]+)</arg_key>\s*<arg_value>([^<]+)</arg_value>', r'"\1": "\2"', content)
         
-        # 2. 匹配 ```json ... ``` 代码块
+        # 2. match ```json ... ``` codeblock
         json_blocks = re.findall(r'```(?:json)?\s*\n?({[^`]+})\s*\n?```', content, re.DOTALL)
         
-        # 3. 如果没有代码块，尝试直接匹配JSON对象
+        # 3. ifnothascodeblock, trydirectlymatchJSONobject
         if not json_blocks:
-            # 尝试匹配独立的JSON对象（不在代码块中）
+            # trymatchindependentstand JSONobject (notincodeblockin) 
             json_pattern = r'\{\s*"(?:tool|name)"\s*:\s*"[^"]+"\s*,\s*"(?:args|arguments)"\s*:\s*\{[^}]+\}\s*\}'
             json_blocks = re.findall(json_pattern, content, re.DOTALL)
         
         for block in json_blocks:
             try:
-                # 清理可能的格式问题
+                # cleanupmay formatissue
                 block = block.strip()
-                # 修复常见的JSON格式错误
-                block = re.sub(r',\s*}', '}', block)  # 移除末尾多余逗号
-                block = re.sub(r',\s*]', ']', block)  # 移除数组末尾多余逗号
+                # fixcommon JSONformaterror
+                block = re.sub(r',\s*}', '}', block)  # remove trailing comma before object close
+                block = re.sub(r',\s*]', ']', block)  # remove trailing comma before array close
                 
                 data = json.loads(block)
                 if 'tool' in data:
@@ -4692,13 +4699,13 @@ Node path输出规范:
                         'arguments': data.get('args', data.get('arguments', {}))
                     })
                 elif 'name' in data:
-                    # 兼容 {"name": "xxx", "arguments": {...}} 格式
+                    # compatible with {"name": "xxx", "arguments": {...}} format
                     tool_calls.append({
                         'name': data['name'],
                         'arguments': data.get('arguments', data.get('args', {}))
                     })
             except (json.JSONDecodeError, KeyError) as e:
-                # 记录解析失败但不中断
+                # recordparse failedbutnotinbreak
                 _dbg(f"[AI Client] JSON parse failed: {e}, content: {block[:100]}")
                 continue
         
@@ -4722,21 +4729,21 @@ Node path输出规范:
                               on_iteration_start: Optional[Callable[[int], None]] = None,
                               on_plan_incomplete: Optional[Callable[[], Optional[str]]] = None,
                               context_limit: int = 128000) -> Dict[str, Any]:
-        """JSON 模式 Agent Loop（用于不支持 Function Calling 的模型）"""
+        """JSON mode Agent Loop (used fornot supported Function Calling  model) """
         
         if not self._tool_executor:
-            return {'ok': False, 'error': '未设置工具执行器', 'content': '', 'tool_calls_history': [], 'iterations': 0}
+            return {'ok': False, 'error': 'notsettoolexecute ', 'content': '', 'tool_calls_history': [], 'iterations': 0}
         
-        # ★ 工具列表：支持外部覆盖（用于 Ask 模式等场景）
-        # 注意：外部插件工具已在 ai_tab._run_agent 中合并到 tools_override，
-        # 此处不再重复合并，避免工具重复。
+        # ★ toollist: supportexternaloverride (used for Ask modeetc.scene) 
+        # note: externalplugintoolalreadyin ai_tab._run_agent inmergeto tools_override, 
+        # herenotagainduplicatemerge, avoidtoolduplicate. 
         effective_tools = tools_override if tools_override is not None else HOUDINI_TOOLS
         
-        # 添加 JSON 模式系统提示
+        # add JSON modesystemhint
         json_system_prompt = self._get_json_mode_system_prompt(effective_tools)
         working_messages = []
         
-        # 处理消息，在第一个 system 消息后追加 JSON 模式说明
+        # processmessage, infirst system messageafterappend JSON modedescription
         system_found = False
         for msg in messages:
             if msg.get('role') == 'system' and not system_found:
@@ -4751,19 +4758,19 @@ Node path输出规范:
         if not system_found:
             working_messages.insert(0, {'role': 'system', 'content': json_system_prompt})
         
-        # ── 预处理：非视觉模型剥离所有 image_url 内容 ──
+        # ── pre-process: notvisualmodelstripall image_url content ──
         if not supports_vision:
             n_stripped = self._strip_image_content(working_messages, keep_recent_user=0)
             if n_stripped > 0:
                 _dbg(f"[AI Client] Non-vision model ({model}): stripped {n_stripped} image(s)")
         
         tool_calls_history = []
-        call_records = []  # 每次 API 调用的详细记录（对齐 Cursor）
+        call_records = []  # each time API call detailfinerecord (align Cursor) 
         full_content = ""
         iteration = 0
-        self._json_thinking_buffer = ""  # 初始化思考缓冲区
+        self._json_thinking_buffer = ""  # initializationthinkingbuffersection
         
-        # 累积 usage 统计（用于 cache 命中率统计）
+        # accumulate usage statistics (used for cache commandinratestatistics) 
         total_usage = {
             'prompt_tokens': 0,
             'completion_tokens': 0,
@@ -4773,28 +4780,28 @@ Node path输出规范:
             'cache_miss_tokens': 0,
         }
         
-        # 防止死循环：检测重复工具调用
-        max_tool_calls = 999  # 不限制总调用次数（仅保留连续重复检测）
+        # preventdeadloop: detectduplicatetoolcall
+        max_tool_calls = 999  # notlimittotalcalltimecount (onlykeepconsecutiveduplicatedetect) 
         total_tool_calls = 0
         consecutive_same_calls = 0
         last_call_signature = None
-        server_error_retries = 0    # 连续服务端错误重试计数
-        max_server_retries = 3      # 最多重试 3 次服务端错误
+        server_error_retries = 0    # consecutiveserviceenderrorretrycountcount
+        max_server_retries = 3      # at mostretry 3 timeserviceenderror
         
         while iteration < max_iterations:
             if self._stop_event.is_set():
                 return {
-                    'ok': False, 'error': '用户停止了请求',
+                    'ok': False, 'error': 'userstoprequest',
                     'content': full_content, 'tool_calls_history': tool_calls_history,
                     'call_records': call_records,
                     'iterations': iteration, 'stopped': True, 'usage': total_usage
                 }
             
             iteration += 1
-            _call_start = time.time()  # 记录本次 API 调用起始时间（对齐 Cursor 延迟统计）
+            _call_start = time.time()  # Record API call start time (matches Cursor's latency statistic)
             round_content = ""
             
-            # ★ 主动式上下文压缩（从第 4 轮开始检查，替代旧的简单截断逻辑）
+            # ★ mainmovestylecontextcompress (fromthe 4 roundstartcheck, replacement foroldsimplecutbreaklogic) 
             if iteration > 3 and len(working_messages) > 15:
                 est_tokens = self._estimate_messages_tokens(working_messages, effective_tools)
                 if est_tokens > context_limit * 0.85:
@@ -4804,7 +4811,7 @@ Node path输出规范:
                         context_limit, supports_vision
                     )
             elif iteration > 1 and len(working_messages) > 20:
-                # 轻量级防御：仅在未触发主动压缩时做简单截断
+                # lightweightdefensive: onlyinnottriggermainmovecompresswhendosimplecutbreak
                 protect_start = max(1, len(working_messages) - 6)
                 for i, m in enumerate(working_messages):
                     if i == 0 or i >= protect_start:
@@ -4816,25 +4823,25 @@ Node path输出规范:
                     if role == 'tool' and len(c) > 400:
                         m['content'] = self._summarize_tool_content(c, 400)
                     elif role == 'assistant' and len(c) > 600:
-                        m['content'] = c[:600] + '...[已截断]'
+                        m['content'] = c[:600] + '...[alreadycutbreak]'
             
-            # ★ 通知 UI 新一轮 API 请求即将开始（用于显示 "Generating..." 状态）
+            # ★ notify UI newoneround API requesti.e.willstart (used forshow "Generating..." state) 
             if on_iteration_start:
                 on_iteration_start(iteration)
             
-            # 流式请求（不传 tools 参数）
+            # streamingrequest (notpass tools parameter) 
             for chunk in self.chat_stream(
                 messages=working_messages,
                 model=model,
                 provider=provider,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                tools=None,  # JSON 模式不使用原生工具
+                tools=None,  # JSON modenotusenativetool
                 tool_choice=None
             ):
                 if self._stop_event.is_set():
                     return {
-                        'ok': False, 'error': '用户停止了请求',
+                        'ok': False, 'error': 'userstoprequest',
                         'content': full_content + round_content,
                         'tool_calls_history': tool_calls_history,
                         'call_records': call_records,
@@ -4858,7 +4865,7 @@ Node path输出规范:
                     err_msg = chunk.get('error', '')
                     err_lower = err_msg.lower()
                     
-                    # 精确分类错误
+                    # finecertainpartclasserror
                     is_context_exceeded = any(k in err_lower for k in (
                         'context_length_exceeded', 'maximum context length',
                         'max_tokens', 'token limit', 'too many tokens',
@@ -4866,35 +4873,35 @@ Node path输出规范:
                         'context window', 'input too long',
                     )) or ('HTTP 413' in err_msg)
                     is_server_transient = any(k in err_msg for k in (
-                        'HTTP 502', 'HTTP 503', 'HTTP 529', '压缩失败', 'no available'
+                        'HTTP 502', 'HTTP 503', 'HTTP 529', 'compressfailed', 'no available'
                     ))
                     
                     if is_context_exceeded or is_server_transient:
                         server_error_retries += 1
                         if server_error_retries > max_server_retries:
                             if on_content:
-                                on_content(f"\n[连续出错 {max_server_retries} 次，已停止重试。]\n")
+                                on_content(f"\n[Failed {max_server_retries} times in a row, stopped retrying.]\n")
                             return {
-                                'ok': False, 'error': f"连续出错: {err_msg}",
+                                'ok': False, 'error': f"Repeated failures: {err_msg}",
                                 'content': full_content, 'tool_calls_history': tool_calls_history,
                                 'call_records': call_records,
                                 'iterations': iteration, 'usage': total_usage
                             }
                         
                         if is_context_exceeded:
-                            # 上下文超限：立即裁剪
+                            # contextexceedlimit: standi.e.trim
                             if on_content:
-                                on_content(f"\n[上下文超限，智能裁剪后重试 ({server_error_retries}/{max_server_retries})...]\n")
+                                on_content(f"\n[Context limit exceeded — auto-trimming and retrying ({server_error_retries}/{max_server_retries})...]\n")
                             working_messages = self._progressive_trim(
                                 working_messages, tool_calls_history,
                                 trim_level=server_error_retries,
                                 supports_vision=supports_vision
                             )
                         else:
-                            # 临时服务器错误：等待，第2次开始才裁剪
+                            # temporarywhenservice error: etc.pending, the2timestartonly thentrim
                             wait_seconds = 5 * server_error_retries
                             if on_content:
-                                on_content(f"\n[服务端暂时不可用，{wait_seconds}秒后重试 ({server_error_retries}/{max_server_retries})...]\n")
+                                on_content(f"\n[Server temporarily unavailable — retrying in {wait_seconds}s ({server_error_retries}/{max_server_retries})...]\n")
                             time.sleep(wait_seconds)
                             if server_error_retries >= 2:
                                 working_messages = self._progressive_trim(
@@ -4902,7 +4909,7 @@ Node path输出规范:
                                     trim_level=server_error_retries - 1,
                                     supports_vision=supports_vision
                                 )
-                        break  # 退出 for，回到 while 重试
+                        break  # exit for, backto while retry
                     return {
                         'ok': False, 'error': err_msg,
                         'content': full_content, 'tool_calls_history': tool_calls_history,
@@ -4911,9 +4918,9 @@ Node path输出规范:
                     }
                 
                 elif chunk_type == 'done':
-                    # 成功收到响应 → 重置服务端错误重试计数
+                    # succeededcollecttorespondshould → replaceserviceenderrorretrycountcount
                     server_error_retries = 0
-                    # 收集 usage 信息（包含 cache 统计）
+                    # collectset usage info (packagecontaining cache statistics) 
                     usage = chunk.get('usage', {})
                     if usage:
                         total_usage['prompt_tokens'] += usage.get('prompt_tokens', 0)
@@ -4923,7 +4930,7 @@ Node path输出规范:
                         total_usage['cache_hit_tokens'] += usage.get('cache_hit_tokens', 0)
                         total_usage['cache_miss_tokens'] += usage.get('cache_miss_tokens', 0)
                     
-                    # ---- 记录本次 API 调用详情（对齐 Cursor） ----
+                    # ---- recordthistime API calldetails (align Cursor)  ----
                     import datetime as _dt
                     _call_latency = time.time() - _call_start
                     _rec_inp = usage.get('prompt_tokens', 0)
@@ -4952,29 +4959,29 @@ Node path输出规范:
                     })
                     break
             
-            # 清理内容中的XML标签和格式问题（使用预编译正则）
+            # cleanupcontentin XMLlabelandformatissue (usepre-compilepositivethen) 
             cleaned_content = round_content
             for _pat in self._RE_CLEAN_PATTERNS:
                 cleaned_content = _pat.sub('', cleaned_content)
-            # 清理其他可能的XML标签
-            cleaned_content = re.sub(r'<[^>]+>', '', cleaned_content)  # 清理所有剩余的XML标签
+            # cleanupothermay XMLlabel
+            cleaned_content = re.sub(r'<[^>]+>', '', cleaned_content)  # cleanupallremaining XMLlabel
             
-            # 解析 JSON 工具调用
+            # parse JSON toolcall
             tool_calls = self._parse_json_tool_calls(cleaned_content)
             
-            # 如果没有工具调用，检查是否完成
+            # ifnothastoolcall, checkwhethercomplete
             if not tool_calls:
-                # 清理后的内容添加到full_content（只添加一次，避免重复）
+                # cleanupafter contentaddtofull_content (onlyaddonce, avoidduplicate) 
                 if cleaned_content.strip():
-                    # 检查是否与已有内容重复（避免重复添加）
+                    # checkwhetherwithalreadyhascontentduplicate (avoidduplicateadd) 
                     if cleaned_content.strip() not in full_content:
                         full_content += cleaned_content
-                # 如果内容为空或只有空白，检查是否需要继续
+                # ifcontentasemptyoronlyhasemptywhite, checkwhetherneedsresume
                 if not cleaned_content.strip() and tool_calls_history:
-                    # 有工具调用历史但无内容，继续循环等待总结
+                    # hastoolcallhistorybutnocontent, resumeloopetc.pendingsummary
                     continue
                 
-                # ★ Plan 续接检测（JSON 模式）
+                # ★ Plan continueconnectdetect (JSON mode) 
                 _plan_resume_msg = None
                 if on_plan_incomplete and iteration > 1:
                     try:
@@ -4988,7 +4995,7 @@ Node path输出规范:
                     working_messages.append({'role': 'user', 'content': _plan_resume_msg})
                     continue
                 
-                # 计算 cache 命中率
+                # compute cache commandinrate
                 prompt_total = total_usage['cache_hit_tokens'] + total_usage['cache_miss_tokens']
                 if prompt_total > 0:
                     total_usage['cache_hit_rate'] = total_usage['cache_hit_tokens'] / prompt_total
@@ -5003,24 +5010,24 @@ Node path输出规范:
                     'usage': total_usage
                 }
             
-            # 添加助手消息（使用清理后的内容，但不要重复添加到full_content）
+            # addassistantmessage (usecleanupafter content, butdon'tduplicateaddtofull_content) 
             json_assistant_msg = {'role': 'assistant', 'content': cleaned_content}
-            # reasoning_content 仅在回传时对 DeepSeek / 原生 GLM 有效（Duojie 无需回传）
+            # reasoning_content onlyinbackpasswhenfor DeepSeek / native GLM valid (Duojie noneedsbackpass) 
             if self.is_reasoning_model(model) and provider in ('deepseek', 'glm'):
                 json_assistant_msg['reasoning_content'] = ''
             working_messages.append(json_assistant_msg)
             
-            # 执行工具调用（web 工具并行，Houdini 工具串行）
+            # executetoolcall (web toolandrow, Houdini toolstringrow) 
             tool_results = []
 
             _ASYNC_TOOL_NAMES_JSON = frozenset({'web_search', 'fetch_webpage', 'execute_shell'})
             async_tc = [(i, tc) for i, tc in enumerate(tool_calls) if tc['name'] in _ASYNC_TOOL_NAMES_JSON]
             houdini_tc = [(i, tc) for i, tc in enumerate(tool_calls) if tc['name'] not in _ASYNC_TOOL_NAMES_JSON]
 
-            # 结果槽位
+            # resultslotbit
             exec_results = [None] * len(tool_calls)
 
-            # 并行 async 工具（web + shell）
+            # androw async tool (web + shell) 
             if len(async_tc) > 1:
                 import concurrent.futures
                 def _exec_async_json(idx_tc):
@@ -5045,7 +5052,7 @@ Node path输出规范:
                 else:  # execute_shell
                     exec_results[idx] = self._tool_executor(tname, **targs)
 
-            # Houdini 工具（只读批量 / 写入串行）
+            # Houdini tool (read-onlybatch / writestringrow) 
             _BATCH_READONLY_JSON = frozenset({
                 'get_network_structure', 'get_node_parameters', 'list_children',
                 'read_selection', 'search_node_types', 'semantic_search_nodes',
@@ -5075,7 +5082,7 @@ Node path输出规范:
                 for idx, tc in readonly_batch_j:
                     tname, targs = tc['name'], tc['arguments']
                     if not self._tool_executor:
-                        exec_results[idx] = {"success": False, "error": f"工具执行器未设置: {tname}"}
+                        exec_results[idx] = {"success": False, "error": f"toolexecute notset: {tname}"}
                     else:
                         try:
                             exec_results[idx] = self._tool_executor(tname, **targs)
@@ -5085,15 +5092,15 @@ Node path输出规范:
             for idx, tc in mutating_calls_j:
                 tname, targs = tc['name'], tc['arguments']
                 if not self._tool_executor:
-                    exec_results[idx] = {"success": False, "error": f"工具执行器未设置: {tname}"}
+                    exec_results[idx] = {"success": False, "error": f"toolexecute notset: {tname}"}
                 else:
                     try:
                         exec_results[idx] = self._tool_executor(tname, **targs)
                     except Exception as e:
                         import traceback
-                        exec_results[idx] = {"success": False, "error": f"工具执行异常: {str(e)}\n{traceback.format_exc()[:200]}"}
+                        exec_results[idx] = {"success": False, "error": f"toolexecuteexception: {str(e)}\n{traceback.format_exc()[:200]}"}
 
-            # 统一处理结果
+            # statsoneprocessresult
             should_break_limit = False
             for i, tc in enumerate(tool_calls):
                 tool_name = tc['name']
@@ -5124,7 +5131,7 @@ Node path输出规范:
                 })
 
                 if not result.get('success'):
-                    error_detail = result.get('error', '未知错误')
+                    error_detail = result.get('error', 'notknowerror')
                     _dbg(f"[AI Client] ⚠️ Tool execution failed: {tool_name}")
                     _dbg(f"[AI Client]   Error detail: {error_detail[:200]}")
 
@@ -5135,52 +5142,54 @@ Node path输出规范:
                 if result.get('success'):
                     tool_results.append(f"{tool_name}:{compressed}")
                 else:
-                    tool_results.append(f"{tool_name}:错误:{compressed}")
+                    tool_results.append(f"{tool_name}:error:{compressed}")
 
             if should_break_limit:
                 return {
                     'ok': True,
-                    'content': full_content + f"\n\n已达到工具调用次数限制({max_tool_calls})，自动停止。",
+                    'content': full_content + f"\n\nalreadyreachtotoolcalltimecountlimit({max_tool_calls}), autostop. ",
                     'tool_calls_history': tool_calls_history,
                     'iterations': iteration
                 }
             
-            # 极简格式：工具结果，继续或总结
-            # 收集失败的工具详情（明确指出哪个工具、什么错误）
+            # Minimal format: tool result, continue or summarize.
+            # Collect failed-tool details (explicitly call out which tool, what error)
             failed_tool_details = []
             for r in tool_results:
-                if ':错误:' in r:
+                if ':error:' in r:
                     failed_tool_details.append(r)
             has_failed_tools = len(failed_tool_details) > 0
-            # 检查是否有未完成的todo（通过检查工具调用历史）
+            # checkwhetherhasnotcomplete todo (viachecktoolcallhistory) 
             has_pending_todos = False
             for tc in tool_calls_history:
                 if tc.get('tool_name') == 'add_todo':
-                    # 如果有add_todo但没有对应的update_todo done，说明还有未完成的任务
+                    # ifhasadd_todobutnothasforshould update_todo done, descriptionstillhasnotcomplete task
                     has_pending_todos = True
                     break
             
-            # 构造提示（带多轮思考引导）
-            think_hint = '先在<think>标签内分析执行结果和当前进度，再决定下一步。' if enable_thinking else ''
+            # constructhint (withmultiroundthinkingguideimport) 
+            think_hint = 'firstin<think>labelwithinanalyzeexecuteresultandcurrentprogress, againdecidefixedbelowonestep. ' if enable_thinking else ''
             
-            todo_hint = '已完成的步骤请立即用 update_todo 标记为 done。'
+            todo_hint = "Mark completed steps with update_todo. "
             if has_failed_tools:
-                # 明确列出失败的工具及错误原因，避免AI误解为需要调用check_errors
+                # Explicitly list the failed tools and error reasons; avoids the AI
+                # incorrectly invoking check_errors when the failure is a tool-layer
+                # issue (bad args / execution error), not a Houdini node error.
                 fail_summary = '; '.join(failed_tool_details)
                 prompt = ('|'.join(tool_results)
-                          + f'|⚠️ 以下工具调用返回了错误（这是工具调用层面的参数/执行错误，不是Houdini节点错误，'
-                          + f'无需调用check_errors，请直接根据错误原因修正参数后重试）: {fail_summary}'
-                          + f'|{think_hint}{todo_hint}请根据上述错误原因修正后继续完成任务。不要因为失败就提前结束。')
+                          + f"|⚠️ Some tool calls returned errors (these are tool-layer parameter/execution errors, "
+                          + f"NOT Houdini node errors — do not call check_errors; fix the arguments and retry directly): {fail_summary}"
+                          + f"|{think_hint}{todo_hint}Fix the arguments based on the error reasons above and resume completing the task. Do not abort just because of failures.")
             elif has_pending_todos and iteration < max_iterations - 2:
-                prompt = '|'.join(tool_results) + f'|检测到还有未完成的任务，{think_hint}{todo_hint}请继续执行。'
+                prompt = '|'.join(tool_results) + f"|Pending todos detected. {think_hint}{todo_hint}Please continue."
             elif iteration >= max_iterations - 1:
-                prompt = '|'.join(tool_results) + f'|{todo_hint}请生成最终总结，说明已完成的操作'
+                prompt = '|'.join(tool_results) + f"|{todo_hint}Please produce the final summary describing what was completed."
             else:
-                prompt = '|'.join(tool_results) + f'|{think_hint}{todo_hint}继续或总结'
+                prompt = '|'.join(tool_results) + f"|{think_hint}{todo_hint}Continue or summarize."
             
-            # 使用 system 角色传递工具结果，避免与用户消息混淆
-            # 注意：部分模型不支持多个 system 消息，此处使用明确的 [TOOL_RESULT] 标记
-            # ★ 检查是否有视口截图需要注入
+            # Use the system role to pass back tool results; avoids mixing with user messages
+            # note: partpartmodelnot supportedmulti system message, hereuseclearcertain  [TOOL_RESULT] mark
+            # ★ checkwhetherhasviewportscreenshotneedsinject
             _viewport_imgs = []
             if supports_vision:
                 for tc in tool_calls:
@@ -5189,7 +5198,7 @@ Node path输出规范:
                         _viewport_imgs.append((_r['_viewport_image'], _r.get('_image_media_type', 'image/jpeg')))
             
             if _viewport_imgs:
-                # 多模态消息：文本 + 图片
+                # multimodalmessage: text + image
                 _content_parts = [{"type": "text", "text": f"[TOOL_RESULT]\n{prompt}\n[viewport snapshot attached — please analyze the current viewport state]"}]
                 for _vimg_b64, _vimg_mt in _viewport_imgs:
                     _content_parts.append({"type": "image_url", "image_url": {"url": f"data:{_vimg_mt};base64,{_vimg_b64}"}})
@@ -5201,37 +5210,37 @@ Node path输出规范:
                     'content': f'[TOOL_RESULT]\n{prompt}'
                 })
             
-            # 保存当前轮次的内容（使用预编译正则清理XML标签）
+            # savecurrentroundtime content (usepre-compilepositivethencleanupXMLlabel) 
             cleaned_round = round_content
             for _pat in self._RE_CLEAN_PATTERNS:
                 cleaned_round = _pat.sub('', cleaned_round)
-            cleaned_round = re.sub(r'<[^>]+>', '', cleaned_round)  # 清理所有剩余的XML标签
-            # 只添加非空且不重复的内容
+            cleaned_round = re.sub(r'<[^>]+>', '', cleaned_round)  # cleanupallremaining XMLlabel
+            # onlyaddnotemptyandnotduplicate content
             if cleaned_round.strip():
-                # 检查是否与已有内容重复（简单去重：如果内容完全相同，跳过）
+                # checkwhetherwithalreadyhascontentduplicate (simplegore: ifcontentfinishallsame, skip) 
                 if cleaned_round.strip() not in full_content:
                     full_content += cleaned_round
                 else:
-                    # 如果内容重复，只添加一次（避免多次重复）
+                    # ifcontentduplicate, onlyaddonce (avoidmany timesduplicate) 
                     pass
         
-        # 如果循环结束但内容为空，且有工具调用历史，强制要求生成总结
+        # ifloopendbutcontentasempty, andhastoolcallhistory, forceneedrequestgeneratesummary
         if not full_content.strip() and tool_calls_history:
             _dbg("[AI Client] ⚠️ JSON mode: tool calls done but no reply content, forcing summary generation")
-            # 最后一次请求，强制要求总结
+            # lastoncerequest, forceneedrequestsummary
             working_messages.append({
                 'role': 'user',
-                'content': '请生成最终总结，说明已完成的操作和结果。'
+                'content': 'pleasegeneratefinalsummary, descriptioncompleted operationandresult. '
             })
             
-            # 再次请求生成总结
+            # againtimerequestgeneratesummary
             summary_content = ""
             for chunk in self.chat_stream(
                 messages=working_messages,
                 model=model,
                 provider=provider,
                 temperature=temperature,
-                max_tokens=max_tokens or 500,  # 限制总结长度
+                max_tokens=max_tokens or 500,  # limitsummarylength
                 tools=None,
                 tool_choice=None
             ):
@@ -5245,7 +5254,7 @@ Node path输出规范:
             
             full_content = summary_content if summary_content else full_content
         
-        # 计算 cache 命中率
+        # compute cache commandinrate
         prompt_total = total_usage['cache_hit_tokens'] + total_usage['cache_miss_tokens']
         if prompt_total > 0:
             total_usage['cache_hit_rate'] = total_usage['cache_hit_tokens'] / prompt_total
@@ -5254,14 +5263,14 @@ Node path输出规范:
         
         _result = {
             'ok': True,
-            'content': full_content if full_content.strip() else "(工具调用完成，但未生成回复)",
+            'content': full_content if full_content.strip() else "(toolcallcomplete, butnotgeneratereply)",
             'tool_calls_history': tool_calls_history,
             'call_records': call_records,
             'iterations': iteration,
             'usage': total_usage
         }
         
-        # ★ Hook: on_after_response — 通知插件 Agent Loop 结束
+        # ★ Hook: on_after_response — notifyplugin Agent Loop end
         try:
             from .hooks import get_hook_manager as _ghm
             _ghm().fire('on_after_response',
@@ -5276,12 +5285,12 @@ Node path输出规范:
                         model: str = 'gpt-5.2',
                         provider: str = 'openai',
                         **kwargs) -> Dict[str, Any]:
-        """自动选择合适的 Agent Loop 模式"""
+        """autoselectmergesuit  Agent Loop mode"""
         if self._supports_function_calling(provider, model):
             return self.agent_loop_stream(messages=messages, model=model, provider=provider, **kwargs)
         else:
             return self.agent_loop_json_mode(messages=messages, model=model, provider=provider, **kwargs)
 
 
-# 兼容旧代码
+# compatible witholdcode
 OpenAIClient = AIClient

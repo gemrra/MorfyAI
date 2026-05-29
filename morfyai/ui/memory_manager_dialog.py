@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-长期记忆管理窗口 — Episodic / Semantic / Procedural 全量 CRUD。
+Long-term memory manager window — full CRUD over Episodic / Semantic / Procedural memory.
 
- 独立于宿主：Qt 顶层窗口不设为 Houdini 控件的子窗口；无边框自绘标题栏；
- 子树强制 Fusion + 全量 QSS，
- 不使用 QMessageBox（避免宿主/系统原生弹窗），与 Houdini 内置 UI 样式隔离。
-斜杠命令：/memories
+Designed to be independent from the host: the Qt top-level window is not parented to
+any Houdini widget; a custom frameless title bar is used; the subtree forces Fusion
+plus the full plugin QSS; and QMessageBox is not used (no native host/system popups),
+keeping the UI fully isolated from Houdini's built-in styling.
+Slash command: /memories
 """
 
 from __future__ import annotations
@@ -38,7 +39,7 @@ def _render_memory_qss() -> str:
 
 
 def _apply_fusion_surface(widget: QtWidgets.QWidget, qss: Optional[str] = None) -> None:
-    """子树强制 Fusion + QSS，避免继承宿主全局 QStyle / QPalette。"""
+    """Force Fusion + QSS on the subtree to avoid inheriting the host's global QStyle / QPalette."""
     if qss is None:
         qss = _render_memory_qss()
     fus = QtWidgets.QStyleFactory.create("Fusion")
@@ -48,8 +49,9 @@ def _apply_fusion_surface(widget: QtWidgets.QWidget, qss: Optional[str] = None) 
 
 
 def _force_fusion_recursive(root: QtWidgets.QWidget) -> None:
-    """逐个后代创建独立 Fusion 实例并 setStyle，彻底压住 Houdini 注入的全局样式。
-    同时在末尾把顶层 QSS 重新 apply 一次（确保后创建的子控件也吃到 QSS）。"""
+    """Create a fresh Fusion style for every descendant and setStyle on it — fully
+    overrides any global styling injected by Houdini. At the end, re-apply the
+    top-level QSS once more so later-created children also pick it up."""
     for child in root.findChildren(QtWidgets.QWidget):
         fus = QtWidgets.QStyleFactory.create("Fusion")
         if fus:
@@ -67,7 +69,7 @@ def _memory_plain_edit() -> QtWidgets.QPlainTextEdit:
 
 
 class _DraggableChromeFrame(QtWidgets.QFrame):
-    """标题栏拖动（子控件需设 WA_TransparentForMouseEvents 以免抢事件）。"""
+    """Draggable title bar (child widgets must set WA_TransparentForMouseEvents to avoid intercepting events)."""
 
     def __init__(self, window: QtWidgets.QDialog, parent=None):
         super().__init__(parent)
@@ -90,7 +92,7 @@ class _DraggableChromeFrame(QtWidgets.QFrame):
 
 
 class MemoryMgrSheet(QtWidgets.QDialog):
-    """自绘轻量提示 / 确认框（无原生 QMessageBox）。"""
+    """Lightweight custom-drawn info / confirmation sheet (no native QMessageBox)."""
 
     def __init__(
         self,
@@ -161,10 +163,11 @@ class MemoryMgrSheet(QtWidgets.QDialog):
 
 
 class MemoryManagerDialog(QtWidgets.QDialog):
-    """记忆库 — 独立顶层窗口 + 自绘 chrome + 双栏卡片。"""
+    """Memory library — standalone top-level window + custom chrome + two-column cards."""
 
     def __init__(self, parent=None):
-        # parent 仅用于 API 兼容，实际不参与窗口层级，避免挂到 Houdini QWidget。
+        # `parent` is kept only for API compatibility; it does not participate in
+        # the widget hierarchy so we never get parented to a Houdini QWidget.
         super().__init__(None)
         self.setObjectName("memoryManagerDlg")
         self._caller_parent = parent
@@ -198,7 +201,7 @@ class MemoryManagerDialog(QtWidgets.QDialog):
         super().closeEvent(event)
 
     # ------------------------------------------------------------------
-    # UI 构建
+    # UI build
     # ------------------------------------------------------------------
 
     def _build_ui(self):
@@ -327,7 +330,7 @@ class MemoryManagerDialog(QtWidgets.QDialog):
 
     @staticmethod
     def exec_centered(reference: Optional[QtWidgets.QWidget] = None) -> None:
-        """打开模态记忆库；reference 仅用于几何对齐，不作为 Qt parent。"""
+        """Open the memory library modally. `reference` is used only for geometry alignment, never as a Qt parent."""
         dlg = MemoryManagerDialog(reference)
         dlg.exec_()
 
@@ -407,7 +410,7 @@ class MemoryManagerDialog(QtWidgets.QDialog):
         split.setChildrenCollapsible(False)
         split.setHandleWidth(3)
 
-        # 左：列表卡片
+        # Left column: list card
         self._lbl_epi_list_title = QtWidgets.QLabel()
         list_card, list_lay = self._make_card(self._lbl_epi_list_title)
         row = QtWidgets.QHBoxLayout()
@@ -430,7 +433,7 @@ class MemoryManagerDialog(QtWidgets.QDialog):
         list_l.addWidget(self._list_epi, 1)
         split.addWidget(list_card)
 
-        # 右：编辑卡片
+        # Right column: editor card
         self._lbl_epi_detail_title = QtWidgets.QLabel()
         detail_card, detail_lay = self._make_card(self._lbl_epi_detail_title)
         scroll = QtWidgets.QScrollArea()
@@ -849,7 +852,7 @@ class MemoryManagerDialog(QtWidgets.QDialog):
         return page
 
     # ------------------------------------------------------------------
-    # 数据与逻辑（与上一版相同）
+    # Data and logic (unchanged from previous version)
     # ------------------------------------------------------------------
 
     @staticmethod

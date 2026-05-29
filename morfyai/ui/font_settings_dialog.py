@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Font Settings Dialog — 字号缩放设置面板
+Font Settings Dialog — font-size scale settings panel.
 
-通过 QSlider 实时预览字号缩放效果。
+Provides a live preview of the font scaling via a QSlider.
 """
 
 from morfyai.qt_compat import QtWidgets, QtCore
@@ -10,9 +10,9 @@ from .i18n import tr
 
 
 class FontSettingsDialog(QtWidgets.QDialog):
-    """字号设置面板 — Header 区 "Aa" 按钮弹出"""
+    """Font-size settings panel — popped from the header's "Aa" button."""
 
-    scaleChanged = QtCore.Signal(float)  # 实时通知缩放变化
+    scaleChanged = QtCore.Signal(float)  # emitted live as the scale changes
 
     def __init__(self, current_scale: float = 1.0, parent=None):
         super().__init__(parent)
@@ -27,7 +27,7 @@ class FontSettingsDialog(QtWidgets.QDialog):
         layout.setContentsMargins(16, 12, 16, 12)
         layout.setSpacing(10)
 
-        # 标题 + 百分比
+        # Title + percentage
         top = QtWidgets.QHBoxLayout()
         title = QtWidgets.QLabel(tr('font.scale'))
         title.setObjectName("fontScaleLabel")
@@ -49,7 +49,7 @@ class FontSettingsDialog(QtWidgets.QDialog):
         self._slider.valueChanged.connect(self._on_slider)
         layout.addWidget(self._slider)
 
-        # 底部：重置 + 关闭
+        # Footer: reset + close
         btns = QtWidgets.QHBoxLayout()
         reset_btn = QtWidgets.QPushButton(tr('font.reset'))
         reset_btn.setObjectName("btnSmall")

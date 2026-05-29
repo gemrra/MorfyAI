@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-ToolRegistry — 统一工具注册中心
+ToolRegistry — unified tool registration center
 
-将三套能力系统（Core Tools / Skills / Plugin Tools）统一管理：
-  - 按模式获取可用工具列表 (agent / ask / plan_planning / plan_executing)
-  - 统一执行入口
-  - 支持工具启用/禁用（持久化到 config/plugins.json）
-  - 为 UI 提供工具列表元数据
+Unifies three capability systems (Core Tools / Skills / Plugin Tools):
+  - Get available tool list by mode (agent / ask / plan_planning / plan_executing)
+  - Unified execution entry
+  - Supports tool enable/disable (persisted to config/plugins.json)
+  - Provides tool list metadata for the UI
 """
 
 import json
@@ -24,27 +24,27 @@ except Exception:
 
 
 # ─────────────────────────────────────────────
-# 数据模型
+# Data model
 # ─────────────────────────────────────────────
 
 @dataclass
 class ToolMeta:
-    """工具元数据"""
-    name: str                                    # 唯一标识
+    """Tool metadata"""
+    name: str                                    # unique identifier
     schema: dict                                 # OpenAI function calling schema
-    handler: Optional[Callable] = None           # 执行函数 (args: dict) -> dict；可为 None（由 MCP Client 分派）
+    handler: Optional[Callable] = None           # execution function (args: dict) -> dict; may be None (dispatched by MCP Client)
     source: str = "core"                         # "core" | "skill" | "plugin" | "user"
-    plugin_name: str = ""                        # 如果是插件工具，插件名
+    plugin_name: str = ""                        # for plugin tools, the plugin name
     tags: Set[str] = field(default_factory=set)  # {"readonly", "geometry", "network", "system", ...}
     modes: Set[str] = field(default_factory=set) # {"agent", "ask", "plan_planning", "plan_executing"}
-    enabled: bool = True                         # 是否启用
+    enabled: bool = True                         # whether enabled
 
 
 # ─────────────────────────────────────────────
-# 模式推断辅助（仅用于核心工具自动注册）
+# Mode-inference helpers (used only when auto-registering core tools)
 # ─────────────────────────────────────────────
 
-# Ask 模式白名单（只读 / 查询工具）
+# Ask mode whitelist (read-only / query tools)
 _ASK_TOOLS = frozenset({
     'get_network_structure', 'get_node_parameters', 'list_children',
     'read_selection', 'search_node_types', 'semantic_search_nodes',
@@ -55,7 +55,7 @@ _ASK_TOOLS = frozenset({
     'list_network_boxes', 'perf_start_profile', 'perf_stop_and_report',
 })
 
-# Plan 规划阶段白名单
+# Plan-planning phase whitelist
 _PLAN_PLANNING_TOOLS = frozenset({
     'get_network_structure', 'get_node_parameters', 'list_children',
     'read_selection', 'search_node_types', 'semantic_search_nodes',
@@ -67,7 +67,7 @@ _PLAN_PLANNING_TOOLS = frozenset({
     'create_plan', 'ask_question',
 })
 
-# 只读标签推断
+# Readonly tag inference
 _READONLY_TOOLS = frozenset({
     'get_network_structure', 'get_node_parameters', 'list_children',
     'read_selection', 'search_node_types', 'semantic_search_nodes',
@@ -81,8 +81,8 @@ _READONLY_TOOLS = frozenset({
 
 
 def _infer_modes(name: str) -> Set[str]:
-    """根据工具名自动推断适用模式"""
-    modes = {"agent", "plan_executing"}  # 所有工具默认可在 Agent 和 Plan 执行阶段使用
+    """Infer applicable modes from the tool name"""
+    modes = {"agent", "plan_executing"}  # all tools are available in Agent and Plan-executing by default
     if name in _ASK_TOOLS:
         modes.add("ask")
     if name in _PLAN_PLANNING_TOOLS:
@@ -91,11 +91,11 @@ def _infer_modes(name: str) -> Set[str]:
 
 
 def _infer_tags(name: str) -> Set[str]:
-    """根据工具名自动推断标签"""
+    """Infer tags from the tool name"""
     tags: Set[str] = set()
     if name in _READONLY_TOOLS:
         tags.add("readonly")
-    # 几何/网络相关
+    # Geometry / network related
     geo_kw = ('node', 'network', 'connect', 'create', 'delete', 'display',
               'parameter', 'children', 'selection', 'wrangle', 'copy', 'batch',
               'inputs', 'flag', 'layout', 'box')
@@ -103,44 +103,44 @@ def _infer_tags(name: str) -> Set[str]:
         if kw in name.lower():
             tags.add("network")
             break
-    # 系统/Shell
+    # System / Shell
     if name in ('execute_python', 'execute_shell', 'save_hip', 'undo_redo'):
         tags.add("system")
-    # 搜索/文档
+    # Search / docs
     if name in ('web_search', 'fetch_webpage', 'search_local_doc', 'get_houdini_node_doc'):
         tags.add("docs")
     # Skill
-    if name.startswith("skill:") or name in ('run_skill', 'list_skills'):
+    if name.startswith("skill__") or name.startswith("skill:") or name in ('run_skill', 'list_skills'):
         tags.add("skill")
-    # 任务管理
+    # Task management
     if name in ('add_todo', 'update_todo'):
         tags.add("task")
     return tags
 
 
 # ─────────────────────────────────────────────
-# ToolRegistry 单例
+# ToolRegistry singleton
 # ─────────────────────────────────────────────
 
 class ToolRegistry:
-    """统一工具注册中心
+    """Unified tool registration center
 
-    每个工具注册时需要：
-      - name: 唯一标识
+    Each tool registration requires:
+      - name: unique identifier
       - schema: OpenAI function calling schema
-      - handler: 执行函数 (args: dict) -> dict，可为 None
+      - handler: execution function (args: dict) -> dict, may be None
       - source: "core" | "skill" | "plugin" | "user"
-      - tags: set[str]  例如 {"readonly", "geometry", "network"}
-      - modes: set[str]  例如 {"agent", "ask", "plan_planning", "plan_executing"}
+      - tags: set[str]  e.g. {"readonly", "geometry", "network"}
+      - modes: set[str]  e.g. {"agent", "ask", "plan_planning", "plan_executing"}
     """
 
     def __init__(self):
         self._lock = threading.Lock()
         self._tools: Dict[str, ToolMeta] = {}       # name -> ToolMeta
-        self._disabled_tools: Set[str] = set()       # 持久化禁用列表
+        self._disabled_tools: Set[str] = set()       # persisted disabled list
         self._initialized = False
 
-    # ---------- 注册 / 注销 ----------
+    # ---------- Register / Unregister ----------
 
     def register(self, name: str, schema: dict,
                  handler: Optional[Callable] = None,
@@ -149,7 +149,7 @@ class ToolRegistry:
                  tags: Optional[Set[str]] = None,
                  modes: Optional[Set[str]] = None,
                  enabled: bool = True):
-        """注册工具"""
+        """Register a tool"""
         with self._lock:
             meta = ToolMeta(
                 name=name,
@@ -164,12 +164,12 @@ class ToolRegistry:
             self._tools[name] = meta
 
     def unregister(self, name: str):
-        """注销工具"""
+        """Unregister a tool"""
         with self._lock:
             self._tools.pop(name, None)
 
     def unregister_by_source(self, source: str, plugin_name: str = ""):
-        """按来源注销（可指定插件名）"""
+        """Unregister by source (optionally a specific plugin)"""
         with self._lock:
             to_remove = [
                 n for n, m in self._tools.items()
@@ -178,10 +178,10 @@ class ToolRegistry:
             for n in to_remove:
                 del self._tools[n]
 
-    # ---------- 查询 ----------
+    # ---------- Queries ----------
 
     def get_tools_for_mode(self, mode: str) -> List[dict]:
-        """按模式获取工具 schema 列表（仅返回启用的工具）"""
+        """Get the list of tool schemas for a mode (only enabled tools)"""
         with self._lock:
             result = []
             for meta in self._tools.values():
@@ -192,7 +192,7 @@ class ToolRegistry:
             return result
 
     def get_tool_schemas(self, names: Optional[List[str]] = None) -> List[dict]:
-        """获取指定工具的 schema 列表（如 names 为 None 则返回全部启用的）"""
+        """Get schemas for the given tools (returns all enabled if names is None)"""
         with self._lock:
             result = []
             for meta in self._tools.values():
@@ -203,16 +203,16 @@ class ToolRegistry:
             return result
 
     def has_tool(self, name: str) -> bool:
-        """检查工具是否已注册"""
+        """Check whether a tool is registered"""
         return name in self._tools
 
     def get_handler(self, name: str) -> Optional[Callable]:
-        """获取工具的执行函数"""
+        """Get the execution function for a tool"""
         meta = self._tools.get(name)
         return meta.handler if meta else None
 
     def list_all(self) -> List[Dict[str, Any]]:
-        """列出所有工具元数据（供 UI 显示）"""
+        """List all tool metadata (for the UI)"""
         with self._lock:
             result = []
             for meta in self._tools.values():
@@ -227,30 +227,30 @@ class ToolRegistry:
                 })
             return sorted(result, key=lambda x: (x["source"], x["name"]))
 
-    # ---------- 执行 ----------
+    # ---------- Execution ----------
 
     def execute(self, name: str, args: dict) -> dict:
-        """统一执行入口
+        """Unified execution entry
 
-        如果工具有 handler，直接调用。否则返回错误。
-        注意：核心 Houdini 工具的 handler 为 None，由 MCP Client 分派。
+        If the tool has a handler, call it directly. Otherwise return an error.
+        Note: core Houdini tools have None as handler — dispatched by MCP Client.
         """
         meta = self._tools.get(name)
         if not meta:
-            return {"success": False, "error": f"工具未注册: {name}"}
+            return {"success": False, "error": f"Tool not registered: {name}"}
         if not meta.enabled:
-            return {"success": False, "error": f"工具已禁用: {name}"}
+            return {"success": False, "error": f"Tool disabled: {name}"}
         if not meta.handler:
-            return {"success": False, "error": f"工具 {name} 无 handler（由 MCP Client 分派）"}
+            return {"success": False, "error": f"Tool {name} has no handler (dispatched by MCP Client)"}
         try:
             return meta.handler(args)
         except Exception as e:
-            return {"success": False, "error": f"工具 {name} 执行失败: {e}\n{traceback.format_exc()[:500]}"}
+            return {"success": False, "error": f"Tool {name} execution failed: {e}\n{traceback.format_exc()[:500]}"}
 
-    # ---------- 启用 / 禁用 ----------
+    # ---------- Enable / Disable ----------
 
     def set_enabled(self, name: str, enabled: bool):
-        """设置工具启用/禁用状态"""
+        """Set the enabled/disabled state of a tool"""
         with self._lock:
             meta = self._tools.get(name)
             if meta:
@@ -261,23 +261,23 @@ class ToolRegistry:
                 self._disabled_tools.add(name)
 
     def is_enabled(self, name: str) -> bool:
-        """查询工具是否启用"""
+        """Query whether a tool is enabled"""
         meta = self._tools.get(name)
         return meta.enabled if meta else False
 
     def load_disabled_from_config(self, disabled_list: List[str]):
-        """从配置文件加载禁用列表"""
+        """Load the disabled list from configuration"""
         with self._lock:
             self._disabled_tools = set(disabled_list)
             for name, meta in self._tools.items():
                 meta.enabled = name not in self._disabled_tools
 
     def get_disabled_tools(self) -> List[str]:
-        """获取当前禁用列表"""
+        """Get the current disabled list"""
         return sorted(self._disabled_tools)
 
     def save_disabled_to_config(self):
-        """将禁用列表保存到 plugins.json"""
+        """Save the disabled list to plugins.json"""
         try:
             from .hooks import _plugin_config, _save_plugin_config
             _plugin_config["disabled_tools"] = sorted(self._disabled_tools)
@@ -285,12 +285,12 @@ class ToolRegistry:
         except Exception as e:
             _dbg(f"[ToolRegistry] Save disabled list failed: {e}")
 
-    # ---------- 核心工具批量注册 ----------
+    # ---------- Bulk-register core tools ----------
 
     def register_core_tools(self, houdini_tools: List[dict]):
-        """将 HOUDINI_TOOLS 列表批量注册为核心工具
+        """Bulk-register the HOUDINI_TOOLS list as core tools
 
-        handler 为 None — 核心工具由 MCP Client 通过 _TOOL_DISPATCH 分派。
+        handler is None — core tools are dispatched by MCP Client via _TOOL_DISPATCH.
         """
         for tool_def in houdini_tools:
             name = tool_def.get("function", {}).get("name", "")
@@ -306,9 +306,9 @@ class ToolRegistry:
             )
         self._initialized = True
 
-    # ---------- 意图感知工具过滤 ----------
+    # ---------- Intent-aware tool filtering ----------
 
-    # 工具按功能分组
+    # Tools grouped by function
     _INTENT_TOOL_GROUPS: Dict[str, Set[str]] = {
         'query': {
             'get_network_structure', 'get_node_parameters', 'list_children',
@@ -349,35 +349,34 @@ class ToolRegistry:
         'plan': {
             'create_plan', 'update_plan_step', 'ask_question',
         },
-        'skill': set(),  # 动态填充
+        'skill': set(),  # populated dynamically
     }
 
-    # 意图关键词（中英文）
+    # Intent keywords (English + Indonesian for the maintainer's native usage)
     _INTENT_KEYWORDS: Dict[str, List[str]] = {
         'query': ['what', 'show', 'list', 'check', 'look', 'display', 'view', 'see',
-                  '查看', '检查', '分析', '看看', '显示', '状态', '有什么', '哪些'],
+                  'apa', 'cek', 'lihat', 'tampilkan', 'analisa', 'status'],
         'create': ['create', 'build', 'make', 'add', 'generate', 'construct',
-                   '创建', '搭建', '添加', '生成', '建', '做', '造'],
+                   'buat', 'bikin', 'tambah', 'tambahin', 'gen', 'add'],
         'modify': ['change', 'set', 'modify', 'update', 'adjust', 'tweak',
-                   '修改', '设置', '调整', '改', '变'],
+                   'ubah', 'ganti', 'edit', 'set', 'atur'],
         'code': ['python', 'script', 'code', 'run', 'execute', 'vex', 'wrangle',
-                 '脚本', '代码', '运行', '执行'],
+                 'jalankan', 'jalanin', 'eksekusi'],
         'search': ['search', 'find', 'where', 'document', 'doc', 'web', 'online',
                    'memory', 'remember', 'recall',
-                   '搜索', '查找', '文档', '网上', '在线',
-                   '记忆', '记住', '回忆', '偏好', '历史'],
+                   'cari', 'cariin', 'temukan', 'dokumen', 'ingat', 'memori'],
         'layout': ['layout', 'organize', 'arrange', 'position', 'move',
-                   '排列', '布局', '整理', '位置'],
+                   'rapikan', 'rapikin', 'susun', 'pindah'],
         'perf': ['performance', 'profile', 'benchmark', 'speed', 'slow',
-                 '性能', '速度', '慢', '优化'],
-        'file': ['save', 'undo', 'redo', '保存', '撤销', '重做'],
+                 'performa', 'kecepatan', 'lambat', 'optimasi'],
+        'file': ['save', 'undo', 'redo', 'simpan', 'batal'],
     }
 
     def classify_intent(self, user_message: str) -> Set[str]:
-        """根据用户消息关键词推断意图类别
+        """Infer intent categories from user-message keywords
 
         Returns:
-            命中的意图集合，如 {'query', 'create'}
+            Set of matched intents, e.g. {'query', 'create'}
         """
         if not user_message:
             return set()
@@ -387,30 +386,31 @@ class ToolRegistry:
             for kw in keywords:
                 if kw in msg_lower:
                     matched.add(intent)
-                    break  # 一个关键词命中即可
+                    break  # one keyword match is enough
         return matched
 
     def get_tools_for_intent(self, intents: Set[str], mode: str = 'agent') -> List[dict]:
-        """根据意图集获取相关工具 schema
+        """Get related tool schemas for a set of intents
 
-        始终包含 'query' 和 'task' 组（基础工具），额外包含匹配意图的工具组。
-        只返回该 mode 下允许且启用的工具。
+        Always includes 'query' and 'task' groups (base tools), plus any groups
+        matching the given intents. Only returns tools that are enabled and
+        allowed in the given mode.
         """
-        # 始终包含基础工具组
+        # Always include base tool groups
         active_groups = {'query', 'task'} | intents
 
-        # 收集目标工具名集合
+        # Collect the target tool-name set
         target_names: Set[str] = set()
         for group in active_groups:
             target_names |= self._INTENT_TOOL_GROUPS.get(group, set())
 
-        # 添加所有 skill 工具（skill 通常应始终可用）
+        # Add all skill tools (skills should generally always be available)
         with self._lock:
             for name, meta in self._tools.items():
                 if meta.source == 'skill' and meta.enabled:
                     target_names.add(name)
 
-        # 过滤：必须在指定 mode 中且启用
+        # Filter: must be in the given mode and enabled
         with self._lock:
             result = []
             for meta in self._tools.values():
@@ -423,7 +423,7 @@ class ToolRegistry:
             return result
 
     def is_tool_allowed_in_mode(self, tool_name: str, mode: str) -> bool:
-        """检查工具是否被允许在指定模式下使用"""
+        """Check whether a tool is allowed in the given mode"""
         meta = self._tools.get(tool_name)
         if not meta:
             return False
@@ -435,7 +435,7 @@ class ToolRegistry:
 
 
 # ─────────────────────────────────────────────
-# 全局单例
+# Global singleton
 # ─────────────────────────────────────────────
 
 _instance: Optional[ToolRegistry] = None
@@ -443,7 +443,7 @@ _instance_lock = threading.Lock()
 
 
 def get_tool_registry() -> ToolRegistry:
-    """获取 ToolRegistry 全局单例"""
+    """Get the ToolRegistry global singleton"""
     global _instance
     if _instance is None:
         with _instance_lock:
