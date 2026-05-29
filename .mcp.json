@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "morfyai-houdini": {
-      "type": "http",
-      "url": "http://127.0.0.1:9000/mcp"
+      "command": "C:\\Program Files\\Side Effects Software\\Houdini 21.0.512\\python311\\python.exe",
+      "args": ["E:\\AILocal\\MorfyAI\\morfyai\\utils\\mcp\\proxy.py"]
     }
   }
 }
