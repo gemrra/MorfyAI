@@ -103,9 +103,13 @@ def connection_report(name: str = _DEFAULT_NAME) -> dict:
     url = get_url()
     st = status()
     running = bool(st.get("running")) if isinstance(st, dict) else False
+    connected = bool(st.get("client_connected")) if isinstance(st, dict) else False
+    secs = st.get("last_client_activity_sec") if isinstance(st, dict) else None
     return {
         "url": url,
         "server_running": running,
+        "claude_connected": connected,
+        "last_client_activity_sec": secs,
         "server_status": st,
         "claude_code_command": claude_code_command(name),
         "claude_code_json": claude_code_json(name),

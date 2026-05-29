@@ -380,9 +380,10 @@ class HeaderMixin:
         ))
 
     def _open_claude_connect(self):
-        """Start the in-Houdini MCP server and show how to connect a Claude client.
+        """Start the MCP server and show a LIVE connection panel for Claude.
 
-        Fully defensive — any failure shows a message instead of breaking the panel.
+        Shows auto-refreshing server + Claude-client status, step-by-step guidance,
+        and copy-paste configs. Fully defensive — never breaks the panel.
         """
         try:
             from ..utils import claude_connect as cc
@@ -390,60 +391,94 @@ class HeaderMixin:
             QtWidgets.QMessageBox.warning(self, "Connect to Claude", f"Module unavailable: {e}")
             return
         try:
-            ok, msg, url = cc.start()
-            report = cc.connection_report()
+            cc.start()  # ensure the server is running
+            report0 = cc.connection_report()
         except Exception as e:
             QtWidgets.QMessageBox.warning(self, "Connect to Claude", f"Failed to start server: {e}")
             return
+        url = report0.get("url", "")
 
-        lines = [
-            ("[OK] MCP server running" if ok else "[X] Server NOT started") + f"   ->   {url}",
-            "",
-            str(msg),
-            "",
-            "── Claude Code ──────────────────────────",
-            report.get("claude_code_command", ""),
-            "",
-            "or save as .mcp.json in your project:",
-            report.get("claude_code_json", ""),
-            "",
-            "── Claude Desktop (claude_desktop_config.json) ──",
-            report.get("claude_desktop_json", ""),
-            "",
-            "Steps:",
-        ]
-        lines += ["  " + s for s in report.get("steps", [])]
-        lines += ["", report.get("note", "")]
-        text = "\n".join(lines)
+        steps = (
+            "Step 1.  Open Houdini + MorfyAI FIRST, then open Claude Code.\n"
+            "            (Claude Code attaches MCP servers at startup — order matters.)\n"
+            "Step 2.  Claude Code auto-connects via .mcp.json. If not, run the command\n"
+            "            below (or paste the config), then reopen Claude Code.\n"
+            "Step 3.  Watch the status above — it turns green when Claude connects."
+        )
+        cfg_text = (
+            "-- Claude Code (run once) --------------------------------\n"
+            + report0.get("claude_code_command", "") + "\n\n"
+            + "or save as .mcp.json in your project:\n" + report0.get("claude_code_json", "") + "\n\n"
+            + "-- Claude Desktop (claude_desktop_config.json) ----------\n"
+            + report0.get("claude_desktop_json", "")
+        )
 
         try:
             dlg = QtWidgets.QDialog(self)
             dlg.setWindowTitle("Connect to Claude")
-            dlg.resize(640, 500)
+            dlg.resize(660, 560)
             lay = QtWidgets.QVBoxLayout(dlg)
+
+            lbl_server = QtWidgets.QLabel()
+            lbl_claude = QtWidgets.QLabel()
+            for _L in (lbl_server, lbl_claude):
+                _L.setTextFormat(QtCore.Qt.RichText)
+                lay.addWidget(_L)
+
+            steps_lbl = QtWidgets.QLabel(steps)
+            steps_lbl.setWordWrap(True)
+            steps_lbl.setStyleSheet("color:#cbd5e1; padding:6px 0;")
+            lay.addWidget(steps_lbl)
+
             edit = QtWidgets.QPlainTextEdit()
             edit.setReadOnly(True)
-            edit.setPlainText(text)
+            edit.setPlainText(cfg_text)
             lay.addWidget(edit)
 
+            def _fmt(report):
+                if report.get("server_running"):
+                    lbl_server.setText(f"<b>Server:</b> <span style='color:#22c55e'>&#9679; RUNNING</span> &nbsp;&nbsp;{url}")
+                else:
+                    lbl_server.setText("<b>Server:</b> <span style='color:#ef4444'>&#9679; not started</span>")
+                if report.get("claude_connected"):
+                    s = report.get("last_client_activity_sec")
+                    ago = f" ({int(s)}s ago)" if isinstance(s, (int, float)) else ""
+                    lbl_claude.setText(f"<b>Claude:</b> <span style='color:#22c55e'>&#9679; connected{ago}</span>")
+                else:
+                    lbl_claude.setText("<b>Claude:</b> <span style='color:#eab308'>&#9675; waiting for Claude to connect...</span>")
+
+            def _refresh():
+                try:
+                    _fmt(cc.connection_report())
+                except Exception:
+                    pass
+
+            _fmt(report0)
+
             btn_row = QtWidgets.QHBoxLayout()
-            btn_copy_url = QtWidgets.QPushButton("Copy URL")
-            btn_copy_url.clicked.connect(
-                lambda: QtWidgets.QApplication.clipboard().setText(url))
-            btn_copy_cfg = QtWidgets.QPushButton("Copy Claude Code cmd")
-            btn_copy_cfg.clicked.connect(
-                lambda: QtWidgets.QApplication.clipboard().setText(report.get("claude_code_command", "")))
+            btn_refresh = QtWidgets.QPushButton("Refresh")
+            btn_refresh.clicked.connect(_refresh)
+            btn_copy = QtWidgets.QPushButton("Copy Claude Code cmd")
+            btn_copy.clicked.connect(
+                lambda: QtWidgets.QApplication.clipboard().setText(report0.get("claude_code_command", "")))
             btn_close = QtWidgets.QPushButton("Close")
             btn_close.clicked.connect(dlg.accept)
-            btn_row.addWidget(btn_copy_url)
-            btn_row.addWidget(btn_copy_cfg)
+            btn_row.addWidget(btn_refresh)
+            btn_row.addWidget(btn_copy)
             btn_row.addStretch()
             btn_row.addWidget(btn_close)
             lay.addLayout(btn_row)
+
+            # auto-refresh the status every 2s while the dialog is open
+            timer = QtCore.QTimer(dlg)
+            timer.timeout.connect(_refresh)
+            timer.start(2000)
+            dlg.finished.connect(lambda *_a: timer.stop())
+
             dlg.exec_()
         except Exception as e:
-            # Fall back to a plain message box if the dialog can't build
-            QtWidgets.QMessageBox.information(self, "Connect to Claude", text[:1500])
+            QtWidgets.QMessageBox.information(
+                self, "Connect to Claude", f"Server running at {url}\n\n{cfg_text[:1200]}")
             _dbg(f"[Header] Claude connect dialog fallback: {e}")
 
     def _open_about_dialog(self):

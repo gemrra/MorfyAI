@@ -84,6 +84,7 @@ mcp = None  # FastMCP instance
 mcp_thread_handle: Optional[threading.Thread] = None
 stop_event = threading.Event()
 _server_start_time: float | None = None
+_last_client_activity: float | None = None  # updated on every tool call (connection heartbeat)
 
 # resourcesourceregister (used for flipbook image) 
 _registered_flipbook_resources: set[str] = set()
@@ -142,6 +143,8 @@ def _setup_fastmcp_tools():
 	def tool_wrapper(fn: Callable[..., dict]) -> Callable[..., dict]:
 		@functools.wraps(fn)  # preserve fn's signature so FastMCP sees real params (not *args)
 		def _wrapped(*args, **kwargs) -> dict:
+			global _last_client_activity
+			_last_client_activity = time.time()   # heartbeat: a client just called a tool
 			try:
 				return fn(*args, **kwargs)
 			except Exception as e:
@@ -778,12 +781,15 @@ def get_mcp_status() -> dict:
 	s = read_settings()
 	running = bool(mcp_thread_handle and mcp_thread_handle.is_alive())
 	uptime = (time.time() - _server_start_time) if (_server_start_time) else None
+	secs = (time.time() - _last_client_activity) if _last_client_activity else None
 	return {
 		"running": running,
 		"host": s.host,
 		"port": s.port,
 		"transport": s.transport,
 		"uptime_sec": uptime,
+		"last_client_activity_sec": round(secs, 1) if secs is not None else None,
+		"client_connected": bool(secs is not None and secs < 60),
 	}
 
 
