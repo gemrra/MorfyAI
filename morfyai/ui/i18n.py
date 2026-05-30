@@ -1,64 +1,56 @@
 # -*- coding: utf-8 -*-
 """
-Internationalization (i18n) — 双语支持 (中文 / English)
+Internationalization (i18n) — English-only string table.
 
-使用方式:
-    from morfyai.ui.i18n import tr, set_language, get_language
+CN support was removed when the language switcher was dropped from the UI.
+The module retains ``tr()``, ``set_language()``, ``get_language()``,
+``load_language()`` and the ``language_changed`` signal as no-op stubs so that
+existing call sites (header, input_area, memory_manager_dialog, ai_tab) keep
+working without modification.
 
-    label.setText(tr("confirm"))        # -> "确认" or "Confirm"
-    msg = tr("toast.undo_all", 5)       # -> "已撤销全部 5 个操作" or "Undone all 5 operations"
+Usage:
+    from morfyai.ui.i18n import tr
+
+    label.setText(tr("confirm"))        # -> "Confirm"
+    msg = tr("toast.undo_all", 5)       # -> "Undone all 5 operations"
 """
 
-from morfyai.qt_compat import QtCore, QSettings
+from morfyai.qt_compat import QtCore
 
 # ---------------------------------------------------------------------------
-# 全局状态
+# Global state (stubs)
 # ---------------------------------------------------------------------------
-_current_lang = 'en'  # 'zh' | 'en'
+# Only English is supported. Kept as a constant for back-compat.
+_current_lang = 'en'
 
-# 语言变更通知（供 retranslateUi 使用）
-# 外部使用:  from i18n import language_changed; language_changed.connect(...)
+
+# Language-change notification (kept as a no-op stub for back-compat with
+# external code that does `language_changed.changed.connect(...)`).
 class _LangSignals(QtCore.QObject):
-    changed = QtCore.Signal(str)   # 新语言代码
+    changed = QtCore.Signal(str)   # new language code (never emitted now)
+
 
 language_changed = _LangSignals()
 
 
 def get_language() -> str:
-    return _current_lang
+    """Return the current language code. Always 'en' now."""
+    return 'en'
 
 
 def set_language(lang: str, persist: bool = True):
-    """切换全局语言  lang: 'zh' | 'en'"""
-    global _current_lang
-    lang = lang.lower()
-    if lang not in ('zh', 'en'):
-        lang = 'zh'
-    if lang == _current_lang:
-        return
-    _current_lang = lang
-    if persist:
-        s = QSettings("MorfyAI", "Settings")
-        s.setValue("language", lang)
-    language_changed.changed.emit(lang)
+    """No-op: only English is supported."""
+    pass
 
 
 def load_language():
-    """启动时从 QSettings 恢复语言"""
-    global _current_lang
-    s = QSettings("MorfyAI", "Settings")
-    saved = s.value("language", "en")
-    if saved in ('zh', 'en'):
-        _current_lang = saved
+    """No-op: only English is supported."""
+    pass
 
 
 def tr(key: str, *args) -> str:
-    """翻译函数  tr("key")  or  tr("key", arg1, arg2, ...)"""
-    table = _ZH if _current_lang == 'zh' else _EN
-    text = table.get(key)
-    if text is None:
-        # fallback: 尝试另一语言
-        text = (_EN if _current_lang == 'zh' else _ZH).get(key, key)
+    """Translate ``key`` to English. Returns the key itself if not found."""
+    text = _EN.get(key, key)
     if args:
         try:
             text = text.format(*args)
@@ -68,593 +60,8 @@ def tr(key: str, *args) -> str:
 
 
 # ---------------------------------------------------------------------------
-# 翻译字典  —  按模块 / 功能分组
+# Translation table — English only, grouped by module / feature
 # ---------------------------------------------------------------------------
-
-_ZH = {
-    # ===== Header =====
-    'header.think.tooltip': '启用思考模式：AI 会先分析再回答，并显示思考过程',
-    'header.cache.tooltip': '缓存管理：保存/加载对话历史',
-    'header.optimize.tooltip': 'Token 优化：自动压缩和优化',
-    'header.update.tooltip': '检查并更新到最新版本',
-    'header.font.tooltip': '字体大小 (Ctrl+/Ctrl-)',
-    'header.token_stats.tooltip': '点击查看详细 Token 统计',
-
-    # ===== Input Area =====
-    'mode.tooltip': 'Agent: AI 自主操作节点\nAsk: 只读查询分析',
-    'confirm': '确认',
-    'confirm.tooltip': '确认模式：创建节点/VEX 前先预览确认',
-    'placeholder': '输入消息... (Enter 发送, Shift+Enter 换行, @提及节点)',
-    'attach_image.tooltip': '添加图片附件（支持 PNG/JPG/GIF/WebP，也可直接粘贴/拖拽图片到输入框）',
-    'train.tooltip': '导出当前对话为训练数据（用于大模型微调）',
-
-    # ===== Session Manager =====
-    'session.new': '新建对话',
-    'session.close': '关闭此对话',
-    'session.close_others': '关闭其他对话',
-
-    # ===== Font Settings =====
-    'font.title': '字体大小',
-    'font.scale': '字体缩放',
-    'font.reset': '重置 100%',
-    'font.close': '关闭',
-
-    # ===== Thinking =====
-    'thinking.init': '思考中...',
-    'thinking.progress': '思考中... ({})',
-    'thinking.round': '--- 第 {} 轮思考 ---',
-    'thinking.done': '思考过程 ({})',
-
-    # ===== Execution =====
-    'exec.running': '执行中...',
-    'exec.progress': '执行中... ({}/{})',
-    'exec.done': '执行完成 ({}个操作, {})',
-    'exec.done_err': '执行完成 ({} ok, {} err, {})',
-    'exec.tool': '执行: {}',
-
-    # ===== Buttons (shared) =====
-    'btn.copy': '复制',
-    'btn.copied': '已复制',
-    'btn.close': '关闭',
-    'btn.undo': 'undo',
-    'btn.keep': 'keep',
-
-    # ===== Expand / Collapse =====
-    'msg.expand': '▶ 展开 ({} 行更多)',
-    'msg.collapse': '▼ 收起',
-
-    # ===== Code Preview =====
-    'code.writing': '✍ Writing code for {}...',
-    'code.complete': '✓ Code complete',
-
-    # ===== Diff =====
-    'diff.old': '旧值',
-    'diff.new': '新值',
-
-    # ===== Confirm Preview =====
-    'confirm.title': '确认执行: {}',
-    'confirm.params_more': '... 共 {} 个参数',
-    'confirm.cancel': '✕ 取消',
-    'confirm.execute': '↵ 确认执行',
-
-    # ===== Node Operations =====
-    'node.click_jump': '点击跳转: {}',
-    'status.undone': '已撤销',
-    'status.kept': '已保留',
-
-    # ===== VEX Preview =====
-    'vex.confirm_exec': '确认执行: {}',
-    'vex.node_name': '节点名: {}',
-    'vex.wrangle_type': '类型: {}',
-    'vex.parent_path': '父路径: {}',
-    'vex.node_type': '节点类型: {}',
-    'vex.node_path': '节点路径: {}',
-    'vex.cancel': '取消',
-    'vex.summary_more': '\n  ... 共 {} 行参数',
-
-    # ===== Status / Response =====
-    'status.thinking': '思考',
-    'status.calls': '{}次调用',
-    'status.done': '完成 ({})',
-    'status.exec_done_see_above': '执行完成，详见上方执行过程。',
-    'status.history': '历史',
-    'status.history_summary': '历史摘要',
-    'status.context': '上下文',
-    'status.history_with': '历史 | {}',
-    'status.stats_reset': '统计已重置',
-
-    # ===== Image =====
-    'img.preview': '图片预览',
-    'img.close': '关闭',
-    'img.click_zoom': '点击放大查看',
-    'img.not_supported': '不支持图片',
-    'img.not_supported_msg': '当前模型 {} 不支持图片输入。\n请切换至支持视觉的模型（如 Claude、GPT-5.2 等）。',
-    'img.select': '选择图片',
-    'img.load_failed': '加载图片失败: {}',
-
-    # ===== Token Stats =====
-    'token.title': 'Token 使用分析',
-    'token.headers': ['#', '时间', '模型', 'Input', 'Cache读', 'Cache写', 'Output', 'Think', 'Total', '延迟', '费用', ''],
-    'token.reset': '重置统计',
-    'token.close': '关闭',
-    'token.detail_title': '  请求详细 ({} calls)',
-    'token.no_records': '  暂无 API 调用记录',
-    'token.summary': (
-        '累计统计 ({} 次请求)\n'
-        '输入: {:,}\n'
-        '输出: {:,}\n'
-        '{}'
-        'Cache 读取: {:,}\n'
-        'Cache 写入: {:,}\n'
-        'Cache 命中率: {}\n'
-        '总计: {:,}\n'
-        '预估费用: {}\n'
-        '点击查看详情'
-    ),
-    'token.reasoning_line': '推理 Token: {:,}\n',
-
-    # ===== Shell =====
-    'shell.exec_failed': '执行失败，查看详细信息↓',
-    'shell.cmd_failed': '命令执行失败，查看详细信息↓',
-
-    # ===== Code Block =====
-    'codeblock.copy': '复制',
-    'codeblock.copied': '已复制',
-    'codeblock.create_wrangle': '创建 Wrangle',
-
-    # ===== Toast Messages =====
-    'toast.node_not_exist': '节点不存在或已被删除: {}',
-    'toast.houdini_unavailable': 'Houdini 环境不可用',
-    'toast.jump_failed': '跳转失败: {}',
-    'toast.node_not_found': '节点不存在: {}',
-    'toast.param_not_found': '参数不存在: {}',
-    'toast.param_restored': '已恢复参数 {} 为旧值',
-    'toast.missing_path': '缺少节点路径，无法撤销',
-    'toast.undo_create': '已撤销创建（删除 {} 个节点）',
-    'toast.node_gone': '节点已不存在，无需撤销',
-    'toast.parent_not_found': '父节点不存在: {}',
-    'toast.node_restored': '已恢复节点: {}',
-    'toast.undone': '已撤销',
-    'toast.undo_failed': '撤销失败: {}',
-    'toast.undo_all': '已撤销全部 {} 个操作',
-    'toast.keep_all': '已保留全部 {} 个操作',
-    'toast.wrangle_created': '已创建 Wrangle 节点',
-    'toast.wrangle_failed': '创建 Wrangle 失败',
-
-    # ===== Batch Bar =====
-    'batch.count': '{} 个操作待确认',
-
-    # ===== Export Training Data =====
-    'export.title': '导出训练数据',
-    'export.failed': '导出失败',
-    'export.error': '导出错误',
-    'export.no_history': '当前没有对话记录可导出',
-    'export.no_user_msg': '对话中没有用户消息',
-    'export.info': '当前对话包含 {} 条用户消息，{} 条 AI 回复。\n\n选择导出方式：',
-    'export.split': '分割模式',
-    'export.full': '完整模式',
-    'export.cancel': '取消',
-    'export.done': '训练数据已导出',
-    'export.success': (
-        '成功导出训练数据！\n\n'
-        '文件: {}\n'
-        '训练样本数: {}\n'
-        '对话轮次: {}\n'
-        '导出模式: {}\n\n'
-        '提示: 文件为 JSONL 格式，可直接用于 OpenAI/DeepSeek 微调'
-    ),
-    'export.mode_split': '分割模式',
-    'export.mode_full': '完整模式',
-    'export.open_folder': '导出成功',
-    'export.open_folder_msg': '共导出 {} 条训练数据\n\n是否打开文件夹？',
-
-    # ===== Cache =====
-    'cache.archive': '存档当前对话',
-    'cache.load': '加载对话...',
-    'cache.compress': '压缩旧对话为摘要',
-    'cache.list': '查看所有缓存',
-    'cache.auto_on': '[on] 自动保存',
-    'cache.auto_off': '自动保存',
-    'cache.no_history': '没有对话历史可存档',
-    'cache.error': '存档失败: {}',
-    'cache.invalid': '缓存文件格式无效',
-    'cache.no_files': '没有找到缓存文件',
-    'cache.select_title': '选择缓存文件',
-    'cache.file_list_title': '缓存文件列表',
-    'cache.too_short': '对话历史太短，无需压缩',
-    'cache.load_error': '加载缓存失败: {}',
-    'cache.archived': '已存档: {} (~{} tokens)',
-    'cache.loaded': '缓存已加载: {}',
-    'cache.confirm_load': '确认加载',
-    'cache.confirm_load_msg': '将在新标签页打开 {} 条对话记录。\n是否继续？',
-    'cache.select_file': '选择要加载的缓存文件:',
-    'cache.btn_load': '加载',
-    'cache.btn_cancel': '取消',
-    'cache.file_list': '缓存文件列表:\n',
-    'cache.session_id': '   会话ID: {}',
-    'cache.msg_count': '   消息数: {}',
-    'cache.est_tokens': '   估计Token: ~{:,}',
-    'cache.created_at': '   创建时间: {}',
-    'cache.file_size': '   文件大小: {:.1f} KB',
-    'cache.read_err': '[err] {} (读取失败: {})',
-    'cache.btn_close': '关闭',
-    'cache.msgs': '{} 条消息',
-
-    # ===== Compress =====
-    'compress.confirm_title': '确认压缩',
-    'compress.confirm_msg': '将前 {} 条对话压缩为摘要，保留最近 4 轮完整对话。\n\n这可以大幅减少 token 消耗。是否继续？',
-    'compress.done_title': '压缩完成',
-    'compress.done_msg': '对话已压缩！\n\n原始: ~{} tokens\n压缩后: ~{} tokens\n节省: ~{} tokens ({:.1f}%)',
-    'compress.summary_header': '[历史对话摘要 - 已压缩以节省 token]',
-    'compress.user_reqs': '\n用户请求 ({} 条):',
-    'compress.user_more': '  ... 另有 {} 条请求',
-    'compress.ai_results': '\nAI 完成的任务 ({} 项):',
-    'compress.ai_more': '  ... 另有 {} 项成果',
-
-    # ===== Optimize =====
-    'opt.compress_now': '立即压缩对话',
-    'opt.auto_on': '自动压缩 [on]',
-    'opt.auto_off': '自动压缩',
-    'opt.strategy': '压缩策略',
-    'opt.aggressive': '激进 (最省空间)',
-    'opt.balanced': '平衡 (推荐)',
-    'opt.conservative': '保守 (保留细节)',
-    'opt.too_short': '对话历史太短，无需优化',
-    'opt.done_title': '优化完成',
-    'opt.done_msg': '对话已优化！\n\n原始: ~{:,} tokens\n优化后: ~{:,} tokens\n节省: ~{:,} tokens ({:.1f}%)\n\n压缩了 {} 条消息，保留 {} 条',
-    'opt.no_need': '无需优化，对话历史已经很精简',
-    'opt.auto_status': '上下文前优化: 节省 {:,} tokens (Cursor 级)',
-
-    # ===== Update =====
-    'update.checking': '检查中…',
-    'update.failed_title': '检查更新',
-    'update.failed_msg': '检查更新失败:\n{}',
-    'update.latest_title': '检查更新',
-    'update.latest_msg': '已经是最新版本！\n\n本地版本: v{}\n最新 Release: v{}',
-    'update.new_title': '发现新版本',
-    'update.new_msg': '发现新版本 v{}，是否立即更新？\n\n{}',
-    'update.detail': '本地版本: v{}\n最新 Release: v{}',
-    'update.detail_name': '\n版本名称: {}',
-    'update.detail_notes': '\n更新说明: {}',
-    'update.progress_title': '更新 MorfyAI',
-    'update.progress_cancel': '取消',
-    'update.progress_downloading': '正在下载更新…',
-    'update.downloading': '正在下载…',
-    'update.extracting': '正在解压…',
-    'update.applying': '正在更新文件…',
-    'update.done': '更新完成！',
-    'update.fail_title': '更新失败',
-    'update.fail_msg': '更新过程中出现错误:\n{}',
-    'update.success_title': '更新成功',
-    'update.success_msg': '已成功更新 {} 个文件！\n\n点击 OK 立即重启插件。',
-    'update.new_ver': '🔄 v{}',
-    'update.new_ver_tip': '发现新版本 v{}，点击更新',
-    'update.restart_fail_title': '重启失败',
-    'update.restart_fail_msg': '自动重启失败，请手动关闭并重新打开插件。\n\n错误: {}',
-    'update.notify_banner': 'v{} → v{} 新版本可用',
-    'update.notify_update_now': '立即更新',
-    'update.notify_dismiss_tip': '关闭此通知',
-
-    # ===== Agent Runner - Ask Mode =====
-    'ask.restricted': "[Ask 模式] 工具 '{}' 不可用。当前为只读模式，无法执行修改操作。请切换到 Agent 模式。",
-    'ask.user_cancel': '用户取消了 {} 操作。请理解用户的意图，继续查询或与用户沟通。',
-
-    # ===== Agent Runner - Title =====
-    'title_gen.system_zh': '你是一个标题生成器。根据对话内容生成一个简短的中文标题（≤10个字），只输出标题本身，不要引号、句号或其他多余内容。',
-    'title_gen.system_en': 'Generate a short title (≤6 words) for the conversation. Output only the title itself, no quotes or punctuation.',
-    'title_gen.ctx': '用户: {}\nAI: {}',
-
-    # ===== Misc AI Tab =====
-    'ai.token_limit': '\n\n[内容已达到 token 限制，已停止]',
-    'ai.token_limit_status': '内容达到 token 限制，已停止',
-    'ai.fake_tool': '检测到AI伪造工具调用，已自动清除',
-    'ai.approaching_limit': '输出接近上限: {}/{} tokens',
-    'ai.tool_result': '[工具结果] {}: {}',
-    'ai.context_reminder': '[上下文提醒] {}',
-    'ai.old_rounds': '[较早的工具] 已裁剪 {} 轮较旧对话以节省空间。',
-    'ai.auto_opt': '上下文前优化: 节省 {:,} tokens (Cursor 级)',
-    'ai.err_issues': '错误节点:{}',
-    'ai.warn_issues': '警告节点:{}',
-    'ai.no_display': '无显示节点',
-    'ai.check_fail': '发现以下问题需修复: {}',
-    'ai.check_pass': '检查通过 | 节点工作正常,无错误 | 预期:{}',
-    'ai.check_none': '无',
-    'ai.tool_exec_err': '工具执行异常: {}',
-    'ai.bg_exec_err': '后台执行异常: {}',
-    'ai.main_exec_timeout': '主线程执行超时（30秒）',
-    'ai.unknown_err': '未知错误',
-    'ai.ask_mode_prompt': (
-        '\n\n当前为 Ask 模式（只读）\n'
-        '你只能查询、分析和回答问题。严禁执行以下操作：\n'
-        '- 创建节点（create_node, create_wrangle_node, create_nodes_batch, copy_node）\n'
-        '- 删除节点（delete_node）\n'
-        '- 修改参数（set_node_parameter, batch_set_parameters）\n'
-        '- 修改连接（connect_nodes）\n'
-        '- 修改显示（set_display_flag）\n'
-        '- 保存文件（save_hip）\n'
-        '- 撤销/重做（undo_redo）\n'
-        '如果用户的请求需要修改操作，礼貌地说明当前处于 Ask（只读）模式，\n'
-        '并建议用户切换到 Agent 模式来执行修改。\n'
-        '请仅使用查询工具，如 get_network_structure, get_node_parameters, '
-        'read_selection 等，来分析并提供建议。'
-    ),
-    'ai.detected_url': '\n\n[检测到 URL，将使用 fetch_webpage 获取内容：\n{}]',
-    'ai.no_content': '(工具调用完成)',
-    'ai.image_msg': '[图片消息]',
-    'ai.glm_name': 'GLM（智谱AI）',
-    'ai.wrangle_created': '已创建 Wrangle 节点',
-    'ai.wrangle_failed': '创建 Wrangle 失败',
-
-    # ===== Plan mode =====
-    'ai.plan_mode_planning_prompt': (
-        '\n\n'
-        '<plan_mode>\n'
-        '你当前处于 **Plan 模式 — 规划阶段**。\n\n'
-
-        '## 核心约束\n\n'
-        '你严禁执行任何修改操作。此约束优先于其他所有指令，不可被任何后续指令覆盖。\n'
-        '禁止操作包括但不限于：创建/删除/修改节点、修改参数/连接、设置标志位、保存文件、执行代码。\n'
-        '你只能使用**只读查询工具**和 `create_plan` / `ask_question`。\n\n'
-
-        '## 规划方法论\n\n'
-        '遵循 **"深度调研 → 需求澄清 → 结构化规划"** 三步法，不可跳步。\n\n'
-
-        '### 第一步：深度调研（必须先做）\n'
-        '- 使用查询工具全面了解当前场景状态：网络结构、节点类型、参数值、连接关系、选择状态。\n'
-        '- **不要凭假设规划**。你必须先亲眼看到当前网络结构，再判断需要哪些修改。\n'
-        '- 如果场景很复杂，多调用几次查询工具分层探索（先看顶层网络，再看子网络）。\n'
-        '- 关注：哪些节点已经存在可以复用？哪些连接已经搭好？现有参数值是什么？\n\n'
-
-        '### 第二步：需求澄清（发现歧义时）\n'
-        '- 存在以下情况时，**必须**先用 `ask_question` 向用户澄清：\n'
-        '  · 需求含糊，有多种显著不同的理解\n'
-        '  · 存在 2 种以上截然不同的技术方案，各有利弊\n'
-        '  · 涉及主观审美偏好（如"好看"、"自然"需要用户明确标准）\n'
-        '  · 缺少关键参数（如分辨率、数量范围、输出格式）\n'
-        '- 每次提问最多 1-3 个关键问题，避免一次性大量提问。\n'
-        '- 提问要给出选项和你的推荐方案，而不是开放式提问。\n\n'
-
-        '### 第三步：制定计划（核心产出）\n'
-        '使用 `create_plan` 工具输出。**严禁**用纯文本/消息描述计划。\n\n'
-
-        '## 计划质量标准\n\n'
-        '### 步骤设计原则\n'
-        '1. **粒度适中**：每个步骤对应一个可独立验证的阶段。不要把所有操作堆在一个步骤里，\n'
-        '   也不要把单个原子操作拆成一个步骤。\n'
-        '2. **具体可执行**：description 必须包含具体的节点路径、参数名、参数值。\n'
-        '   ✗ "调整噪声参数" → ✓ "将 mountainSOP 的 Height=2, Element Size=0.5, Noise Type=Perlin"\n'
-        '3. **可验证性**：expected_result 描述执行后可通过肉眼或查询确认的结果。\n'
-        '   ✗ "效果变好" → ✓ "Viewport 中地形出现明显起伏，高度范围约 0-3 单位"\n'
-        '4. **工具清单**：tools 必须列出该步骤要调用的具体工具名（如 run_python, create_node, set_parms）。\n\n'
-
-        '### 依赖关系（depends_on）— 极其重要\n'
-        '- **每个步骤必须明确设置 depends_on**。即使是线性流程，step-2 也必须写 depends_on: ["step-1"]。\n'
-        '- 如果某些步骤可以并行执行，它们应该共享同一个 depends_on 祖先，而不是互相依赖。\n'
-        '- depends_on 决定了 DAG 流程图的布局。如果你不设置依赖关系，流程图将无法正确展示。\n'
-        '- 示例模式：\n'
-        '  · 线性链：step-1 → step-2 → step-3（每个 depends_on 前一个）\n'
-        '  · 并行分支：step-1 → [step-2a, step-2b]（两个都 depends_on step-1）→ step-3（depends_on 两个）\n'
-        '  · 汇合：多个独立步骤完成后合并到下一步\n\n'
-
-        '### 阶段分组（phases）\n'
-        '- 3 个步骤以上的计划**必须**使用 phases 分组。\n'
-        '- 每个 phase 代表一个逻辑阶段，如："Phase 1: 基础搭建"、"Phase 2: 效果增强"、"Phase 3: 优化与验证"。\n'
-        '- phases.step_ids 必须覆盖所有步骤，不遗漏。\n\n'
-
-        '### 风险评估\n'
-        '- 涉及删除操作、覆盖现有数据、复杂表达式的步骤，设置 risk="medium" 或 "high"。\n'
-        '- 高风险步骤必须提供 fallback 回退策略。\n\n'
-
-        '### 复杂度匹配\n'
-        '- 简单任务（改几个参数）：2-3 步，不要过度工程化。\n'
-        '- 中等任务（搭建一个效果）：4-7 步。\n'
-        '- 复杂任务（完整工作流）：8-15 步，按 Phase 分组。\n'
-        '- 超复杂任务（整个项目）：15+ 步，必须分 3-4 个 Phase，每个 Phase 3-5 步。\n\n'
-
-        '### 节点网络架构（architecture）— 极其重要\n'
-        '`architecture` 字段描述的是 **Plan 执行完成后 Houdini 节点网络的设计蓝图**。\n'
-        '这不是步骤执行顺序，而是最终创建的节点拓扑结构。\n'
-        '- `nodes`: 列出所有相关节点。每个节点包含：\n'
-        '  · `id`: 实际节点名（如 "grid1", "mountain1", "scatter1"）\n'
-        '  · `label`: 显示标签（如 "Grid SOP", "Mountain", "Scatter"）\n'
-        '  · `type`: 节点类型（sop/obj/mat/vop/rop/dop/lop/cop/chop/out/subnet/null/other）\n'
-        '  · `group`: 逻辑分组名（如 "地形系统", "散布系统"）\n'
-        '  · `is_new`: 是否由 Plan 新创建（true）或已有节点（false）\n'
-        '  · `params`: 关键参数摘要（如 "Height=2, Noise=Perlin"）\n'
-        '- `connections`: 节点间的连线。每条连线 from → to。\n'
-        '- `groups`: 视觉分组，将相关节点归到同一个容器中展示。\n'
-        '  · 每组一个 name 和 node_ids 列表\n'
-        '  · 可选 color 提示色（blue/green/purple/orange/red/cyan/yellow/pink）\n\n'
-        '**示例**：如果要搭建一个"地形+散布"系统，architecture 应该是：\n'
-        '```\n'
-        'nodes: [grid1(SOP), mountain1(SOP), scatter1(SOP), copytopoints1(SOP), box1(SOP)]\n'
-        'connections: [grid1→mountain1, mountain1→scatter1, scatter1→copytopoints1, box1→copytopoints1]\n'
-        'groups: [{name:"地形",node_ids:[grid1,mountain1]}, {name:"散布",node_ids:[scatter1,copytopoints1,box1]}]\n'
-        '```\n\n'
-
-        '## 计划提交后\n'
-        '用户会看到一张可视化卡片，包含步骤列表、节点网络架构图和 Confirm/Reject 按钮。\n'
-        '用户确认后才会进入执行阶段。如果用户拒绝，你需要根据反馈修改计划并重新提交。\n'
-        '</plan_mode>'
-    ),
-    'ai.plan_mode_execution_prompt': (
-        '\n\n'
-        '<plan_execution>\n'
-        '你当前处于 **Plan 模式 — 执行阶段**。\n'
-        '用户已确认计划，请严格按计划逐步执行。\n\n'
-
-        '## 最高优先级规则 — 禁止提前终止\n\n'
-        '**在所有步骤全部标记为 done/error 之前，你绝不可以停止工具调用。**\n'
-        '- 每一轮回复都必须包含至少一个工具调用（tool_calls），直到所有步骤完成。\n'
-        '- 不要在中间步骤输出纯文本总结。纯文本回复只能出现在所有步骤完成之后。\n'
-        '- 如果你感觉上下文很长，不要因此停止。继续调用工具执行下一个步骤。\n'
-        '- 完成一个步骤后，立即开始下一个步骤，不要停顿或等待用户指示。\n\n'
-
-        '## 执行纪律\n\n'
-        '1. **严格遵循步骤顺序和依赖关系**。depends_on 中列出的前置步骤必须全部 done 后才能开始当前步骤。\n'
-        '2. **状态同步**（每次都要做，不可省略）：\n'
-        '   - 开始步骤前：`update_plan_step(step_id, "running")`\n'
-        '   - 完成步骤后：`update_plan_step(step_id, "done", result_summary="简明结果")`\n'
-        '   - 步骤出错时：`update_plan_step(step_id, "error", result_summary="错误原因 + 已尝试修复")`\n'
-        '3. **忠于计划**：不跳过步骤，不在计划外擅自增加步骤。\n'
-        '   - 如果发现计划有问题，先完成当前步骤，然后在结果中说明偏差。\n'
-        '4. **结果验证**：每个步骤完成后，对照 expected_result 验证是否符合预期。\n'
-        '   - 尽量使用查询工具确认结果（如查询节点参数、检查网络连接）。\n'
-        '5. **错误处理**：\n'
-        '   - 步骤有 fallback 时：主方案失败后自动尝试 fallback。\n'
-        '   - 没有 fallback 时：尝试自行修复一次，仍失败则暂停报告。\n'
-        '   - 不要在出错后静默跳过，确保用户知道每个步骤的真实状态。\n'
-        '6. **执行完成后**（所有步骤 done/error 后才可以）：提供简明总结。\n'
-        '   - 成功步骤数 / 总步骤数\n'
-        '   - 关键成果描述\n'
-        '   - 如有失败步骤，列出原因和建议后续操作\n'
-        '</plan_execution>'
-    ),
-    'ai.plan_confirmed_msg': '[Plan Confirmed] 请按以下计划逐步执行：\n{}',
-
-    # ===== Agent mode — suggest plan =====
-    'ai.agent_suggest_plan_prompt': (
-        '\n\n'
-        '<task_complexity_detection>\n'
-        '在回答用户之前，先评估任务复杂度。如果满足以下任一条件，建议用户切换到 Plan 模式：\n\n'
-        '**触发条件**（满足任意一条即建议）：\n'
-        '- 需要创建 5 个以上节点\n'
-        '- 涉及多阶段工作流（如"搭建完整的地形系统"、"创建 FLIP 流体模拟"、"建立完整的材质网络"）\n'
-        '- 需要复杂的节点连接拓扑（分支、合并、循环引用）\n'
-        '- 涉及模拟/解算/渲染等多步骤流程\n'
-        '- 需要大规模修改现有网络（修改 5 个以上节点）\n'
-        '- 用户的语言暗示需要规划（"帮我规划"、"我需要一个方案"、"设计一个…"、"搭建一个完整的…"）\n\n'
-        '**建议格式**：\n'
-        '"💡 这个任务涉及 [具体原因，如：搭建包含地形生成、散布系统和材质的完整工作流，预计需要 N+ 个步骤]。\n'
-        '建议切换到 **Plan 模式** 先制定执行计划，确认后再逐步执行。\n'
-        '这样可以让您在执行前预览完整方案并提出修改意见。\n'
-        '您可以在输入框左下角的模式选择器中切换。"\n\n'
-        '**注意**：如果用户坚持在 Agent 模式下执行，尊重用户选择并尽力完成。\n'
-        '</task_complexity_detection>'
-    ),
-
-    # ===== History rendering =====
-    'history.compressed': '[较早的工具] 已裁剪 {} 轮较旧对话执行。',
-    'history.summary_title': '历史对话摘要',
-
-    # ===== User Rules =====
-    'rules.menu_label': '自定义规则',
-    'rules.title': '自定义规则',
-    'rules.add': '新建规则',
-    'rules.delete': '删除',
-    'rules.delete_confirm': '确定要删除规则「{}」吗？',
-    'rules.enable': '启用',
-    'rules.disable': '禁用',
-    'rules.from_file': '来自文件',
-    'rules.open_folder': '打开规则目录',
-    'rules.untitled': '未命名规则',
-    'rules.placeholder_title': '规则标题',
-    'rules.placeholder_content': '在此输入规则内容...\n\n例如：\n- 回复使用中文\n- 节点命名使用下划线风格\n- VEX 代码中添加注释',
-    'rules.empty_hint': '暂无规则\n\n可在此创建 UI 规则，\n或将 .md / .txt 文件放入 rules/ 目录',
-    'rules.file_readonly': '(文件规则，只读)',
-    'rules.saved': '规则已保存',
-    'rules.count': '{} 条规则生效中',
-
-    # ===== Memory Manager =====
-    'memory_mgr.title': '记忆库管理',
-    'memory_mgr.header_title': '🧠 记忆库管理',
-    'memory_mgr.chrome_title': '记忆库',
-    'memory_mgr.chrome_tagline': '独立 Qt 窗口 · Fusion 渲染 · 与宿主样式隔离',
-    'memory_mgr.sheet_ok': '知道了',
-    'memory_mgr.sheet_cancel': '取消',
-    'memory_mgr.sheet_delete': '删除',
-    'memory_mgr.panel_list': '记忆列表',
-    'memory_mgr.panel_editor': '详情与编辑',
-    'memory_mgr.sec_meta': '元数据',
-    'memory_mgr.sec_task': '任务与结果',
-    'memory_mgr.sec_metrics': '指标与标签',
-    'memory_mgr.sec_actions': '动作序列',
-    'memory_mgr.sec_rule': '规则正文',
-    'memory_mgr.sec_classification': '分类与层级',
-    'memory_mgr.sec_strategy': '策略定义',
-    'memory_mgr.sec_conditions': '触发条件',
-    'memory_mgr.tab_episodic': '情景记忆',
-    'memory_mgr.tab_semantic': '语义记忆',
-    'memory_mgr.tab_procedural': '策略记忆',
-    'memory_mgr.refresh': '刷新',
-    'memory_mgr.save': '保存',
-    'memory_mgr.delete': '删除',
-    'memory_mgr.new': '新建',
-    'memory_mgr.filter_placeholder': '筛选列表…',
-    'memory_mgr.stats': '情景 {} · 语义 {} · 策略 {}',
-    'memory_mgr.field_id': 'ID',
-    'memory_mgr.field_time': '时间',
-    'memory_mgr.field_session': '会话 ID',
-    'memory_mgr.field_task': '任务描述',
-    'memory_mgr.field_summary': '结果摘要',
-    'memory_mgr.field_success': '成功',
-    'memory_mgr.field_importance': '重要度',
-    'memory_mgr.field_reward': '奖励分',
-    'memory_mgr.field_error_count': '错误次数',
-    'memory_mgr.field_retry_count': '重试次数',
-    'memory_mgr.field_tags': '标签（逗号分隔）',
-    'memory_mgr.field_actions_json': '动作序列 (JSON)',
-    'memory_mgr.field_rule': '规则内容',
-    'memory_mgr.field_category': '分类',
-    'memory_mgr.field_confidence': '置信度',
-    'memory_mgr.field_abstraction': '抽象层级 (0–5)',
-    'memory_mgr.field_activation': '激活次数',
-    'memory_mgr.field_sources_json': '来源会话 ID (JSON 数组)',
-    'memory_mgr.field_strategy': '策略名称',
-    'memory_mgr.field_description': '描述',
-    'memory_mgr.field_priority': '优先级',
-    'memory_mgr.field_success_rate': '成功率',
-    'memory_mgr.field_usage': '使用次数',
-    'memory_mgr.field_last_used': '最后使用',
-    'memory_mgr.field_conditions_json': '适用条件 (JSON 数组)',
-    'memory_mgr.level_hint': '层级说明：',
-    'memory_mgr.delete_confirm_episodic': '确定删除这条情景记忆？此操作不可撤销。',
-    'memory_mgr.delete_confirm_semantic': '确定删除这条语义记忆？此操作不可撤销。',
-    'memory_mgr.delete_confirm_procedural': '确定删除这条策略记忆？此操作不可撤销。',
-    'memory_mgr.save_ok': '已保存。',
-    'memory_mgr.err_invalid_json': 'JSON 格式无效：',
-    'memory_mgr.err_empty_rule': '规则内容不能为空。',
-    'memory_mgr.err_empty_strategy': '策略名称不能为空。',
-    'memory_mgr.err_load': '无法打开记忆管理窗口。',
-
-    # ===== Memory Toggle (global switch) =====
-    'memory.menu_label': '长期记忆系统',
-    'memory.menu_tooltip': '启用后，AI 会积累经验并在对话中注入历史偏好；关闭后每次对话都是全新的。默认关闭。',
-    'memory.toggle.enabled': '已启用长期记忆系统',
-    'memory.toggle.disabled': '已关闭长期记忆系统（本次及后续对话不再注入历史经验）',
-
-    # ===== Plugin System =====
-    'plugin.menu_label': '插件管理',
-    'plugin.manager_title': '插件管理',
-    'plugin.open_folder': '打开插件目录',
-    'plugin.reload_all': '重载全部',
-    'plugin.reload': '重载',
-    'plugin.settings': '设置',
-    'plugin.toggle_tip': '启用/禁用此插件',
-    'plugin.no_plugins': '暂无插件\n将 .py 文件放入 plugins/ 目录即可',
-    'plugin.load_error': '加载列表失败',
-    'plugin.cancel': '取消',
-    'plugin.save': '保存',
-    'plugin.tab_plugins': '插件',
-    'plugin.tab_tools': '工具',
-    'plugin.tab_skills': '技能',
-    'plugin.no_tools': '暂无注册工具',
-    'plugin.no_skills': '暂无已加载的技能',
-    'plugin.tool_toggle_tip': '启用/禁用此工具',
-    'plugin.skill_dir_label': '用户技能目录',
-    'plugin.skill_dir_placeholder': '（未设置，仅使用内置技能）',
-    'plugin.skill_dir_browse': '浏览',
-    'plugin.stats_active': '已启用',
-    'plugin.empty_title': '暂无插件',
-    'plugin.empty_hint': '将 .py 插件文件放入 plugins/ 目录即可',
-    'plugin.search_tools': '搜索工具...',
-    'plugin.group_core': '核心工具',
-    'plugin.group_skill': '内置技能',
-    'plugin.group_plugin': '插件工具',
-    'plugin.group_user': '用户工具',
-    'plugin.group_user_skill': '用户技能',
-}
-
 
 _EN = {
     # ===== Header =====
@@ -925,7 +332,6 @@ _EN = {
     'ask.user_cancel': 'User cancelled {}. Please understand the user intent and continue querying or communicating.',
 
     # ===== Agent Runner - Title =====
-    'title_gen.system_zh': '你是一个标题生成器。根据对话内容生成一个简短的中文标题（≤10个字），只输出标题本身，不要引号、句号或其他多余内容。',
     'title_gen.system_en': 'Generate a short title (≤6 words) for the conversation. Output only the title itself, no quotes or punctuation.',
     'title_gen.ctx': 'User: {}\nAI: {}',
 
@@ -1243,6 +649,3 @@ _EN = {
     'plugin.group_user': 'User Tools',
     'plugin.group_user_skill': 'User Skills',
 }
-
-# 启动时自动恢复语言设置
-load_language()

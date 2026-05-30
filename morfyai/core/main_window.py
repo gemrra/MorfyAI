@@ -23,54 +23,54 @@ class MainWindow(QtWidgets.QMainWindow):
     """MorfyAI main window"""
     
     def __init__(self, parent=None):
-        # 尝试获取 Houdini 主窗口作为父窗口
+        # Try to use the Houdini main window as parent
         if parent is None:
             try:
                 parent = hou.qt.mainWindow()
             except:
                 pass
-        
+
         super().__init__(parent)
         self.setWindowTitle("MorfyAI - Houdini Assistant")
         self.setMinimumSize(420, 600)
-        
-        # 工作区配置目录
+
+        # Workspace config directory
         self._workspace_dir = Path(__file__).parent.parent.parent / "cache" / "workspace"
         self._workspace_dir.mkdir(parents=True, exist_ok=True)
         self._workspace_file = self._workspace_dir / "workspace.json"
-        
-        # 不使用 WindowStaysOnTopHint，让窗口与 Houdini 同层级
+
+        # Do not use WindowStaysOnTopHint — keep this window at the same level as Houdini
         self.setWindowFlags(QtCore.Qt.Window)
-        
-        # 深邃蓝黑背景（与 aiTab glassmorphism 主题匹配）
+
+        # Deep blue-black background (matches the AITab glassmorphism theme)
         self.setStyleSheet("QMainWindow { background-color: #0a0a12; }")
-        
+
         central_widget = QtWidgets.QWidget()
         self.setCentralWidget(central_widget)
-        
+
         self.force_quit = False
-        self._already_saved = False  # 防止重复保存
-        
+        self._already_saved = False  # guard against duplicate saves
+
         self.init_ui(central_widget)
-        
-        # 加载工作区（窗口状态 + 上下文）
+
+        # Load workspace (window state + context)
         self._load_workspace()
-        
-        # 注册多重退出保存钩子（确保 Houdini 退出时能保存）
-        # 1. QApplication.aboutToQuit（Qt 正常退出时触发）
+
+        # Register several exit hooks to make sure we save on Houdini exit:
+        # 1. QApplication.aboutToQuit — fires on normal Qt shutdown
         app = QtWidgets.QApplication.instance()
         if app:
             app.aboutToQuit.connect(self._on_app_about_to_quit)
-        # 2. atexit（Python 解释器关闭时触发）
+        # 2. atexit — fires when the Python interpreter shuts down
         atexit.register(self._atexit_save)
-        # 3. Houdini 专用：监听 hipFile 事件（切换场景时也保存）
+        # 3. Houdini-specific: subscribe to hipFile events (save on scene switch too)
         try:
             hou.hipFile.addEventCallback(self._on_hip_event)
         except Exception:
             pass
 
     def init_ui(self, central_widget):
-        """初始化UI"""
+        """Initialise the UI."""
         layout = QtWidgets.QVBoxLayout(central_widget)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -79,12 +79,12 @@ class MainWindow(QtWidgets.QMainWindow):
         layout.addWidget(self.ai_tab)
 
     def force_quit_application(self):
-        """强制退出应用程序"""
+        """Force the application to quit."""
         self.force_quit = True
         self.close()
 
     def _save_workspace(self):
-        """保存工作区（窗口状态 + 所有会话缓存）"""
+        """Save the workspace (window state + all session caches)."""
         try:
             geometry = self.geometry()
             window_state = {
@@ -120,7 +120,7 @@ class MainWindow(QtWidgets.QMainWindow):
             _dbg(f"[Workspace] Save failed: {str(e)}")
     
     def _load_workspace(self):
-        """加载工作区（窗口状态 + 上下文缓存）"""
+        """Load the workspace (window state + context cache)."""
         try:
             if not self._workspace_file.exists():
                 self.resize(450, 700)
@@ -142,10 +142,11 @@ class MainWindow(QtWidgets.QMainWindow):
                     self.setWindowState(QtCore.Qt.WindowMaximized)
             
             cache_info = workspace_data.get('cache_info', {})
-            # ★ 始终尝试恢复（不再依赖 has_conversation 标志，
-            #   即使上次退出时所有会话为空，manifest 或 cache_latest 中可能仍有内容）
+            # Always attempt to restore — no longer dependent on the has_conversation flag,
+            # since the manifest or cache_latest may still contain content even when all
+            # sessions were empty on the previous exit.
             if hasattr(self, 'ai_tab'):
-                # 延迟 200ms 确保 UI 完全初始化完毕
+                # Delay 200 ms so the UI has finished initialising
                 QtCore.QTimer.singleShot(200, self._load_workspace_cache)
             
             _dbg(f"[Workspace] Loaded: {self._workspace_file}")
@@ -155,7 +156,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.resize(450, 700)
     
     def _load_workspace_cache(self):
-        """延迟加载工作区缓存"""
+        """Deferred workspace-cache load."""
         try:
             if not hasattr(self, 'ai_tab'):
                 return
@@ -185,7 +186,7 @@ class MainWindow(QtWidgets.QMainWindow):
             pass
     
     def _save_workspace_once(self):
-        """确保退出时只保存一次（aboutToQuit / atexit / closeEvent 都可能触发）"""
+        """Make sure we save exactly once on shutdown (aboutToQuit / atexit / closeEvent may all fire)."""
         if self._already_saved or self.force_quit:
             return
         self._already_saved = True

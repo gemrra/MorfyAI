@@ -53,7 +53,7 @@ class MCPSettings:
 	request_retries: int = 2
 	request_backoff: float = 0.5
 	enable_flipbook: bool = False
-	help_server_port: int = 48626  # Houdini 本地帮助服务器端口
+	help_server_port: int = 48626  # Houdini local help server port
 
 
 def read_settings() -> MCPSettings:

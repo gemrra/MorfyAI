@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
-"""Houdini 核心操作层 - 供 server.py 和 client.py 共享的底层 Houdini API 封装。
+"""Houdini core operation layer — shared low-level Houdini API wrappers for server.py and client.py.
 
-架构说明：
-    server.py  → 面向外部 MCP 客户端（通过 HTTP），返回 {status, message, data}
-    client.py  → 面向内部 AI Agent（直接 Python 调用），返回 {success, result, error}
+Architecture:
+    server.py  → external MCP client-facing (via HTTP); returns {status, message, data}
+    client.py  → internal AI-agent-facing (direct Python calls); returns {success, result, error}
 
-    本模块提供底层 Houdini 操作函数，无格式化封装。
-    两个上层模块通过适配层调用本模块并自行格式化返回值。
+    This module provides low-level Houdini operation functions with no
+    response-format wrapping. The two upper-layer modules wrap them via an
+    adaptation layer and format the return values themselves.
 """
 
 from __future__ import annotations
@@ -20,12 +21,12 @@ except Exception:
 
 
 def hou_available() -> bool:
-    """检查 Houdini API 是否可用"""
+    """check Houdini API whethercanuse"""
     return hou is not None
 
 
 def resolve_node(path: str) -> Optional[Any]:
-    """通过路径获取节点，失败返回 None"""
+    """viapathgetnode, failedreturn None"""
     if hou is None:
         return None
     try:
@@ -35,123 +36,123 @@ def resolve_node(path: str) -> Optional[Any]:
 
 
 def create_node(parent_path: str, node_type: str, node_name: str = "") -> Tuple[bool, str, Optional[Any]]:
-    """创建节点
+    """createnode
     
     Returns:
         (success, message, node_or_None)
     """
     if hou is None:
-        return False, "Houdini 环境不可用", None
+        return False, "Houdini environmentunavailable", None
     parent = hou.node(parent_path)
     if not parent:
-        return False, f"父节点 {parent_path} 不存在", None
+        return False, f"parentnode {parent_path} does not exist", None
     try:
         node = parent.createNode(node_type, node_name or None)
-        return True, f"已创建节点 {node.path()}", node
+        return True, f"alreadycreatenode {node.path()}", node
     except Exception as e:
-        return False, f"创建节点失败: {e}", None
+        return False, f"createnodefailed: {e}", None
 
 
 def delete_node(node_path: str) -> Tuple[bool, str]:
-    """删除节点"""
+    """deletenode"""
     if hou is None:
-        return False, "Houdini 环境不可用"
+        return False, "Houdini environmentunavailable"
     node = hou.node(node_path)
     if not node:
-        return False, f"节点 '{node_path}' 不存在"
+        return False, f"node '{node_path}' does not exist"
     try:
         node.destroy()
-        return True, f"已删除节点 '{node_path}'"
+        return True, f"alreadydeletenode '{node_path}'"
     except Exception as e:
-        return False, f"删除失败: {e}"
+        return False, f"deletefailed: {e}"
 
 
 def connect_nodes(output_path: str, input_path: str, input_index: int = 0) -> Tuple[bool, str]:
-    """连接两个节点"""
+    """connecttwonode"""
     if hou is None:
-        return False, "Houdini 环境不可用"
+        return False, "Houdini environmentunavailable"
     output_node = hou.node(output_path)
     input_node = hou.node(input_path)
     if output_node is None:
-        return False, f"输出节点 '{output_path}' 不存在"
+        return False, f"outputnode '{output_path}' does not exist"
     if input_node is None:
-        return False, f"输入节点 '{input_path}' 不存在"
+        return False, f"inputnode '{input_path}' does not exist"
     max_inputs = input_node.type().maxNumInputs()
     if input_index < 0 or input_index >= max_inputs:
-        return False, f"输入端口索引 {input_index} 无效 (有效范围 0~{max_inputs - 1})"
+        return False, f"inputportindex {input_index} invalid (validrange 0~{max_inputs - 1})"
     try:
         input_node.setInput(input_index, output_node, 0)
-        return True, f"已连接 {output_path} -> {input_path}[{input_index}]"
+        return True, f"alreadyconnect {output_path} -> {input_path}[{input_index}]"
     except Exception as e:
-        return False, f"连接失败: {e}"
+        return False, f"connectfailed: {e}"
 
 
 def set_parameter(node_path: str, param_name: str, value: Any) -> Tuple[bool, str]:
-    """设置节点参数"""
+    """setnodeparameter"""
     if hou is None:
-        return False, "Houdini 环境不可用"
+        return False, "Houdini environmentunavailable"
     node = hou.node(node_path)
     if not node:
-        return False, f"节点 '{node_path}' 不存在"
+        return False, f"node '{node_path}' does not exist"
     parm = node.parm(param_name)
     if parm is None:
-        # 尝试 parmTuple
+        # try parmTuple
         pt = node.parmTuple(param_name)
         if pt is not None:
             try:
                 pt.set(value)
-                return True, f"已设置 {node_path}/{param_name} = {value}"
+                return True, f"alreadyset {node_path}/{param_name} = {value}"
             except Exception as e:
-                return False, f"设置失败: {e}"
-        return False, f"参数 '{param_name}' 不存在"
+                return False, f"setfailed: {e}"
+        return False, f"parameter '{param_name}' does not exist"
     try:
         parm.set(value)
-        return True, f"已设置 {node_path}/{param_name} = {value}"
+        return True, f"alreadyset {node_path}/{param_name} = {value}"
     except Exception as e:
-        return False, f"设置失败: {e}"
+        return False, f"setfailed: {e}"
 
 
 def get_node_info(node_path: str) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
-    """获取节点信息"""
+    """getnodeinfo"""
     if hou is None:
-        return False, "Houdini 环境不可用", None
+        return False, "Houdini environmentunavailable", None
     node = hou.node(node_path)
     if not node:
-        return False, f"节点 '{node_path}' 不存在", None
+        return False, f"node '{node_path}' does not exist", None
     info = {
         "type": node.type().name(),
         "path": node.path(),
         "inputs": [i.path() for i in node.inputs() if i],
         "outputs": [o.path() for o in node.outputs() if o],
     }
-    return True, "查询成功", info
+    return True, "querysucceeded", info
 
 
 def set_display_flag(node_path: str) -> Tuple[bool, str]:
-    """设置节点显示标志"""
+    """setnodeshowflag"""
     if hou is None:
-        return False, "Houdini 环境不可用"
+        return False, "Houdini environmentunavailable"
     node = hou.node(node_path)
     if not node:
-        return False, f"节点 '{node_path}' 不存在"
+        return False, f"node '{node_path}' does not exist"
     try:
         node.setDisplayFlag(True)
         node.setRenderFlag(True)
-        return True, f"已设置 {node_path} 为显示节点"
+        return True, f"alreadyset {node_path} asshownode"
     except Exception as e:
-        return False, f"设置失败: {e}"
+        return False, f"setfailed: {e}"
 
 
 def check_errors(node_path: Optional[str] = None) -> Tuple[bool, str, List[str]]:
-    """检查节点错误"""
+    """checknodeerror"""
     if hou is None:
-        return False, "Houdini 环境不可用", []
+        return False, "Houdini environmentunavailable", []
     if node_path:
         node = hou.node(node_path)
         if not node:
-            return False, f"节点 '{node_path}' 不存在", []
+            return False, f"node '{node_path}' does not exist", []
         errors = node.errors() or []
-        return True, ("存在错误" if errors else "无错误"), errors
+        return True, ("saveinerror" if errors else "noerror"), errors
     else:
         error_nodes = []
         for n in hou.node('/').allSubChildren():
@@ -160,25 +161,25 @@ def check_errors(node_path: Optional[str] = None) -> Tuple[bool, str, List[str]]
                     error_nodes.append(n.path())
             except Exception:
                 continue
-        return True, (f"发现 {len(error_nodes)} 个错误节点" if error_nodes else "无错误节点"), error_nodes
+        return True, (f"discover {len(error_nodes)} errornode" if error_nodes else "noerrornode"), error_nodes
 
 
 def layout_children(parent_path: str) -> Tuple[bool, str]:
-    """自动布局子节点"""
+    """autolayoutsubnode"""
     if hou is None:
-        return False, "Houdini 环境不可用"
+        return False, "Houdini environmentunavailable"
     parent = hou.node(parent_path)
     if not parent:
-        return False, f"节点 '{parent_path}' 不存在"
+        return False, f"node '{parent_path}' does not exist"
     try:
         parent.layoutChildren()
-        return True, f"已自动布局 {parent_path} 的子节点"
+        return True, f"alreadyautolayout {parent_path}  subnode"
     except Exception as e:
-        return False, f"布局失败: {e}"
+        return False, f"layoutfailed: {e}"
 
 
 # ============================================================
-# 节点布局工具
+# nodelayouttool
 # ============================================================
 
 def layout_nodes(
@@ -187,27 +188,27 @@ def layout_nodes(
     method: str = "auto",
     spacing: float = 1.0,
 ) -> Tuple[bool, str, List[Dict[str, Any]]]:
-    """多策略节点布局
+    """multistrategynodelayout
 
     Args:
-        parent_path: 父网络路径，留空使用当前活跃网络
-        node_paths: 要布局的节点路径列表；为空时布局整个网络
-        method: 布局方法 auto / grid / columns
-        spacing: 间距倍率（默认 1.0）
+        parent_path: parentnetwork path, keepemptyusecurrentactivenetwork
+        node_paths: needlayout node pathlist; asemptywhenlayoutwholenetwork
+        method: layoutmethod auto / grid / columns
+        spacing: spacing multiplier (default 1.0)
 
     Returns:
         (success, message, positions_list)
-        positions_list 中每项: {name, path, x, y}
+        positions_list ineachitem: {name, path, x, y}
     """
     if hou is None:
-        return False, "Houdini 环境不可用", []
+        return False, "Houdini environmentunavailable", []
 
-    # 解析父网络
+    # parseparentnetwork
     parent = None
     if parent_path:
         parent = hou.node(parent_path)
     if parent is None:
-        # 尝试当前网络编辑器的 pwd
+        # trycurrentnetworkedit   pwd
         try:
             editor = hou.ui.paneTabOfType(hou.paneTabType.NetworkEditor)
             if editor:
@@ -220,34 +221,34 @@ def layout_nodes(
         except Exception:
             pass
     if parent is None:
-        return False, "未找到目标网络", []
+        return False, "notfindtotargetnetwork", []
 
     try:
-        # ---------- 收集目标节点 ----------
+        # ---------- collectsettargetnode ----------
         if node_paths:
             nodes = [hou.node(p) for p in node_paths if hou.node(p)]
             if not nodes:
-                return False, "指定的节点路径均无效", []
+                return False, "All specified node paths are invalid", []
         else:
             nodes = list(parent.children())
             if not nodes:
-                return False, f"{parent.path()} 下没有子节点", []
+                return False, f"{parent.path()} belownothassubnode", []
 
-        # ---------- 执行布局 ----------
+        # ---------- executelayout ----------
         layout_method_used = method
 
         if method == "auto":
             if node_paths:
-                # 有指定节点 → 优先用 NetworkEditor.layoutNodes
+                # hasspecifiednode → preferreduse NetworkEditor.layoutNodes
                 try:
                     editor = hou.ui.paneTabOfType(hou.paneTabType.NetworkEditor)
                     if editor and hasattr(editor, "layoutNodes"):
                         editor.layoutNodes(nodes)
                         layout_method_used = "NetworkEditor.layoutNodes"
                     else:
-                        raise AttributeError("layoutNodes 不可用")
+                        raise AttributeError("layoutNodes unavailable")
                 except Exception:
-                    # 降级：逐个 moveToGoodPosition
+                    # downgrade: one by one moveToGoodPosition
                     for n in nodes:
                         try:
                             n.moveToGoodPosition()
@@ -255,7 +256,7 @@ def layout_nodes(
                             pass
                     layout_method_used = "moveToGoodPosition"
             else:
-                # 全网络 → layoutChildren（支持间距）
+                # allnetwork → layoutChildren (supportbetweendistance) 
                 h_sp = 2.0 * spacing
                 v_sp = 1.0 * spacing
                 try:
@@ -265,7 +266,7 @@ def layout_nodes(
                     )
                     layout_method_used = "layoutChildren"
                 except TypeError:
-                    # 旧版 Houdini 可能不支持间距参数
+                    # oldversion Houdini maynot supportedbetweendistanceparameter
                     parent.layoutChildren()
                     layout_method_used = "layoutChildren(no-spacing)"
 
@@ -278,9 +279,9 @@ def layout_nodes(
             layout_method_used = "columns"
 
         else:
-            return False, f"未知布局方法: {method}", []
+            return False, f"notknowlayoutmethod: {method}", []
 
-        # ---------- 收集结果位置 ----------
+        # ---------- collectsetresultposition ----------
         positions = []
         for n in nodes:
             pos = n.position()
@@ -293,16 +294,16 @@ def layout_nodes(
 
         return (
             True,
-            f"已布局 {len(nodes)} 个节点（方法: {layout_method_used}）",
+            f"alreadylayout {len(nodes)} node (method: {layout_method_used}) ",
             positions,
         )
 
     except Exception as e:
-        return False, f"布局失败: {e}", []
+        return False, f"layoutfailed: {e}", []
 
 
 def _layout_grid(nodes: list, spacing: float = 1.0) -> None:
-    """网格布局：按节点列表顺序排成 N 列网格"""
+    """netgridlayout: bynodelistorderorderarrangebecome N columnnetgrid"""
     if not nodes:
         return
     import math
@@ -316,12 +317,12 @@ def _layout_grid(nodes: list, spacing: float = 1.0) -> None:
 
 
 def _layout_columns(nodes: list, spacing: float = 1.0) -> None:
-    """按拓扑深度分列布局：根节点在最上方，逐层向下排列"""
+    """Topological depth-based column layout: root nodes go on the first column, descendants flow downward column by column."""
     if not nodes:
         return
     node_set = set(id(n) for n in nodes)
 
-    # 计算每个节点的深度（输入链长度）
+    # computeeachnode depth (inputchainlength) 
     depth_map: Dict[int, int] = {}
 
     def _depth(n) -> int:
@@ -339,7 +340,7 @@ def _layout_columns(nodes: list, spacing: float = 1.0) -> None:
     for n in nodes:
         _depth(n)
 
-    # 按深度分组
+    # bydepthgroup
     layers: Dict[int, list] = {}
     for n in nodes:
         d = depth_map.get(id(n), 0)
@@ -359,18 +360,18 @@ def get_node_positions(
     parent_path: str = "",
     node_paths: Optional[List[str]] = None,
 ) -> Tuple[bool, str, List[Dict[str, Any]]]:
-    """获取节点位置信息
+    """getnodepositioninfo
 
     Args:
-        parent_path: 父网络路径（当 node_paths 为空时使用）
-        node_paths: 特定节点路径列表
+        parent_path: parentnetwork path (when node_paths asemptywhenuse) 
+        node_paths: specialfixednode pathlist
 
     Returns:
         (success, message, positions_list)
-        positions_list 每项: {name, path, x, y, type}
+        positions_list eachitem: {name, path, x, y, type}
     """
     if hou is None:
-        return False, "Houdini 环境不可用", []
+        return False, "Houdini environmentunavailable", []
 
     nodes = []
     if node_paths:
@@ -379,7 +380,7 @@ def get_node_positions(
             if n:
                 nodes.append(n)
         if not nodes:
-            return False, "指定的节点路径均无效", []
+            return False, "All specified node paths are invalid", []
     else:
         parent = hou.node(parent_path) if parent_path else None
         if parent is None:
@@ -390,10 +391,10 @@ def get_node_positions(
             except Exception:
                 pass
         if parent is None:
-            return False, "未找到目标网络", []
+            return False, "notfindtotargetnetwork", []
         nodes = list(parent.children())
         if not nodes:
-            return False, f"{parent.path()} 下没有子节点", []
+            return False, f"{parent.path()} belownothassubnode", []
 
     positions = []
     for n in nodes:
@@ -406,21 +407,21 @@ def get_node_positions(
             "type": n.type().name(),
         })
 
-    return True, f"获取了 {len(positions)} 个节点的位置", positions
+    return True, f"get {len(positions)} node position", positions
 
 
 # ============================================================
-# NetworkBox 操作
+# NetworkBox operation
 # ============================================================
 
-# NetworkBox 语义颜色预设
+# NetworkBox semanticcolorpre-set
 _BOX_COLORS: Dict[str, Tuple[float, float, float]] = {
-    "input":      (0.2, 0.4, 0.8),   # 蓝色 - 数据输入
-    "processing": (0.3, 0.7, 0.3),   # 绿色 - 几何处理
-    "deform":     (0.8, 0.6, 0.2),   # 橙色 - 变形/动画
-    "output":     (0.7, 0.2, 0.3),   # 红色 - 输出/渲染
-    "simulation": (0.6, 0.3, 0.7),   # 紫色 - 物理模拟
-    "utility":    (0.5, 0.5, 0.5),   # 灰色 - 辅助工具
+    "input":      (0.2, 0.4, 0.8),   # bluecolor - datainput
+    "processing": (0.3, 0.7, 0.3),   # greencolor - geometryprocess
+    "deform":     (0.8, 0.6, 0.2),   # orangecolor - changeshape/movedraw
+    "output":     (0.7, 0.2, 0.3),   # redcolor - output/render
+    "simulation": (0.6, 0.3, 0.7),   # purplecolor - physicssimulation
+    "utility":    (0.5, 0.5, 0.5),   # graycolor - helpertool
 }
 
 
@@ -431,24 +432,24 @@ def create_network_box(
     color_preset: str = "",
     node_paths: Optional[List[str]] = None
 ) -> Tuple[bool, str, Optional[Any]]:
-    """创建 NetworkBox 并可选地将节点加入其中
+    """create NetworkBox andoptionalplacewillnodeaddenteritsin
 
     Args:
-        parent_path: 父网络路径（如 /obj/geo1）
-        name: box 名称
-        comment: 注释（显示在标题栏，描述这组节点的功能）
-        color_preset: 颜色预设（input/processing/deform/output/simulation/utility）
-        node_paths: 要加入 box 的节点路径列表
+        parent_path: parentnetwork path (such as /obj/geo1) 
+        name: box name
+        comment: comment (shown in the title bar, describes what this node group does)
+        color_preset: colorpre-set (input/processing/deform/output/simulation/utility) 
+        node_paths: needaddenter box  node pathlist
 
     Returns:
         (success, message, network_box_or_None)
     """
     if hou is None:
-        return False, "Houdini 环境不可用", None
+        return False, "Houdini environmentunavailable", None
 
     parent = hou.node(parent_path)
     if not parent:
-        return False, f"父网络 '{parent_path}' 不存在", None
+        return False, f"parentnetwork '{parent_path}' does not exist", None
 
     try:
         box = parent.createNetworkBox(name or None)
@@ -456,12 +457,12 @@ def create_network_box(
         if comment:
             box.setComment(comment)
 
-        # 设置颜色
+        # setcolor
         if color_preset and color_preset in _BOX_COLORS:
             r, g, b = _BOX_COLORS[color_preset]
             box.setColor(hou.Color((r, g, b)))
 
-        # 添加节点
+        # addnode
         added = []
         if node_paths:
             for np in node_paths:
@@ -473,15 +474,15 @@ def create_network_box(
             if added:
                 box.fitAroundContents()
 
-        msg = f"已创建 NetworkBox: {box.name()}"
+        msg = f"alreadycreate NetworkBox: {box.name()}"
         if comment:
             msg += f" ({comment})"
         if added:
-            msg += f"，包含 {len(added)} 个节点"
+            msg += f", packagecontaining {len(added)} node"
 
         return True, msg, box
     except Exception as e:
-        return False, f"创建 NetworkBox 失败: {e}", None
+        return False, f"create NetworkBox failed: {e}", None
 
 
 def add_nodes_to_box(
@@ -490,25 +491,25 @@ def add_nodes_to_box(
     node_paths: List[str],
     auto_fit: bool = True
 ) -> Tuple[bool, str]:
-    """将节点添加到已有的 NetworkBox
+    """willnodeaddtoalreadyhas  NetworkBox
 
     Args:
-        parent_path: 父网络路径
-        box_name: 目标 NetworkBox 名称
-        node_paths: 要添加的节点路径列表
-        auto_fit: 是否自动调整 box 大小
+        parent_path: parentnetwork path
+        box_name: target NetworkBox name
+        node_paths: needadd node pathlist
+        auto_fit: whetherautoadjustwhole box largesmall
 
     Returns:
         (success, message)
     """
     if hou is None:
-        return False, "Houdini 环境不可用"
+        return False, "Houdini environmentunavailable"
 
     parent = hou.node(parent_path)
     if not parent:
-        return False, f"父网络 '{parent_path}' 不存在"
+        return False, f"parentnetwork '{parent_path}' does not exist"
 
-    # 查找 NetworkBox
+    # lookup NetworkBox
     target_box = None
     for box in parent.networkBoxes():
         if box.name() == box_name:
@@ -516,7 +517,7 @@ def add_nodes_to_box(
             break
 
     if not target_box:
-        return False, f"未找到 NetworkBox: {box_name}"
+        return False, f"notfindto NetworkBox: {box_name}"
 
     added = []
     for np in node_paths:
@@ -528,24 +529,24 @@ def add_nodes_to_box(
     if auto_fit and added:
         target_box.fitAroundContents()
 
-    return True, f"已将 {len(added)} 个节点添加到 {box_name}"
+    return True, f"alreadywill {len(added)} nodeaddto {box_name}"
 
 
 def list_network_boxes(parent_path: str) -> Tuple[bool, str, List[Dict[str, Any]]]:
-    """列出网络中所有 NetworkBox 及其内容
+    """columnoutnetworkinall NetworkBox anditscontent
 
     Args:
-        parent_path: 父网络路径
+        parent_path: parentnetwork path
 
     Returns:
         (success, message, boxes_info_list)
     """
     if hou is None:
-        return False, "Houdini 环境不可用", []
+        return False, "Houdini environmentunavailable", []
 
     parent = hou.node(parent_path)
     if not parent:
-        return False, f"父网络 '{parent_path}' 不存在", []
+        return False, f"parentnetwork '{parent_path}' does not exist", []
 
     boxes_info = []
     for box in parent.networkBoxes():
@@ -558,4 +559,4 @@ def list_network_boxes(parent_path: str) -> Tuple[bool, str, List[Dict[str, Any]
             "minimized": box.isMinimized(),
         })
 
-    return True, f"找到 {len(boxes_info)} 个 NetworkBox", boxes_info
+    return True, f"findto {len(boxes_info)}  NetworkBox", boxes_info

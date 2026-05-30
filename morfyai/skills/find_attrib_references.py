@@ -53,7 +53,7 @@ def run(network_path, attr_name, recursive=False):
         for node in net.children():
             references = []
 
-            # Check VEX 代码 (wrangle 节点)
+            # Check VEX code (wrangle nodes)
             if node.type().name() in _VEX_TYPES:
                 try:
                     snippet_parm = node.parm("snippet")
@@ -72,9 +72,9 @@ def run(network_path, attr_name, recursive=False):
                 except Exception:
                     pass
 
-            # Check参数表达式 and 字符串参数值
+            # Check parameter expressions and string parameter values
             for parm in node.parms():
-                # 表达式
+                # Expression
                 try:
                     expr = parm.expression()
                     if attr_name in expr:
@@ -85,7 +85,7 @@ def run(network_path, attr_name, recursive=False):
                         })
                 except Exception:
                     pass
-                # 字符串参数值
+                # String parameter value
                 try:
                     val = parm.eval()
                     if isinstance(val, str) and attr_name in val and parm.name() != "snippet":
@@ -105,7 +105,7 @@ def run(network_path, attr_name, recursive=False):
                     "references": references,
                 })
 
-            # 递归搜索子网络
+            # Recursively search subnets
             if recursive and node.children():
                 search_in_network(node)
 

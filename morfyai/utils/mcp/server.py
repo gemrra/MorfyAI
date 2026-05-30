@@ -1,15 +1,16 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
-"""FastMCP 服务器与工具注册（OOP 拆分版，包名：utils.mcp）
+"""FastMCP service and tool registry (OOP-split version, package name: utils.mcp).
 
-架构说明：
-    本模块负责 FastMCP HTTP 服务器，面向外部 MCP 客户端。
-    底层 Houdini 操作尽量委托给 hou_core.py 共享层。
-    对比 client.py（面向内部 AI Agent 的直接 Python 调用）。
+Architecture:
+    This module hosts the FastMCP HTTP service for external MCP clients.
+    Low-level Houdini operations are delegated to hou_core.py wherever possible.
+    Compare with client.py (internal AI-agent-facing, direct Python calls).
 """
 
 import asyncio
+import functools
 import glob
 import logging
 import os
@@ -20,6 +21,42 @@ import time
 import uuid
 import re
 from typing import Any, Optional, Callable
+
+
+def _bootstrap_pywin32_from_lib():
+	"""Make the vendored fastmcp/mcp stack importable.
+
+	fastmcp + deps are installed via `pip install --target lib/`. The `mcp` package
+	imports `pywintypes` (pywin32), but pywin32's .pth side-effects are NOT applied
+	for a --target install, so we replicate them: ensure lib/ is on sys.path, add
+	win32 / win32\\lib / Pythonwin, and register the pywin32_system32 DLL directory.
+	Fully guarded — no-op if absent or not on Windows.
+	"""
+	import sys
+	try:
+		here = os.path.dirname(os.path.abspath(__file__))
+		lib = os.path.abspath(os.path.join(here, "..", "..", "..", "lib"))
+		if not os.path.isdir(lib):
+			return
+		if lib not in sys.path:
+			sys.path.insert(0, lib)
+		for sub in ("win32", os.path.join("win32", "lib"), "Pythonwin"):
+			p = os.path.join(lib, sub)
+			if os.path.isdir(p) and p not in sys.path:
+				sys.path.append(p)
+		dll = os.path.join(lib, "pywin32_system32")
+		if os.path.isdir(dll):
+			try:
+				os.add_dll_directory(dll)
+			except Exception:
+				pass
+			os.environ["PATH"] = dll + os.pathsep + os.environ.get("PATH", "")
+	except Exception:
+		pass
+
+
+_bootstrap_pywin32_from_lib()
+
 
 try:
 	import hou  # type: ignore
@@ -42,17 +79,18 @@ from . import hou_core
 
 log: logging.Logger = get_logger()
 
-# 运行时全局
-mcp = None  # FastMCP 实例
+# runwhenglobal
+mcp = None  # FastMCP instance
 mcp_thread_handle: Optional[threading.Thread] = None
 stop_event = threading.Event()
 _server_start_time: float | None = None
+_last_client_activity: float | None = None  # updated on every tool call (connection heartbeat)
 
-# 资源注册（用于 flipbook 图片）
+# resourcesourceregister (used for flipbook image) 
 _registered_flipbook_resources: set[str] = set()
 _resource_lock = threading.RLock()
 
-# 简单任务队列（UI event loop 消费）
+# simpletaskqueue (UI event loop consumecost) 
 task_queue: queue.Queue = queue.Queue()
 
 
@@ -61,7 +99,7 @@ def _fastmcp_available() -> bool:
 
 
 def register_image_resource(filepath: str) -> str:
-	"""将图片注册为 MCP 资源，返回可通过 MCP HTTP 访问的路径。"""
+	"""willimageregisteras MCP resourcesource, returncanvia MCP HTTP access path. """
 	global _registered_flipbook_resources, mcp
 	if mcp is None:
 		return filepath
@@ -79,14 +117,14 @@ def register_image_resource(filepath: str) -> str:
 
 		_registered_flipbook_resources.add(resource_url)
 	try:
-		log.info("[MCP] 注册资源成功：%s", http_url)
+		log.info("[MCP] registerresourcesourcesucceeded: %s", http_url)
 	except Exception:
 		pass
 	return http_url
 
 
 def _setup_fastmcp_tools():
-	"""在 FastMCP 实例上注册所有工具。"""
+	"""in FastMCP instanceonregisteralltool. """
 	global mcp
 	if mcp is None:
 		return
@@ -103,26 +141,29 @@ def _setup_fastmcp_tools():
 		return payload
 
 	def tool_wrapper(fn: Callable[..., dict]) -> Callable[..., dict]:
+		@functools.wraps(fn)  # preserve fn's signature so FastMCP sees real params (not *args)
 		def _wrapped(*args, **kwargs) -> dict:
+			global _last_client_activity
+			_last_client_activity = time.time()   # heartbeat: a client just called a tool
 			try:
 				return fn(*args, **kwargs)
 			except Exception as e:
 				log.exception("MCP tool error in %s", getattr(fn, "__name__", "<tool>"))
-				return err(f"内部错误：{e}", code="internal_error")
+				return err(f"withinparterror: {e}", code="internal_error")
 		_wrapped.__name__ = getattr(fn, "__name__", "wrapped")
 		return _wrapped
 
 	@mcp.tool  # type: ignore[attr-defined]
 	@tool_wrapper
 	def check_node_errors(node_path: str | None = None) -> dict:
-		"""检查节点错误（委托给 hou_core 共享层）"""
+		"""checknodeerror (delegate to hou_core sharedlayer) """
 		success, msg, errors = hou_core.check_errors(node_path)
 		return ok(msg, errors) if success else err(msg)
 
 	@mcp.tool  # type: ignore[attr-defined]
 	@tool_wrapper
 	def display_node_result(node_path: str) -> dict:
-		"""设置节点显示标志（委托给 hou_core 共享层）"""
+		"""setnodeshowflag (delegate to hou_core sharedlayer) """
 		success, msg = hou_core.set_display_flag(node_path)
 		return ok(msg) if success else err(msg)
 
@@ -130,9 +171,9 @@ def _setup_fastmcp_tools():
 	@tool_wrapper
 	def get_houdini_help(help_type: str, item_name: str) -> dict:
 		if requests is None:
-			return err("requests 未安装。")
+			return err("requests notinstall. ")
 		if BeautifulSoup is None:
-			return err("bs4 未安装。请安装 beautifulsoup4。")
+			return err("bs4 notinstall. pleaseinstall beautifulsoup4. ")
 		base_url = "https://www.sidefx.com/docs/houdini/"
 		url_mapping = {
 			"obj": f"nodes/obj/{item_name}.html",
@@ -205,13 +246,13 @@ def _setup_fastmcp_tools():
 	@tool_wrapper
 	def get_available_node_types(parent_path: str) -> dict:
 		if hou is None:
-			return err("Houdini 环境不可用。")
+			return err("Houdini environmentunavailable. ")
 		parent = hou.node(parent_path)
 		if not parent:
-			return err(f"父节点 {parent_path} 未找到！")
+			return err(f"parentnode {parent_path} notfindto! ")
 		node_type_category = parent.childTypeCategory()
 		if not node_type_category:
-			return err(f"节点 {parent_path} 不能包含子节点！")
+			return err(f"node {parent_path} cannotpackagecontainingsubnode! ")
 		node_types = node_type_category.nodeTypes()
 		type_names = list(node_types.keys())
 		categories: dict[str, list[dict[str, Any]]] = {}
@@ -225,7 +266,7 @@ def _setup_fastmcp_tools():
 			except Exception:
 				continue
 		return ok(
-			f"成功获取节点 {parent_path} 的可用子节点类型，共 {len(type_names)} 种。",
+			f"succeededgetnode {parent_path}  canusesubnodetype, shared {len(type_names)} kind. ",
 			{
 				"node_types": type_names,
 				"categories": categories,
@@ -238,27 +279,27 @@ def _setup_fastmcp_tools():
 	@tool_wrapper
 	def set_node_parameter(node_path: str, param_name: str, value: Any) -> dict:
 		if hou is None:
-			return err("Houdini 环境不可用。")
+			return err("Houdini environmentunavailable. ")
 		node = hou.node(node_path)
 		if not node:
-			return err(f"节点 {node_path} 未找到！")
+			return err(f"node {node_path} notfindto! ")
 		parm = node.parm(param_name)
 		if not parm:
 			parm_tuple = node.parmTuple(param_name)
 			if not parm_tuple:
-				return err(f"节点 {node_path} 中未找到参数 '{param_name}'！")
+				return err(f"node {node_path} innotfindtoparameter '{param_name}'! ")
 			if isinstance(value, (list, tuple)):
 				parm_tuple.set(value)
 				actual_value = parm_tuple.eval()
 			else:
-				return err(f"参数 '{param_name}' 是元组参数，需要提供列表或元组值！")
+				return err(f"parameter '{param_name}' istupleparameter, needsraiseforlistortuplevalue! ")
 		else:
 			if isinstance(value, (list, tuple)):
-				return err(f"参数 '{param_name}' 是单个参数，不能设置列表值！")
+				return err(f"parameter '{param_name}' issingleparameter, cannotsetlistvalue! ")
 			parm.set(value)
 			actual_value = parm.eval()
 		return ok(
-			f"成功设置节点 {node_path} 的参数 '{param_name}'。",
+			f"succeededsetnode {node_path}  parameter '{param_name}'. ",
 			{"node_path": node_path, "parameter": param_name, "set_value": value, "actual_value": actual_value},
 		)
 
@@ -266,10 +307,10 @@ def _setup_fastmcp_tools():
 	@tool_wrapper
 	def get_node_parameters(node_path: str, include_hidden: bool = False) -> dict:
 		if hou is None:
-			return err("Houdini 环境不可用。")
+			return err("Houdini environmentunavailable. ")
 		node = hou.node(node_path)
 		if not node:
-			return err(f"节点 {node_path} 未找到！")
+			return err(f"node {node_path} notfindto! ")
 		parameters: dict[str, Any] = {}
 		parm_groups: dict[str, list[str]] = {}
 		for parm in node.parms():
@@ -289,7 +330,7 @@ def _setup_fastmcp_tools():
 				try:
 					current_value = parm.eval()
 				except Exception:
-					current_value = "无法获取"
+					current_value = "nomethodget"
 				default_value = None
 				try:
 					if hasattr(parm_template, 'defaultValue'):
@@ -325,7 +366,7 @@ def _setup_fastmcp_tools():
 				try:
 					current_value = parm_tuple.eval()
 				except Exception:
-					current_value = "无法获取"
+					current_value = "nomethodget"
 				tuples[parm_tuple.name()] = {
 					"name": parm_tuple.name(),
 					"label": parm_tuple.description(),
@@ -336,7 +377,7 @@ def _setup_fastmcp_tools():
 			except Exception:
 				continue
 		return ok(
-			f"成功获取节点 {node_path} 的参数信息。",
+			f"succeededgetnode {node_path}  parameterinfo. ",
 			{
 				"node_path": node_path,
 				"node_type": node.type().name(),
@@ -351,7 +392,7 @@ def _setup_fastmcp_tools():
 	@mcp.tool  # type: ignore[attr-defined]
 	@tool_wrapper
 	def create_node(parent_path: str, node_type: str, node_name: str = "") -> dict:
-		"""创建节点（委托给 hou_core 共享层）"""
+		"""createnode (delegate to hou_core sharedlayer) """
 		success, msg, node = hou_core.create_node(parent_path, node_type, node_name)
 		if not success:
 			return err(msg)
@@ -360,7 +401,7 @@ def _setup_fastmcp_tools():
 	@mcp.tool  # type: ignore[attr-defined]
 	@tool_wrapper
 	def delete_node(node_path: str) -> dict:
-		"""删除节点（委托给 hou_core 共享层）"""
+		"""deletenode (delegate to hou_core sharedlayer) """
 		success, msg = hou_core.delete_node(node_path)
 		return ok(msg) if success else err(msg)
 
@@ -370,30 +411,30 @@ def _setup_fastmcp_tools():
 		import contextlib, io
 		try:
 			if hou is None:
-				return err("Houdini 环境不可用。")
+				return err("Houdini environmentunavailable. ")
 			exec_globals: dict[str, Any] = {"hou": hou}
 			exec_locals: dict[str, Any] = {}
 			stdout_buffer = io.StringIO()
 			with contextlib.redirect_stdout(stdout_buffer):
 				try:
 					result = eval(code.strip(), exec_globals, exec_locals)
-					return ok("表达式执行成功", {"result": repr(result), "stdout": stdout_buffer.getvalue(), "type": "expression"})
+					return ok("tableexpressionexecutesucceeded", {"result": repr(result), "stdout": stdout_buffer.getvalue(), "type": "expression"})
 				except SyntaxError:
 					stdout_buffer.seek(0); stdout_buffer.truncate(0)
 					exec(code.strip(), exec_globals, exec_locals)
-					result_hint = "代码执行完成"
+					result_hint = "codeexecutecomplete"
 					if exec_locals:
 						local_vars = {k: v for k, v in exec_locals.items() if not k.startswith('__')}
 						if local_vars:
-							result_hint = f"局部变量: {list(local_vars.keys())}"
-					return ok(result_hint, {"result": "执行成功", "stdout": stdout_buffer.getvalue(), "type": "statement", "local_variables": list(exec_locals.keys()) if exec_locals else []})
+							result_hint = f"local variables: {list(local_vars.keys())}"
+					return ok(result_hint, {"result": "executesucceeded", "stdout": stdout_buffer.getvalue(), "type": "statement", "local_variables": list(exec_locals.keys()) if exec_locals else []})
 		except Exception as e:
-			return err(f"执行失败：{e}")
+			return err(f"execution failed: {e}")
 
 	@mcp.tool  # type: ignore[attr-defined]
 	@tool_wrapper
 	def connect_nodes(output_node_path: str, input_node_path: str, input_index: int = 0) -> dict:
-		"""连接节点（委托给 hou_core 共享层）"""
+		"""connectnode (delegate to hou_core sharedlayer) """
 		success, msg = hou_core.connect_nodes(output_node_path, input_node_path, input_index)
 		if not success:
 			return err(msg)
@@ -402,7 +443,7 @@ def _setup_fastmcp_tools():
 	@mcp.tool  # type: ignore[attr-defined]
 	@tool_wrapper
 	def get_node_info(node_path: str) -> dict:
-		"""获取节点信息（委托给 hou_core 共享层）"""
+		"""getnodeinfo (delegate to hou_core sharedlayer) """
 		success, msg, info = hou_core.get_node_info(node_path)
 		return ok(msg, info) if success else err(msg)
 
@@ -410,15 +451,15 @@ def _setup_fastmcp_tools():
 	@tool_wrapper
 	def create_node_network(network_config: dict) -> dict:
 		if hou is None:
-			return err("Houdini 环境不可用。")
+			return err("Houdini environmentunavailable. ")
 		parent_path = network_config.get("parent_path")
 		nodes_config = network_config.get("nodes", [])
 		connections_config = network_config.get("connections", [])
 		if not parent_path:
-			return err("缺少 parent_path 参数！")
+			return err("missing parent_path parameter! ")
 		parent = hou.node(parent_path)
 		if not parent:
-			return err(f"父节点 {parent_path} 未找到！")
+			return err(f"parentnode {parent_path} notfindto! ")
 		created_nodes: dict[str, dict[str, Any]] = {}
 		created_connections: list[dict[str, Any]] = []
 		errors: list[str] = []
@@ -426,10 +467,10 @@ def _setup_fastmcp_tools():
 			try:
 				node_type = node_config.get("type")
 				node_name = node_config.get("name", "")
-				# 支持 "parameters" 和 "parms" 两种写法
+				# support "parameters" and "parms" twokindwritemethod
 				parameters = node_config.get("parameters") or node_config.get("parms", {})
 				if not node_type:
-					errors.append(f"节点配置缺少 type: {node_config}")
+					errors.append(f"nodeconfigmissing type: {node_config}")
 					continue
 				_nm = (str(node_name).strip() if node_name else None)
 				if _nm:
@@ -449,7 +490,7 @@ def _setup_fastmcp_tools():
 							if parm_tuple:
 								parm_tuple.set(value)
 					except Exception as param_error:
-						errors.append(f"设置节点 {actual_name} 参数 {param_name} 失败: {str(param_error)}")
+						errors.append(f"setnode {actual_name} parameter {param_name} failed: {str(param_error)}")
 				try:
 					_t = node.type().name().lower()
 					if _t == "attribwrangle":
@@ -464,7 +505,7 @@ def _setup_fastmcp_tools():
 				except Exception:
 					pass
 			except Exception as node_error:
-				errors.append(f"创建节点失败: {str(node_error)}")
+				errors.append(f"createnodefailed: {str(node_error)}")
 		for conn_config in connections_config:
 			try:
 				from_name = conn_config.get("from") or conn_config.get("src")
@@ -478,25 +519,26 @@ def _setup_fastmcp_tools():
 					if name == to_name or info["requested_name"] == to_name:
 						to_node = hou.node(info["path"])
 				if not from_node:
-					errors.append(f"未找到源节点: {from_name}")
+					errors.append(f"notfindtosourcenode: {from_name}")
 					continue
 				if not to_node:
-					errors.append(f"未找到目标节点: {to_name}")
+					errors.append(f"notfindtotargetnode: {to_name}")
 					continue
 				to_node.setInput(input_index, from_node)
 				created_connections.append({"from": from_node.path(), "to": to_node.path(), "input_index": input_index})
 			except Exception as conn_error:
-				errors.append(f"建立连接失败: {str(conn_error)}")
-	try:
-		parent.layoutChildren()
-	except Exception:
-		pass
-	# 注意：不再自动猜测连接关系。
-	# 原因：自动连接（如按创建顺序串联、猜测 copytopoints 输入）
-	# 会导致不可预测的结果。连接关系应由调用方通过 connections 配置显式指定。
-		success_message = f"成功创建 {len(created_nodes)} 个节点，建立 {len(created_connections)} 个连接"
+				errors.append(f"Failed to establish connection: {str(conn_error)}")
+		try:
+			parent.layoutChildren()
+		except Exception:
+			pass
+		# note: notagainautoguessconnectrelation. 
+		# Rationale: auto-wiring (e.g., chaining nodes by creation order or guessing
+		# copytopoints inputs) leads to unpredictable results. Connections must be
+		# explicitly specified by the caller via the `connections` config.
+		success_message = f"Successfully created {len(created_nodes)} node(s) and {len(created_connections)} connection(s)"
 		if errors:
-			success_message += f"，但有 {len(errors)} 个错误"
+			success_message += f", buthas {len(errors)} error"
 		try:
 			if created_nodes:
 				last_node = hou.node(list(created_nodes.values())[-1]["path"])
@@ -520,7 +562,7 @@ def _setup_fastmcp_tools():
 	@tool_wrapper
 	def auto_layout_nodes(parent_path: str, spacing: tuple = (2.0, 2.0)) -> dict:
 		if hou is None:
-			return err("Houdini 环境不可用。")
+			return err("Houdini environmentunavailable. ")
 		parent = hou.node(parent_path)
 		if not parent:
 			return err(f"parent node {parent_path} not found!")
@@ -531,7 +573,7 @@ def _setup_fastmcp_tools():
 	@tool_wrapper
 	def list_children(parent_path: str) -> dict:
 		if hou is None:
-			return err("Houdini 环境不可用。")
+			return err("Houdini environmentunavailable. ")
 		parent = hou.node(parent_path)
 		if not parent:
 			return err(f"parent node {parent_path} not found!")
@@ -540,7 +582,7 @@ def _setup_fastmcp_tools():
 		return ok("Children nodes retrieved successfully.", child_info)
 
 	# ========================================
-	# NetworkBox 工具（委托给 hou_core 共享层）
+	# NetworkBox tool (delegate to hou_core sharedlayer) 
 	# ========================================
 
 	@mcp.tool  # type: ignore[attr-defined]
@@ -552,7 +594,7 @@ def _setup_fastmcp_tools():
 		color_preset: str = "",
 		node_paths: list | None = None,
 	) -> dict:
-		"""创建 NetworkBox 并可选地将节点加入其中"""
+		"""create NetworkBox andoptionalplacewillnodeaddenteritsin"""
 		success, msg, box = hou_core.create_network_box(
 			parent_path, name, comment, color_preset, node_paths or []
 		)
@@ -568,14 +610,14 @@ def _setup_fastmcp_tools():
 		node_paths: list,
 		auto_fit: bool = True,
 	) -> dict:
-		"""将节点添加到已有的 NetworkBox"""
+		"""willnodeaddtoalreadyhas  NetworkBox"""
 		success, msg = hou_core.add_nodes_to_box(parent_path, box_name, node_paths, auto_fit)
 		return ok(msg) if success else err(msg)
 
 	@mcp.tool  # type: ignore[attr-defined]
 	@tool_wrapper
 	def list_network_boxes(parent_path: str) -> dict:
-		"""列出网络中所有 NetworkBox 及其内容"""
+		"""columnoutnetworkinall NetworkBox anditscontent"""
 		success, msg, boxes_info = hou_core.list_network_boxes(parent_path)
 		return ok(msg, boxes_info) if success else err(msg)
 
@@ -583,16 +625,18 @@ def _setup_fastmcp_tools():
 	def get_task_queue_status() -> dict:
 		return {"status": "success", "message": "Task queue status retrieved.", "data": {"tasks_in_queue": task_queue.qsize(), "recent_results": getattr(mcp, "recent_results", []) if mcp else []}}
 
-	@mcp.tool(name="viewport_flipbook", description="渲染 Houdini 视口并返回图片资源链接", enabled=read_settings().enable_flipbook)  # type: ignore[attr-defined]
+	@mcp.tool(name="viewport_flipbook", description="render Houdini viewportandreturnimageresourcesourcelink")  # type: ignore[attr-defined]
 	@tool_wrapper
 	def viewport_flipbook(start_frame: int = 1, end_frame: int = 24) -> dict:
 		global _registered_flipbook_resources
+		if not read_settings().enable_flipbook:
+			return err("viewport_flipbook is disabled in settings (enable_flipbook=false).")
 		timeId = time.time_ns()
 		if hou is None:
-			return err("Houdini 环境不可用。")
+			return err("Houdini environmentunavailable. ")
 		viewer = hou.ui.paneTabOfType(hou.paneTabType.SceneViewer)
 		if viewer is None:
-			return err("找不到 Scene Viewer，必须在 GUI 模式运行。")
+			return err("findnotto Scene Viewer, mustin GUI moderun. ")
 		tmp_dir = tempfile.gettempdir()
 		output_template = os.path.join(tmp_dir, f"flipbook_{timeId}.$F4.jpg")
 		resolution = (100, 100)
@@ -610,7 +654,7 @@ def _setup_fastmcp_tools():
 		glob_path = output_template.replace("$F4", "*").replace("$F", "*")
 		image_files = sorted(glob.glob(glob_path))
 		if not image_files:
-			return err("没有生成图像，请检查场景设置。")
+			return err("nothasgenerateimage, pleasechecksceneset. ")
 		frames = []
 		for idx, filepath in enumerate(image_files, start=start_frame):
 			url = register_image_resource(filepath)
@@ -618,11 +662,11 @@ def _setup_fastmcp_tools():
 		with _resource_lock:
 			_registered_flipbook_resources.clear()
 		return ok(
-			f"生成 {len(frames)} 帧图像。",
+			f"generate {len(frames)} frameimage. ",
 			{"image_width": resolution[0], "image_height": resolution[1], "frames": frames},
 		)
 
-	@mcp.tool(name="health", description="MCP 健康检查")  # type: ignore[attr-defined]
+	@mcp.tool(name="health", description="MCP health check")  # type: ignore[attr-defined]
 	def health() -> dict:
 		now = time.time()
 		uptime = (now - _server_start_time) if _server_start_time else None
@@ -690,14 +734,14 @@ def ensure_mcp_running(auto_start: bool = True) -> tuple[bool, str]:
 	try:
 		from fastmcp import FastMCP  # type: ignore
 	except Exception:
-		return False, "fastmcp 未安装，跳过 MCP 服务器启动。"
+		return False, "fastmcp notinstall, skip MCP service start. "
 	if hou is None:
-		return False, "未检测到 Houdini 环境（hou），跳过 MCP 服务器启动。"
+		return False, "notdetectto Houdini environment (hou) , skip MCP service start. "
 	s = read_settings()
 	if not s.enabled:
-		return False, "配置禁用了 MCP（mcp_enabled=false）。"
+		return False, "configdisable MCP (mcp_enabled=false) . "
 	if mcp_thread_handle and mcp_thread_handle.is_alive():
-		return True, "MCP 服务器已在运行。"
+		return True, "MCP service alreadyinrun. "
 	mcp = FastMCP("Houdini MCP Server")  # type: ignore
 	_setup_fastmcp_tools()
 	if auto_start:
@@ -718,37 +762,40 @@ def ensure_mcp_running(auto_start: bool = True) -> tuple[bool, str]:
 				hou.ui.addEventLoopCallback(_process_tasks)
 		except Exception:
 			pass
-	return True, "MCP 服务器已启动。"
+	return True, "MCP service alreadystart. "
 
 
 def stop_mcp_server(timeout: float = 3.0) -> tuple[bool, str]:
 	global mcp_thread_handle, _server_start_time
 	if not (mcp_thread_handle and mcp_thread_handle.is_alive()):
-		return True, "MCP 服务器未运行。"
+		return True, "MCP service notrun. "
 	stop_event.set()
 	mcp_thread_handle.join(timeout=timeout)
 	if mcp_thread_handle.is_alive():
-		return False, "MCP 服务器未在超时时间内停止。"
+		return False, "MCP service notintimeoutwhenbetweenwithinstop. "
 	_server_start_time = None
-	return True, "MCP 服务器已停止。"
+	return True, "MCP service stopped. "
 
 
 def get_mcp_status() -> dict:
 	s = read_settings()
 	running = bool(mcp_thread_handle and mcp_thread_handle.is_alive())
 	uptime = (time.time() - _server_start_time) if (_server_start_time) else None
+	secs = (time.time() - _last_client_activity) if _last_client_activity else None
 	return {
 		"running": running,
 		"host": s.host,
 		"port": s.port,
 		"transport": s.transport,
 		"uptime_sec": uptime,
+		"last_client_activity_sec": round(secs, 1) if secs is not None else None,
+		"client_connected": bool(secs is not None and secs < 60),
 	}
 
 
-# ⚠️ 模块级自动启动已移除
-# 原因：import 不应产生副作用（启动线程、注册回调等）。
-# 请改为由调用方显式调用 ensure_mcp_running()。
-# 示例：
+# ⚠️ Module-level auto-start has been removed.
+# Rationale: imports should not produce side effects (starting threads, registering callbacks, etc.).
+# Use ensure_mcp_running() to start it explicitly from the call site. 
+# example: 
 #   from utils.mcp.server import ensure_mcp_running
 #   ensure_mcp_running(auto_start=True)

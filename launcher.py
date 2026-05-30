@@ -6,7 +6,7 @@ import sys
 import os
 
 # ============================================================
-# 强制使用本地 lib 目录中的依赖库
+# Force-use the local lib/ directory for dependencies
 # ============================================================
 _ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 _LIB_DIR = os.path.join(_ROOT_DIR, 'lib')
@@ -19,13 +19,13 @@ if os.path.exists(_LIB_DIR):
 # ============================================================
 
 def detect_dcc():
-    """检测当前运行的 DCC 软件"""
+    """Detect the currently-running DCC application."""
     try:
         import hou
         return "houdini"
     except ImportError:
         pass
-    
+
     return None
 
 def launch_morfyai():
@@ -33,12 +33,12 @@ def launch_morfyai():
     tool_path = os.path.join(os.path.dirname(__file__), "morfyai")
     if tool_path not in sys.path:
         sys.path.insert(0, tool_path)
-    
-    # 清理旧包名残留（HOUDINI_HIP_MANAGER → morfyai 迁移）
+
+    # Purge legacy package-name leftovers (HOUDINI_HIP_MANAGER -> morfyai migration)
     old_mods = [k for k in sys.modules if k.startswith('HOUDINI_HIP_MANAGER')]
     for k in old_mods:
         del sys.modules[k]
-    
+
     try:
         if 'main' in sys.modules:
             import importlib
@@ -46,7 +46,7 @@ def launch_morfyai():
             importlib.reload(main)
         else:
             import main
-        
+
         return main.show_tool()
     except Exception as e:
         print(f"Failed to launch MorfyAI: {e}")
@@ -66,11 +66,11 @@ def launch():
         print("Please run this tool inside Houdini.")
         return None
 
-# 全局变量存储窗口实例
+# Global variable to store the window instance
 _agent_window = None
 
 def show_tool():
-    """统一入口函数"""
+    """Unified entry function."""
     global _agent_window
     _agent_window = launch()
     return _agent_window

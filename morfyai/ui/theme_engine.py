@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Theme Engine — 管理 QSS 模板渲染与字号缩放
+Theme Engine — manages QSS template rendering and font-scale handling.
 
-使用 style_template.qss 中的占位符 {FS_BODY} 等，
-根据当前缩放比例生成最终 QSS 字符串。
-缩放偏好持久化到 QSettings。
+Uses placeholders such as {FS_BODY} in style_template.qss to render the final
+QSS string at the current scale. The scale preference is persisted to QSettings.
 """
 
 from pathlib import Path
@@ -18,9 +17,9 @@ except Exception:
 
 
 class ThemeEngine:
-    """主题引擎：加载 QSS 模板、字号缩放、持久化"""
+    """Theme engine: load the QSS template, apply font scaling, persist preferences."""
 
-    # 基准字号（px）
+    # Baseline font sizes (px)
     BASE_SIZES = {
         "FS_MICRO": 10,
         "FS_XS": 11,
@@ -39,24 +38,24 @@ class ThemeEngine:
         self._scale: float = 1.0
         self._template: str = ""
 
-    # ---- 模板加载 ----
+    # ---- Template loading ----
 
     def load_template(self, path: Path):
-        """从文件加载 QSS 模板"""
+        """Load the QSS template from a file."""
         try:
             self._template = path.read_text("utf-8")
         except Exception as e:
             _dbg(f"[ThemeEngine] Template load failed: {e}")
             self._template = ""
 
-    # ---- 缩放控制 ----
+    # ---- Scale control ----
 
     @property
     def scale(self) -> float:
         return self._scale
 
     def set_scale(self, scale: float):
-        """设置缩放比例（自动 clamp 到 [0.7, 1.5]）"""
+        """Set the scale (automatically clamped to [0.7, 1.5])."""
         self._scale = max(self.SCALE_MIN, min(self.SCALE_MAX, round(scale, 2)))
 
     def zoom_in(self):
@@ -72,7 +71,7 @@ class ThemeEngine:
     def scale_percent(self) -> int:
         return int(round(self._scale * 100))
 
-    # ---- 渲染 ----
+    # ---- Rendering ----
 
     def render(self) -> str:
         """Replace placeholders ({FS_*}, {ASSETS_URL}) with concrete values."""
@@ -90,10 +89,10 @@ class ThemeEngine:
             qss = qss.replace("{ASSETS_URL}", "")
         return qss
 
-    # ---- 持久化 ----
+    # ---- Persistence ----
 
     def save_preference(self):
-        """保存缩放比例到 QSettings"""
+        """Save the current scale to QSettings."""
         try:
             settings = QtCore.QSettings("MorfyAI", "Settings")
             settings.setValue("font_scale", self._scale)
@@ -101,7 +100,7 @@ class ThemeEngine:
             pass
 
     def load_preference(self):
-        """从 QSettings 加载缩放比例"""
+        """Load the saved scale from QSettings."""
         try:
             settings = QtCore.QSettings("MorfyAI", "Settings")
             val = settings.value("font_scale", 1.0)

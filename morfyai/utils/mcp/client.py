@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Houdini MCP Client
-提供节点operation的核心功能, 支持 AI Agent 的工具调用
+raisefornodeoperation corefeature, support AI Agent  toolcall
 """
 from __future__ import annotations
 
@@ -26,18 +26,18 @@ except Exception:
 
 
 # ============================================================
-# 文档检索功能已remove, 请使用 web_search 查询官方文档
+# Document-search feature has been removed; use web_search to query the official docs.
 # ============================================================
 
-# 强制使用本地 lib 目录中的依赖库
+# forceusethisplace lib directoryin depend onlibrary
 _lib_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'lib')
 if os.path.exists(_lib_path):
-    # 将 lib 目录add到 sys.path 最前面, 确保优先使用
+    # will lib directoryaddto sys.path mostpreviousface, ensurepreferreduse
     if _lib_path in sys.path:
         sys.path.remove(_lib_path)
     sys.path.insert(0, _lib_path)
 
-# 导入 requests
+# importenter requests
 try:
     import requests
 except ImportError:
@@ -45,7 +45,7 @@ except ImportError:
 
 from .settings import read_settings
 
-# 导入 RAG 检索系统
+# importenter RAG searchsystem
 try:
     from ..doc_rag import get_doc_rag
     HAS_DOC_RAG = True
@@ -53,7 +53,7 @@ except ImportError:
     HAS_DOC_RAG = False
     _dbg("[MCP Client] DocRAG module not found, local doc search disabled")
 
-# 导入 Skill 系统
+# importenter Skill system
 HAS_SKILLS = False
 _list_skills = None   # type: ignore
 _run_skill = None     # type: ignore
@@ -74,7 +74,7 @@ if not HAS_SKILLS:
         pass
 
 if not HAS_SKILLS:
-    # 最后尝试: 基于文件路径直接导入
+    # lasttry: based onfile pathdirectlyimportenter
     try:
         import importlib.util
         _skills_init = Path(__file__).parent.parent.parent / 'skills' / '__init__.py'
@@ -93,47 +93,47 @@ if not HAS_SKILLS:
 
 
 class HoudiniMCP:
-    """Houdini 节点operation客户端
+    """Houdini nodeoperationclientend
     
-    提供节点网络的读取、创建、修改、删除等operation. 
-    设计为 AI Agent 的工具执行后端. 
+    raisefornodenetwork read, create, modify, deleteetc.operation. 
+    setcountas AI Agent  toolexecuteafterend. 
     """
     
-    # 类级别缓存 (跨实例共享, 只加载一次)
+    # Class-level cache (shared across instances, loaded once)
     _node_types_cache: Optional[Dict[str, List[str]]] = None  # {category: [type_names]}
-    _node_types_cache_time: float = 0  # 缓存时间
-    _common_node_inputs_cache: Dict[str, str] = {}  # 常见节点输入信息缓存
-    _ats_cache: Dict[str, Dict[str, Any]] = {}  # ATS缓存: {node_type_key: ats_data}
+    _node_types_cache_time: float = 0  # cachewhenbetween
+    _common_node_inputs_cache: Dict[str, str] = {}  # commonnodeinputinfocache
+    _ats_cache: Dict[str, Dict[str, Any]] = {}  # ATScache: {node_type_key: ats_data}
 
-    # perfMon 性能分析: 当前活跃的 profile 对象
+    # perfMon performanceanalyze: currentactive  profile object
     _active_perf_profile: Any = None
 
-    # 通用工具result分页缓存: key = "tool_name:unique_key" → 完整文本
+    # throughusetoolresultpaginatecache: key = "tool_name:unique_key" → completetext
     _tool_page_cache: Dict[str, str] = {}
-    _TOOL_PAGE_LINES = 50  # 每页行数
+    _TOOL_PAGE_LINES = 50  # eachpagerowcount
 
     def __init__(self):
         import threading
         self._stop_event: Optional[threading.Event] = None
 
     def set_stop_event(self, event):
-        """设置停止事件 (从 AIClient 传入, 用于检测用户中断)
+        """setstopevent (from AIClient passenter, used fordetectuserinbreak)
         
-        在 execute_python / execute_shell 中通过检查此事件来支持用户中断. 
+        in execute_python / execute_shell inviacheckthiseventcomesupportuserinbreak. 
         """
         self._stop_event = event
 
     @classmethod
     def _paginate_tool_result(cls, text: str, cache_key: str, tool_hint: str,
                               page: int = 1, page_lines: int = 0) -> str:
-        """通用工具result分页
+        """throughusetoolresultpaginate
         
         Args:
-            text: 完整的文本result
-            cache_key: 缓存键 (如 "get_node_parameters:/obj/geo1/box1")
-            tool_hint: 供 AI 翻页的工具调用Hint (如 'get_node_parameters(node_path="/obj/geo1/box1", page=2)')
-            page: 页码 (从 1 开始)
-            page_lines: 每页行数, 0 表示使用default
+            text: complete textresult
+            cache_key: cachekey (such as "get_node_parameters:/obj/geo1/box1")
+            tool_hint: pagination tool-call hint for the AI (e.g., 'get_node_parameters(node_path="/obj/geo1/box1", page=2)')
+            page: pagecode (from 1 start)
+            page_lines: eachpagerowcount, 0 tableshowusedefault
         """
         if not page_lines:
             page_lines = cls._TOOL_PAGE_LINES
@@ -156,7 +156,7 @@ class HoudiniMCP:
         header = f"[Page {page}/{total_pages}/{total_lines} lines]\n\n"
 
         if page < total_pages:
-            # 将 page_hint 中的页码替换为下一页
+            # will page_hint in pagecodereplaceswapasbelowonepage
             next_page = page + 1
             footer = f"\n\n[Page {page}/{total_pages}]  — more content; call {tool_hint.replace(f'page={page}', f'page={next_page}')} for next page"
         else:
@@ -165,19 +165,19 @@ class HoudiniMCP:
         return header + page_text + footer
 
     # ========================================
-    # 网络结构读取 (轻量级, 只返回拓扑信息)
+    # networkstructureread (lightweight, onlyreturntopologyinfo)
     # ========================================
     
     def get_network_structure(self, network_path: Optional[str] = None) -> Tuple[bool, Dict[str, Any]]:
-        """获取节点网络的拓扑结构 (节点name、type、连接关系)
+        """getnodenetwork topologystructure (nodename, type, connectrelation)
         
-        这是一个轻量级operation, 不读取参数Details. 
+        thisisonelightweightoperation, notreadparameterDetails. 
         
         Args:
-            network_path: 网络路径, 如 '/obj/geo1'. None 则使用当前网络. 
+            network_path: network path, such as '/obj/geo1'. None thenusecurrentnetwork. 
         
         Returns:
-            (success, data) 其中 data 包含:
+            (success, data) itsin data packagecontaining:
             {
                 "network_path": str,
                 "network_type": str,
@@ -194,10 +194,10 @@ class HoudiniMCP:
                 ],
                 "connections": [
                     {
-                        "from": str,  # Source node路径
-                        "to": str,    # Target node路径
+                        "from": str,  # Source nodepath
+                        "to": str,    # Target nodepath
                         "input_index": int,
-                        "input_label": str  # 输入端口name (如有)
+                        "input_label": str  # inputportname (such ashas)
                     }
                 ]
             }
@@ -205,7 +205,7 @@ class HoudiniMCP:
         if hou is None:
             return False, {"error": "Houdini API (hou module) not detected"}
         
-        # 获取网络节点
+        # getnetworknode
         if network_path:
             network = hou.node(network_path)
             if network is None:
@@ -227,11 +227,11 @@ class HoudiniMCP:
                     category = node_type.category().name() if node_type else "Unknown"
                     type_name = node_type.name() if node_type else "unknown"
                     
-                    # 获取位置
+                    # getposition
                     pos = node.position()
                     position = [pos[0], pos[1]] if pos else [0, 0]
                     
-                    # 检查是否有error
+                    # checkwhetherhaserror
                     has_errors = False
                     try:
                         errors = node.errors()
@@ -249,7 +249,7 @@ class HoudiniMCP:
                         "position": position
                     }
                     
-                    # 检测 wrangle type节点, 提取 VEX code
+                    # detect wrangle typenode, extract VEX code
                     _wrangle_keywords = ('wrangle', 'snippet', 'vopnet')
                     if any(kw in type_name.lower() for kw in _wrangle_keywords):
                         try:
@@ -260,7 +260,7 @@ class HoudiniMCP:
                                     node_info["vex_code"] = code.strip()
                         except Exception:
                             pass
-                    # 也检测 python 脚本节点
+                    # alsodetect python scriptnode
                     if 'python' in type_name.lower():
                         try:
                             for pname in ("python", "code", "script"):
@@ -275,7 +275,7 @@ class HoudiniMCP:
                     
                     nodes_data.append(node_info)
                     
-                    # 收集连接关系 (含输入端口name)
+                    # collectsetconnectrelation (containinginputportname)
                     for input_idx, input_node in enumerate(node.inputs()):
                         if input_node is not None:
                             conn_info = {
@@ -283,7 +283,7 @@ class HoudiniMCP:
                                 "to": node.path(),
                                 "input_index": input_idx,
                             }
-                            # 尝试获取输入端口label
+                            # trygetinputportlabel
                             try:
                                 input_label = node_type.inputLabel(input_idx)
                                 if input_label:
@@ -294,7 +294,7 @@ class HoudiniMCP:
                 except Exception:
                     continue
             
-            # 收集 NetworkBox 信息
+            # collectset NetworkBox info
             boxed_node_paths = set()
             boxes_data = []
             try:
@@ -309,7 +309,7 @@ class HoudiniMCP:
                         "nodes": box_node_paths,
                     })
             except Exception:
-                pass  # networkBoxes() 可能在某些网络type下不可用
+                pass  # networkBoxes() mayinsomenetworktypebelowunavailable
 
             return True, {
                 "network_path": network.path(),
@@ -325,12 +325,12 @@ class HoudiniMCP:
 
     def get_network_structure_text(self, network_path: Optional[str] = None,
                                    box_name: Optional[str] = None) -> Tuple[bool, str]:
-        """获取节点网络结构的文本描述 (适合 AI 阅读)
-        
-        三 types模式: 
-        1. 无 box_name 且网络NetworkBox → 概览模式 (折叠 box, 省 token)
-        2. box_name → 钻入模式 (只展示该 box 内节点)
-        3. 无 box_name 且网络无 NetworkBox → 传统全展开模式
+        """Get a textual description of a node network (suitable for AI consumption).
+
+        Three modes:
+        1. No box_name AND the network has NetworkBox(es) → overview mode (boxes collapsed; saves tokens)
+        2. box_name supplied → drill-down mode (only expand and show nodes inside that box)
+        3. no box_name andnetworkno NetworkBox → passstatsallexpandmode
         """
         ok, data = self.get_network_structure(network_path)
         if not ok:
@@ -339,7 +339,7 @@ class HoudiniMCP:
         boxes = data.get("network_boxes", [])
         boxed_paths = set(data.get("boxed_node_paths", []))
 
-        # ── 钻入模式: 只展示指定 box 内的节点 ──
+        # ── Drill-down mode: only expand and show nodes inside the specified box ──
         if box_name:
             target = next((b for b in boxes if b["name"] == box_name), None)
             if not target:
@@ -350,7 +350,7 @@ class HoudiniMCP:
             box_nodes = [n for n in data["nodes"] if n["path"] in target_paths]
             box_conns = [c for c in data["connections"]
                          if c["from"] in target_paths and c["to"] in target_paths]
-            # box 与外部的跨组连接
+            # box withexternal crossgroupconnect
             cross_conns = [c for c in data["connections"]
                            if (c["from"] in target_paths) != (c["to"] in target_paths)]
             
@@ -383,7 +383,7 @@ class HoudiniMCP:
             
             return True, "\n".join(lines)
 
-        # ── 概览模式: NetworkBox 时折叠display (核心省 token 逻辑) ──
+        # ── Overview mode: collapse NetworkBox display (core token-saving logic) ──
         if boxes:
             unboxed_nodes = [n for n in data["nodes"] if n["path"] not in boxed_paths]
             
@@ -396,7 +396,7 @@ class HoudiniMCP:
                 "### NetworkBox overview:"
             ]
             for b in boxes:
-                # 统计 box 内节点type摘要 (取前 3  types)
+                # statistics box withinnodetypesummary (fetchprevious 3  types)
                 box_paths_set = set(b["nodes"])
                 type_counts: Dict[str, int] = {}
                 for n in data["nodes"]:
@@ -422,9 +422,9 @@ class HoudiniMCP:
                     for detail in wrangle_details:
                         lines.append(detail)
             
-            # 跨组连接: 两端不在同一个 box 中的连接
+            # crossgroupconnect: twoendnotinsameone box in connect
             cross_conns = []
-            # 构建 node_path → box_name 映射
+            # build node_path → box_name mapping
             path_to_box: Dict[str, str] = {}
             for b in boxes:
                 for np in b["nodes"]:
@@ -450,7 +450,7 @@ class HoudiniMCP:
             
             return True, "\n".join(lines)
 
-        # ── 传统模式: 无 NetworkBox, 全部展开 (兼容旧行为) ──
+        # ── passstatsmode: no NetworkBox, allpartexpand (compatible witholdrowas) ──
         lines = [
             f"## Network structure: {data['network_path']}",
             f"Network type: {data['network_type']}",
@@ -478,7 +478,7 @@ class HoudiniMCP:
 
     @staticmethod
     def _format_node_list(nodes: List[Dict], lines: List[str], wrangle_details: List[str]):
-        """格式化节点列表到 lines, 收集codeDetails到 wrangle_details"""
+        """formatizationnodelistto lines, collectsetcodeDetailsto wrangle_details"""
         for node in nodes:
             status = []
             if node.get('is_displayed'):
@@ -514,7 +514,7 @@ class HoudiniMCP:
 
     @staticmethod
     def _format_connection(conn: Dict[str, Any], prefix: str = "- ") -> str:
-        """格式化单条连接信息, 包含输入端口name (如有)"""
+        """formatizationsingleitemconnectinfo, packagecontaininginputportname (such ashas)"""
         from_name = conn['from'].split('/')[-1]
         to_name = conn['to'].split('/')[-1]
         idx = conn['input_index']
@@ -526,30 +526,30 @@ class HoudiniMCP:
         return f"{prefix}{from_name} → {to_name}[{port_str}]"
 
     # ========================================
-    # ATS (Abstract Type System) 构建
+    # ATS (Abstract Type System) build
     # ========================================
     
     def _build_ats(self, node_type: Any) -> Dict[str, Any]:
-        """构建节点type的ATS (抽象type系统)
+        """buildnodetype ATS (abstracttypesystem)
         
         Args:
-            node_type: Houdini节点type对象
+            node_type: Houdininodetypeobject
             
         Returns:
-            ATS数据字典, 包含参数模板、default等信息
+            ATSdatadict, packagecontainingparametertemplate, defaultetc.info
         """
         if hou is None or node_type is None:
             return {}
         
-        # 生成缓存键
+        # generatecachekey
         type_key = f"{node_type.category().name().lower()}/{node_type.name()}"
         
-        # 检查缓存
+        # checkcache
         if type_key in HoudiniMCP._ats_cache:
             return HoudiniMCP._ats_cache[type_key]
         
         try:
-            # 获取参数模板
+            # getparametertemplate
             parm_template_group = node_type.parmTemplateGroup()
             ats_data = {
                 "type": type_key,
@@ -565,19 +565,19 @@ class HoudiniMCP:
                 "parameters": {}
             }
             
-            # 提取参数模板信息 (只包含参数名、type、default)
+            # extractparametertemplateinfo (onlypackagecontainingparametername, type, default)
             if parm_template_group:
                 for parm_template in parm_template_group.parmTemplates():
                     try:
                         parm_name = parm_template.name()
                         parm_type = parm_template.type().name() if hasattr(parm_template, 'type') else "unknown"
                         
-                        # 获取default
+                        # getdefault
                         default_value = None
                         if hasattr(parm_template, 'defaultValue'):
                             try:
                                 default_value = parm_template.defaultValue()
-                                # 格式化浮点数
+                                # formatizationfloat
                                 if isinstance(default_value, float):
                                     default_value = round(default_value, 6)
                                 elif isinstance(default_value, tuple):
@@ -585,7 +585,7 @@ class HoudiniMCP:
                             except Exception:
                                 pass
                         
-                        # 只保存关键信息
+                        # onlysavekeyinfo
                         ats_data["parameters"][parm_name] = {
                             "type": parm_type,
                             "default_value": default_value,
@@ -594,7 +594,7 @@ class HoudiniMCP:
                     except Exception:
                         continue
             
-            # 缓存ATS数据
+            # cacheATSdata
             HoudiniMCP._ats_cache[type_key] = ats_data
             return ats_data
             
@@ -602,21 +602,21 @@ class HoudiniMCP:
             return {}
     
     # ========================================
-    # 节点Details读取 (优化版: 先构建ATS, 再读取部分上下文)
+    # nodeDetailsread (optimizationizationversion: firstbuildATS, againreadpartpartcontext)
     # ========================================
     
     def get_node_details(self, node_path: str) -> Tuple[bool, Dict[str, Any]]:
-        """获取指定节点的详细信息 (优化版: 先构建ATS, 再读取部分上下文)
+        """getspecifiednode detailfineinfo (optimizationizationversion: firstbuildATS, againreadpartpartcontext)
         
-        流程: 
-        1. 先构建ATS (节点type的抽象信息, 包括参数模板、default等)
-        2. 针对特定节点只读取部分上下文 (非default参数、error、连接等)
+        flow: 
+        1. firstbuildATS (nodetype abstractinfo, packageincludeparametertemplate, defaultetc.)
+        2. needleforspecialfixednodeonlyreadpartpartcontext (notdefaultparameter, error, connectetc.)
         
         Args:
-            node_path: 节点完整路径
+            node_path: nodecompletepath
         
         Returns:
-            (success, data) 其中 data 包含:
+            (success, data) itsin data packagecontaining:
             {
                 "name": str,
                 "path": str,
@@ -627,8 +627,8 @@ class HoudiniMCP:
                 "errors": [...],
                 "inputs": [...],
                 "outputs": [...],
-                "parameters": {...},  # 只包含非default参数
-                "ats": {...}  # ATS信息 (options, 用于参考)
+                "parameters": {...},  # onlypackagecontainingnotdefaultparameter
+                "ats": {...}  # ATSinfo (options, used forreference)
             }
         """
         if hou is None:
@@ -644,11 +644,11 @@ class HoudiniMCP:
             type_name = node_type.name() if node_type else "unknown"
             type_key = f"{category.lower()}/{type_name}"
             
-            # 第一步: 构建ATS (节点type的抽象信息)
+            # firststep: buildATS (nodetype abstractinfo)
             ats_data = self._build_ats(node_type)
             
-            # 第二步: 读取节点特定上下文 (只读取部分信息)
-            # 基本信息
+            # secondstep: readnodespecialfixedcontext (onlyreadpartpartinfo)
+            # basethisinfo
             data = {
                 "name": node.name(),
                 "path": node.path(),
@@ -657,7 +657,7 @@ class HoudiniMCP:
                 "comment": node.comment().strip() if node.comment() else "",
             }
             
-            # status信息
+            # statusinfo
             data["flags"] = {
                 "display": node.isDisplayFlagSet() if hasattr(node, 'isDisplayFlagSet') else False,
                 "render": node.isRenderFlagSet() if hasattr(node, 'isRenderFlagSet') else False,
@@ -665,7 +665,7 @@ class HoudiniMCP:
                 "locked": node.isLocked() if hasattr(node, 'isLocked') else False,
             }
             
-            # error信息 (重要, 必须读取)
+            # errorinfo (reneed, mustread)
             errors = []
             try:
                 errs = node.errors()
@@ -675,7 +675,7 @@ class HoudiniMCP:
                 pass
             data["errors"] = errors
             
-            # 输入输出连接 (重要, 必须读取)
+            # inputoutputconnect (reneed, mustread)
             inputs = []
             for i, inp in enumerate(node.inputs()):
                 if inp is not None:
@@ -687,7 +687,7 @@ class HoudiniMCP:
                 outputs.append(out.path())
             data["outputs"] = outputs
             
-            # 只读取非default参数 (部分上下文)
+            # onlyreadnotdefaultparameter (partpartcontext)
             params = {}
             for parm in node.parms():
                 try:
@@ -696,19 +696,19 @@ class HoudiniMCP:
                     
                     parm_name = parm.name()
                     
-                    # 检查是否为default
+                    # checkwhetherasdefault
                     is_default = False
                     try:
                         is_default = parm.isAtDefault()
                     except Exception:
-                        # 如果无法判断, 则读取当前值
+                        # ifnomethoddecidebreak, thenreadcurrentvalue
                         pass
                     
-                    # 只保存非default参数
+                    # onlysavenotdefaultparameter
                     if not is_default:
                         value = parm.eval()
                         
-                        # 格式化浮点数
+                        # formatizationfloat
                         if isinstance(value, float):
                             value = round(value, 6)
                         elif isinstance(value, tuple):
@@ -723,15 +723,15 @@ class HoudiniMCP:
             
             data["parameters"] = params
             
-            # options: addATS引用 (用于参考, 但不包含在主要数据中)
-            # 如果需要完整ATS信息, 可以通过 get_node_type_ats 单独获取
+            # options: addATSreference (used forreference, butnotpackagecontaininginmainneeddatain)
+            # ifneedscompleteATSinfo, canvia get_node_type_ats singleindependentget
             
             return True, data
         except Exception as e:
             return False, {"error": f"Failed to read node details: {str(e)}"}
 
     def get_node_details_text(self, node_path: str) -> Tuple[bool, str]:
-        """获取节点Details的文本描述 (优化版: 只display部分上下文)"""
+        """getnodeDetails textdescription (optimizationizationversion: onlydisplaypartpartcontext)"""
         ok, data = self.get_node_details(node_path)
         if not ok:
             return False, data.get("error", "Unknown error")
@@ -759,14 +759,14 @@ class HoudiniMCP:
         if status:
             lines.append(f"Status: {', '.join(status)}")
         
-        # error (重要上下文)
+        # error (reneedcontext)
         if data['errors']:
             lines.append("")
             lines.append("### Errors:")
             for err in data['errors']:
                 lines.append(f"- {err}")
         
-        # 连接 (重要上下文)
+        # connect (reneedcontext)
         if data['inputs']:
             lines.append("")
             lines.append("### Input connections:")
@@ -779,7 +779,7 @@ class HoudiniMCP:
             for out in data['outputs']:
                 lines.append(f"- → {out}")
         
-        # 非default参数 (部分上下文, 已优化)
+        # notdefaultparameter (partpartcontext, alreadyoptimizationization)
         lines.append("")
         lines.append("### Parameters (non-default):")
         if data['parameters']:
@@ -796,20 +796,20 @@ class HoudiniMCP:
         return True, "\n".join(lines)
     
     def get_node_type_ats(self, node_type: str, category: str = "sop") -> Tuple[bool, Dict[str, Any]]:
-        """获取节点type的ATS (抽象type系统)信息
+        """getnodetype ATS (abstracttypesystem)info
         
         Args:
-            node_type: 节点typename, 如 'box', 'scatter'
-            category: 节点category, default 'sop'
+            node_type: nodetypename, such as 'box', 'scatter'
+            category: nodecategory, default 'sop'
         
         Returns:
-            (success, ats_data) ATS数据包含参数模板、default等信息
+            (success, ats_data) ATSdatapackagecontainingparametertemplate, defaultetc.info
         """
         if hou is None:
             return False, {"error": "Houdini API not detected"}
         
         try:
-            # 获取节点type对象
+            # getnodetypeobject
             categories = hou.nodeTypeCategories()
             cat_obj = categories.get(category.capitalize()) or categories.get(category.upper())
             if not cat_obj:
@@ -825,7 +825,7 @@ class HoudiniMCP:
             if not node_type_obj:
                 return False, {"error": f"Node type not found: {node_type}"}
             
-            # 构建ATS
+            # buildATS
             ats_data = self._build_ats(node_type_obj)
             if not ats_data:
                 return False, {"error": "Failed to build ATS"}
@@ -836,29 +836,29 @@ class HoudiniMCP:
             return False, {"error": f"Failed to fetch ATS: {str(e)}"}
 
     # ========================================
-    # error和警告检查
+    # errorandwarningcheck
     # ========================================
     
     def check_node_errors(self, node_path: Optional[str] = None) -> Tuple[bool, Dict[str, Any]]:
-        """检查节点或网络中的error和警告
+        """checknodeornetworkin errorandwarning
         
         Args:
-            node_path: Node path. 如果是网络路径, 检查其下所有节点. 如果为 None, 检查当前网络. 
+            node_path: Node path. ifisnetwork path, checkitsbelowallnode. ifas None, checkcurrentnetwork. 
         
         Returns:
-            (success, data) 其中 data 包含 errors 和 warnings 列表
+            (success, data) itsin data packagecontaining errors and warnings list
         """
         if hou is None:
             return False, {"error": "Houdini API not detected"}
         
         try:
-            # 确定要检查的节点
+            # certainfixedneedcheck node
             if node_path:
                 target = hou.node(node_path)
                 if target is None:
                     return False, {"error": f"Not foundNode: {node_path}"}
             else:
-                # 获取当前网络
+                # getcurrentnetwork
                 try:
                     pane = hou.ui.paneTabOfType(hou.paneTabType.NetworkEditor)
                     target = pane.pwd() if pane else hou.node('/obj')
@@ -874,7 +874,7 @@ class HoudiniMCP:
                 "warnings": []
             }
             
-            # 如果是容器节点, 检查所有子节点
+            # ifiscontain node, checkallsubnode
             if hasattr(target, 'children') and target.children():
                 nodes_to_check = target.allSubChildren() if hasattr(target, 'allSubChildren') else target.children()
             else:
@@ -884,7 +884,7 @@ class HoudiniMCP:
             
             for node in nodes_to_check:
                 try:
-                    # 检查error
+                    # checkerror
                     errors = node.errors() if hasattr(node, 'errors') else []
                     for err in errors:
                         results["errors"].append({
@@ -895,7 +895,7 @@ class HoudiniMCP:
                         })
                         results["error_count"] += 1
                     
-                    # 检查警告
+                    # checkwarning
                     warnings = node.warnings() if hasattr(node, 'warnings') else []
                     for warn in warnings:
                         results["warnings"].append({
@@ -915,7 +915,7 @@ class HoudiniMCP:
             return False, {"error": f"Failed to check errors: {str(e)}"}
     
     def check_node_errors_text(self, node_path: Optional[str] = None) -> Tuple[bool, str]:
-        """获取error检查的文本描述"""
+        """geterrorcheck textdescription"""
         ok, data = self.check_node_errors(node_path)
         if not ok:
             return False, data.get("error", "Unknown error")
@@ -947,11 +947,11 @@ class HoudiniMCP:
         return True, "\n".join(lines)
 
     # ========================================
-    # 选中节点operation
+    # selectednodeoperation
     # ========================================
     
     def describe_selection(self, limit: int = 3, include_all_params: bool = False) -> Tuple[bool, str]:
-        """读取选中节点的信息"""
+        """readselectednode info"""
         if hou is None:
             return False, "Houdini API not detected"
         
@@ -972,16 +972,16 @@ class HoudiniMCP:
         return True, "\n".join(lines)
 
     # ========================================
-    # 节点search (使用缓存)
+    # nodesearch (usecache)
     # ========================================
     
     def _get_node_types_index(self) -> Dict[str, List[Tuple[str, str, str]]]:
-        """获取节点type索引 (带缓存)
+        """getnodetypeindex (withcache)
         
-        返回: {category_lower: [(type_name, description, full_path), ...]}
+        return: {category_lower: [(type_name, description, full_path), ...]}
         """
         import time as _time
-        cache_duration = 300  # 5分钟缓存
+        cache_duration = 300  # 5-minute cache
         
         if (HoudiniMCP._node_types_cache is not None and 
             _time.time() - HoudiniMCP._node_types_cache_time < cache_duration):
@@ -1010,7 +1010,7 @@ class HoudiniMCP:
         return index
     
     def search_nodes(self, keyword: str, limit: int = 12) -> Tuple[bool, str]:
-        """search节点type (使用缓存)"""
+        """searchnodetype (usecache)"""
         if hou is None:
             return False, "Houdini API not detected"
         if not keyword:
@@ -1019,7 +1019,7 @@ class HoudiniMCP:
         kw = keyword.lower()
         matches: List[str] = []
         
-        # 使用缓存的节点type索引
+        # usecache nodetypeindex
         index = self._get_node_types_index()
         for cat_name, types in index.items():
             for type_name, desc, full_path in types:
@@ -1036,83 +1036,76 @@ class HoudiniMCP:
         return True, "\n".join(matches)
 
     def semantic_search_nodes(self, description: str, category: str = "sop") -> Tuple[bool, str]:
-        """语义search节点 - 通过自然语言描述找到合适的节点
+        """semanticsearchnode - viaselfthenlanguagedescriptionfindtomergesuit node
         
-        内置常用节点的语义映射
+        built-incommonusenode semanticmapping
         """
         if hou is None:
             return False, "Houdini API not detected"
         
-        # 语义映射表: 描述关键词 -> 节点type
-        # 格式: "关键词": ["节点1", "节点2", ...]
+        # Semantic mapping: description keyword -> node type list
+        # Format: "keyword": ["node1", "node2", ...]
         semantic_map = {
-            # 点operation
+            # Point operations
             "scatter": ["scatter", "pointsfromvolume"],
-            "撒点": ["scatter"],
-            "随机点": ["scatter", "add"],
-            "删除点": ["blast", "delete"],
-            "合并点": ["fuse"],
-            "点云": ["scatter"],
-            
-            # copyoperation
-            "copy到点": ["copytopoints"],
-            "实例化": ["copytopoints"],
-            "copy物体": ["copytopoints"],
-            "克隆": ["copytopoints"],
+            "random point": ["scatter", "add"],
+            "delete point": ["blast", "delete"],
+            "merge point": ["fuse"],
+            "point cloud": ["scatter"],
+
+            # Copy operations
+            "copy to point": ["copytopoints"],
             "instance": ["copytopoints"],
-            
-            # 变形operation
-            "噪波": ["mountain"],
+            "clone": ["copytopoints"],
+            "copy object": ["copytopoints"],
+
+            # Deform operations
             "noise": ["mountain", "attribnoise"],
-            "变形": ["transform", "bend", "twist"],
-            "平滑": ["smooth", "relax"],
-            "挤出": ["polyextrude"],
-            "细分": ["subdivide", "remesh"],
-            
-            # 创建几何体
-            "盒子": ["box"],
+            "deform": ["transform", "bend", "twist"],
+            "smooth": ["smooth", "relax"],
+            "extrude": ["polyextrude"],
+            "subdivide": ["subdivide", "remesh"],
+
+            # Geometry creation
             "box": ["box"],
-            "球": ["sphere"],
-            "圆柱": ["tube"],
-            "平面": ["grid"],
+            "sphere": ["sphere"],
+            "tube": ["tube"],
+            "cylinder": ["tube"],
             "grid": ["grid"],
-            "曲线": ["curve", "line"],
-            
-            # ⭐ 地形相关 (常见需求, 详细映射)
-            "地形": ["grid", "mountain"],  # 地形 = grid + mountain
-            "terrain": ["grid", "mountain"],
-            "地面": ["grid"],
-            "山": ["mountain"],
-            "起伏": ["mountain"],
-            "高度场": ["heightfield"],
+            "plane": ["grid"],
+            "curve": ["curve", "line"],
+
+            # ⭐ Terrain-related (common request; detailed mapping)
+            "terrain": ["grid", "mountain"],     # terrain = grid + mountain
+            "ground": ["grid"],
+            "mountain": ["mountain"],
+            "hills": ["mountain"],
             "heightfield": ["heightfield"],
-            
-            # attributesoperation
-            "设置attributes": ["attribwrangle"],
-            "颜色": ["color", "attribwrangle"],
-            "法线": ["normal"],
+
+            # Attribute operations
+            "set attribute": ["attribwrangle"],
+            "color": ["color", "attribwrangle"],
+            "normal": ["normal"],
             "UV": ["uvproject", "uvunwrap"],
-            
-            # 连接operation
-            "合并": ["merge"],
+
+            # Connect operations
             "merge": ["merge"],
-            "分离": ["split", "blast"],
-            "布尔": ["boolean"],
-            "交集": ["boolean"],
-            
-            # 模拟相关
-            "刚体": ["rbdmaterialfracture"],
-            "破碎": ["voronoifracture"],
-            "流体": ["flip", "pyro"],
-            "布料": ["vellum"],
-            "毛发": ["hairgen"],
+            "split": ["split", "blast"],
+            "boolean": ["boolean"],
+
+            # Simulation-related
+            "rigid body": ["rbdmaterialfracture"],
+            "fracture": ["voronoifracture"],
+            "fluid": ["flip", "pyro"],
+            "cloth": ["vellum"],
+            "hair": ["hairgen"],
         }
         
         desc_lower = description.lower()
         results = []
         scores = {}
         
-        # 匹配语义映射
+        # matchsemanticmapping
         for keywords, nodes in semantic_map.items():
             if any(k in desc_lower for k in keywords.split()):
                 for node in nodes:
@@ -1120,7 +1113,7 @@ class HoudiniMCP:
                         scores[node] = 0
                     scores[node] += 1
         
-        # 获取匹配的节点Details
+        # getmatch nodeDetails
         cat_filter = category.lower() if category != "all" else None
         
         for node_name in sorted(scores.keys(), key=lambda x: -scores[x])[:10]:
@@ -1133,7 +1126,7 @@ class HoudiniMCP:
                         results.append(f"- `{cat_name.lower()}/{type_name}` — {desc}")
                         break
         
-        # 如果语义匹配没找到, 尝试直接关键词search
+        # ifsemanticmatchnotfindto, trydirectlykeywordsearch
         if not results:
             for cat_name, cat in hou.nodeTypeCategories().items():
                 if cat_filter and cat_name.lower() != cat_filter:
@@ -1148,15 +1141,15 @@ class HoudiniMCP:
                     break
         
         if results:
-            result_text = f"根据 '{description}' 找到以下节点:\n" + "\n".join(results[:10])
+            result_text = f"based on '{description}' findtoor lessnode:\n" + "\n".join(results[:10])
             return True, result_text
         
-        return False, f"No match for '{description}' 的节点"
+        return False, f"No match for '{description}'  node"
 
     def list_children(self, network_path: Optional[str] = None, 
                       recursive: bool = False, 
                       show_flags: bool = True) -> Tuple[bool, str]:
-        """列出子节点"""
+        """columnoutsubnode"""
         if hou is None:
             return False, "Houdini API not detected"
         
@@ -1197,12 +1190,12 @@ class HoudiniMCP:
         list_nodes(network)
         
         if len(lines) == 1:
-            lines.append(" (空网络)")
+            lines.append(" (emptynetwork)")
         
         return True, "\n".join(lines)
 
     def get_geometry_info(self, node_path: str, output_index: int = 0) -> Tuple[bool, str]:
-        """获取几何体信息"""
+        """getgeometryinfo"""
         if hou is None:
             return False, "Houdini API not detected"
         
@@ -1213,43 +1206,43 @@ class HoudiniMCP:
         try:
             geo = node.geometry()
             if not geo:
-                return False, f"节点 {node_path} has no geometry output"
+                return False, f"node {node_path} has no geometry output"
             
             info = {
-                "点数": geo.intrinsicValue("pointcount"),
-                "顶点数": geo.intrinsicValue("vertexcount"),
-                "图元数": geo.intrinsicValue("primitivecount"),
+                "pointcount": geo.intrinsicValue("pointcount"),
+                "vertexcount": geo.intrinsicValue("vertexcount"),
+                "diagrammetadatacount": geo.intrinsicValue("primitivecount"),
             }
             
-            # 点attributes
+            # pointattributes
             point_attrs = [f"{a.name()} ({a.dataType().name()})" for a in geo.pointAttribs()]
-            # 顶点attributes
+            # vertexattributes
             vertex_attrs = [f"{a.name()} ({a.dataType().name()})" for a in geo.vertexAttribs()]
-            # 图元attributes
+            # diagrammetadataattributes
             prim_attrs = [f"{a.name()} ({a.dataType().name()})" for a in geo.primAttribs()]
-            # 全局attributes
+            # globalattributes
             detail_attrs = [f"{a.name()} ({a.dataType().name()})" for a in geo.globalAttribs()]
             
             lines = [
-                f"## 几何体信息: {node_path}",
-                f"- Points: {info['点数']}",
-                f"- 顶Points: {info['顶点数']}",
-                f"- 图元数: {info['图元数']}",
+                f"## geometryinfo: {node_path}",
+                f"- Points: {info['pointcount']}",
+                f"- topPoints: {info['vertexcount']}",
+                f"- diagrammetadatacount: {info['diagrammetadatacount']}",
                 "",
                 "### attributes",
             ]
             
             if point_attrs:
-                lines.append(f"点attributes: {', '.join(point_attrs)}")
+                lines.append(f"pointattributes: {', '.join(point_attrs)}")
             if vertex_attrs:
-                lines.append(f"顶点attributes: {', '.join(vertex_attrs)}")
+                lines.append(f"vertexattributes: {', '.join(vertex_attrs)}")
             if prim_attrs:
-                lines.append(f"图元attributes: {', '.join(prim_attrs)}")
+                lines.append(f"diagrammetadataattributes: {', '.join(prim_attrs)}")
             if detail_attrs:
-                lines.append(f"全局attributes: {', '.join(detail_attrs)}")
+                lines.append(f"globalattributes: {', '.join(detail_attrs)}")
             
             if not any([point_attrs, vertex_attrs, prim_attrs, detail_attrs]):
-                lines.append(" (无自定义attributes)")
+                lines.append(" (nocustomattributes)")
             
             return True, "\n".join(lines)
         except Exception as e:
@@ -1257,7 +1250,7 @@ class HoudiniMCP:
 
     def set_display_flag(self, node_path: str, display: bool = True, 
                          render: bool = True) -> Tuple[bool, str]:
-        """设置display/render标志"""
+        """setdisplay/renderflag"""
         if hou is None:
             return False, "Houdini API not detected"
         
@@ -1277,13 +1270,13 @@ class HoudiniMCP:
             if render:
                 flags.append("render")
             
-            return True, f"Set {node.name()} 为{'/'.join(flags)}节点"
+            return True, f"Set {node.name()} as{'/'.join(flags)}node"
         except Exception as e:
             return False, f"Failed to set flag: {str(e)}"
 
     def copy_node(self, source_path: str, dest_network: Optional[str] = None,
                   new_name: Optional[str] = None) -> Tuple[bool, str]:
-        """copy节点"""
+        """copynode"""
         if hou is None:
             return False, "Houdini API not detected"
         
@@ -1294,7 +1287,7 @@ class HoudiniMCP:
         if dest_network:
             dest = hou.node(dest_network)
             if not dest:
-                return False, f"Not found目标网络: {dest_network}"
+                return False, f"Not foundtargetnetwork: {dest_network}"
         else:
             dest = source.parent()
         
@@ -1303,13 +1296,13 @@ class HoudiniMCP:
             if new_name:
                 new_node.setName(new_name)
             new_node.moveToGoodPosition()
-            return True, f"已copy节点到: {new_node.path()}"
+            return True, f"alreadycopynodeto: {new_node.path()}"
         except Exception as e:
             return False, f"copyFailed: {str(e)}"
 
     def batch_set_parameters(self, node_paths: List[str], param_name: str, 
                              value: Any) -> Tuple[bool, str]:
-        """批量设置参数"""
+        """batchsetparameter"""
         if hou is None:
             return False, "Houdini API not detected"
         
@@ -1332,7 +1325,7 @@ class HoudiniMCP:
                     except Exception as e:
                         failed.append(f"{node.name()}: {e}")
                 else:
-                    failed.append(f"{node.name()}: 无参数 {param_name}")
+                    failed.append(f"{node.name()}: noparameter {param_name}")
                 continue
             
             try:
@@ -1341,7 +1334,7 @@ class HoudiniMCP:
             except Exception as e:
                 failed.append(f"{node.name()}: {e}")
         
-        msg = f"修改Success: {len(success)} nodes"
+        msg = f"modifySuccess: {len(success)} nodes"
         if failed:
             msg += f"\nFailed: {'; '.join(failed)}"
         
@@ -1350,7 +1343,7 @@ class HoudiniMCP:
     def find_nodes_by_param(self, param_name: str, value: Any = None,
                             network_path: Optional[str] = None,
                             recursive: bool = True) -> Tuple[bool, str]:
-        """按参数值search节点"""
+        """byparametervaluesearchnode"""
         if hou is None:
             return False, "Houdini API not detected"
         
@@ -1376,49 +1369,49 @@ class HoudiniMCP:
         search_in(network)
         
         if results:
-            header = f"找到 {len(results)} nodes包含参数 '{param_name}'"
+            header = f"findto {len(results)} nodespackagecontainingparameter '{param_name}'"
             if value is not None:
                 header += f" = {value}"
             return True, header + ":\n" + "\n".join(results[:50])
         
-        return False, f"No match found containing参数 '{param_name}' 的节点"
+        return False, f"No match found containingparameter '{param_name}'  node"
 
     def save_hip(self, file_path: Optional[str] = None) -> Tuple[bool, str]:
-        """保存 HIP 文件"""
+        """save HIP file"""
         if hou is None:
             return False, "Houdini API not detected"
         
         try:
             if file_path:
                 hou.hipFile.save(file_path)
-                return True, f"Saved到: {file_path}"
+                return True, f"Savedto: {file_path}"
             else:
                 hou.hipFile.save()
                 return True, f"Saved: {hou.hipFile.path()}"
         except Exception as e:
-            return False, f"保存Failed: {str(e)}"
+            return False, f"saveFailed: {str(e)}"
 
     def undo_redo(self, action: str) -> Tuple[bool, str]:
-        """撤销/重做"""
+        """undo/redo"""
         if hou is None:
             return False, "Houdini API not detected"
         
         try:
             if action == "undo":
                 hou.undos.performUndo()
-                return True, "已撤销"
+                return True, "Undone"
             elif action == "redo":
                 hou.undos.performRedo()
-                return True, "已重做"
+                return True, "alreadyredo"
             else:
-                return False, f"未知operation: {action}"
+                return False, f"notknowoperation: {action}"
         except Exception as e:
             return False, f"operationFailed: {str(e)}"
 
     def search_documentation(self, node_type: str, category: str = "sop") -> Tuple[bool, str]:
-        """查询节点文档"""
+        """querynodedocument"""
         if requests is None:
-            return False, "requests 模块未安装"
+            return False, "requests modulenotinstall"
         
         base_url = "https://www.sidefx.com/docs/houdini/nodes"
         doc_node_type = node_type.replace("::", "--")
@@ -1431,7 +1424,7 @@ class HoudiniMCP:
             try:
                 response = requests.get(doc_url, timeout=settings.request_timeout)
                 if response.status_code == 404:
-                    return False, f"Not found文档: {category}/{node_type}"
+                    return False, f"Not founddocument: {category}/{node_type}"
                 response.raise_for_status()
                 
                 content = response.text
@@ -1443,18 +1436,18 @@ class HoudiniMCP:
                 if summary_match:
                     summary = re.sub(r'<[^>]+>', '', summary_match.group(1)).strip()
                 
-                result = f"## {title}\n\n**文档链接**: {doc_url}\n\n"
+                result = f"## {title}\n\n**documentlink**: {doc_url}\n\n"
                 if summary:
-                    result += f"**描述**: {summary}\n"
+                    result += f"**description**: {summary}\n"
                 
                 return True, result
             except Exception as e:
                 time.sleep(settings.request_backoff)
         
-        return False, f"查询Failed: {doc_url}"
+        return False, f"queryFailed: {doc_url}"
 
     # ========================================
-    # Wrangle 节点创建 (VEX 优先)
+    # Wrangle nodecreate (VEX preferred)
     # ========================================
     
     def create_wrangle_node(self, vex_code: str, 
@@ -1462,16 +1455,16 @@ class HoudiniMCP:
                             node_name: Optional[str] = None,
                             run_over: str = "Points",
                             parent_path: Optional[str] = None) -> Tuple[bool, str]:
-        """创建 Wrangle 节点并设置 VEX code
+        """create Wrangle nodeandset VEX code
         
-        这是解决几何处理问题的首选方式. 
+        thisisresolvedecidegeometryprocessissue firstselectway. 
         
         Args:
             vex_code: VEX code
             wrangle_type: Wrangle type, default attribwrangle
-            node_name: 节点name (options)
-            run_over: 运行模式 (Points/Vertices/Primitives/Detail)
-            parent_path: 父网络路径 (options)
+            node_name: nodename (options)
+            run_over: runmode (Points/Vertices/Primitives/Detail)
+            parent_path: parentnetwork path (options)
         
         Returns:
             (success, message)
@@ -1482,58 +1475,58 @@ class HoudiniMCP:
         if not vex_code or not vex_code.strip():
             return False, "VEX codeis empty"
         
-        # 获取父网络
+        # getparentnetwork
         if parent_path:
             network = hou.node(parent_path)
             if network is None:
-                return False, f"Not found父网络: {parent_path}"
+                return False, f"Not foundparentnetwork: {parent_path}"
         else:
             network = self._current_network()
             if network is None:
                 return False, "Current network not found"
         
-        # 验证 wrangle type
+        # verify wrangle type
         valid_types = ["attribwrangle", "pointwrangle", "primitivewrangle", 
                        "volumewrangle", "vertexwrangle"]
         if wrangle_type not in valid_types:
             wrangle_type = "attribwrangle"
         
-        # 确保在正确的网络层级
+        # ensureincorrect networklayerlevel
         network = self._ensure_target_network(network, self._category_from_hint("sop"))
         
-        # 创建节点
+        # createnode
         safe_name = self._sanitize_node_name(node_name)
         
         try:
-            # 根据文档, 使用 force_valid_node_name=True 自动处理invalid节点名
+            # based ondocument, use force_valid_node_name=True autoprocessinvalidnodename
             new_node = network.createNode(
                 wrangle_type,
                 safe_name,
                 run_init_scripts=True,
                 load_contents=True,
-                exact_type_name=False,  # 允许模糊匹配
-                force_valid_node_name=True  # 自动清理invalid节点名
+                exact_type_name=False,  # allowfuzzymatch
+                force_valid_node_name=True  # autocleanupinvalidnodename
             )
         except Exception as exc:
-            return False, f"创建 Wrangle 节点Failed: {exc}"
+            return False, f"create Wrangle nodeFailed: {exc}"
         
-        # 设置 VEX code
+        # set VEX code
         try:
-            # 大多数 Wrangle 节点的code参数名是 "snippet"
+            # largemulticount Wrangle node codeparameternameis "snippet"
             snippet_parm = new_node.parm("snippet")
             if snippet_parm:
                 snippet_parm.set(vex_code)
             else:
-                # 某些节点可能用 "code" 或 "vexcode"
+                # somenodemayuse "code" or "vexcode"
                 for parm_name in ["code", "vexcode", "vex_code"]:
                     parm = new_node.parm(parm_name)
                     if parm:
                         parm.set(vex_code)
                         break
         except Exception as exc:
-            return False, f"设置 VEX codeFailed: {exc}"
+            return False, f"set VEX codeFailed: {exc}"
         
-        # 设置运行模式 (与 Houdini Attrib Wrangle parm("class") 菜单一致: 0=Detail, 1=Primitives, 2=Points, 3=Vertices, 4=Numbers)
+        # setrunmode (with Houdini Attrib Wrangle parm("class") menusingleconsistent: 0=Detail, 1=Primitives, 2=Points, 3=Vertices, 4=Numbers)
         run_over_map = {
             "Detail": 0,
             "Primitives": 1,
@@ -1548,9 +1541,9 @@ class HoudiniMCP:
             if class_parm:
                 class_parm.set(run_over_value)
         except Exception:
-            pass  # 某些 wrangle type可能没class 参数
+            pass  # some wrangle typemaynotclass parameter
         
-        # 布局和选择
+        # layoutandselect
         new_node.moveToGoodPosition()
         new_node.setSelected(True, clear_all_selected=True)
         
@@ -1567,7 +1560,7 @@ class HoudiniMCP:
         except Exception:
             pass
         
-        # 检查是否有编译error
+        # checkwhetherhascompileerror
         errors = []
         try:
             node_errors = new_node.errors()
@@ -1577,91 +1570,91 @@ class HoudiniMCP:
             pass
         
         if errors:
-            return True, f"Created Wrangle Node: {new_node.path()}\nVEX 编译警告: {'; '.join(errors)}"
+            return True, f"Created Wrangle Node: {new_node.path()}\nVEX compilewarning: {'; '.join(errors)}"
         
         return True, f"Created Wrangle Node: {new_node.path()}"
 
     # ========================================
-    # 节点创建
+    # nodecreate
     # ========================================
     
     def create_node(self, type_hint: str, node_name: Optional[str] = None, 
                     parameters: Optional[Dict[str, Any]] = None,
                     parent_path: Optional[str] = None) -> Tuple[bool, str]:
-        """创建单个节点"""
+        """createsinglenode"""
         if hou is None:
             return False, "Houdini API not detected"
         
-        # 获取父网络
+        # getparentnetwork
         if parent_path:
             network = hou.node(parent_path)
             if network is None:
-                return False, f"Not found父网络: {parent_path}"
+                return False, f"Not foundparentnetwork: {parent_path}"
         else:
             network = self._current_network()
             if network is None:
-                # 尝试使用default网络
+                # tryusedefaultnetwork
                 try:
                     network = hou.node('/obj')
                     if network is None:
-                        return False, "Current network not found, 且无法访问default网络 /obj. 请确保Houdini已正确启动, 或在网络编辑器中打开一个网络. "
+                        return False, "Current network not found, andnomethodaccessdefaultnetwork /obj. pleaseensureHoudinialreadycorrectstart, orinnetworkedit inopenonenetwork. "
                 except Exception:
-                    return False, "Current network not found, 且无法访问default网络. 请确保Houdini已正确启动, 或在网络编辑器中打开一个网络. "
+                    return False, "Current network not found, andnomethodaccessdefaultnetwork. pleaseensureHoudinialreadycorrectstart, orinnetworkedit inopenonenetwork. "
         
         if not type_hint:
-            return False, "未提供节点type"
+            return False, "notraisefornodetype"
         
-        # 根据文档, createNode 可以直接处理节点type匹配, 无需预先解析
-        # 但我们需要确保网络type正确
+        # based ondocument, createNode candirectlyprocessnodetypematch, noneedspre-firstparse
+        # butIsneedsensurenetworktypecorrect
         desired_cat = self._desired_category_from_hint(type_hint, network)
         if desired_cat is None:
-            # 如果无法识别category, 尝试根据节点type推断 (常见SOP节点)
+            # If unable to recognize category, try to infer from node type (common SOP nodes)
             common_sop_nodes = ['box', 'sphere', 'grid', 'tube', 'line', 'circle', 'noise', 'mountain', 
                               'scatter', 'copytopoints', 'attribwrangle', 'pointwrangle', 'primitivewrangle',
                               'delete', 'blast', 'fuse', 'transform', 'subdivide', 'remesh']
             if type_hint.lower() in common_sop_nodes:
-                # 这是一个SOP节点, 需要SOP网络
+                # thisisoneSOPnode, needsSOPnetwork
                 desired_cat = hou.sopNodeTypeCategory()
             else:
-                # 如果无法识别category, 尝试使用当前网络的category
+                # ifnomethodrecognizecategory, tryusecurrentnetwork category
                 desired_cat = network.childTypeCategory() if network else None
                 if desired_cat is None:
-                    return False, f"无法识别节点category: {type_hint}"
+                    return False, f"nomethodrecognizenodecategory: {type_hint}"
         
-        # 确保目标网络type正确 (会自动创建容器)
+        # ensuretargetnetworktypecorrect (willautocreatecontain )
         network = self._ensure_target_network(network, desired_cat)
         if network is None:
-            return False, f"无法获取或创建目标网络: {type_hint}"
+            return False, f"nomethodgetorcreatetargetnetwork: {type_hint}"
         
-        # 清理节点名 (但保留原始值用于errorHint)
+        # cleanupnodename (butkeeporiginalvalueused forerrorHint)
         safe_name = self._sanitize_node_name(node_name)
         
-        # 根据文档, createNode 支持以下参数: 
+        # based ondocument, createNode supportor lessparameter: 
         # createNode(node_type_name, node_name=None, run_init_scripts=True, 
         #            load_contents=True, exact_type_name=False, force_valid_node_name=False)
         # 
-        # 我们使用 force_valid_node_name=True 让 Houdini 自动处理invalid节点名
-        # 使用 exact_type_name=False (default)让 Houdini 进行模糊匹配
+        # Isuse force_valid_node_name=True let Houdini autoprocessinvalidnodename
+        # use exact_type_name=False (default)let Houdini enterrowfuzzymatch
         
         try:
-            # 直接使用 createNode, 让它自己处理type匹配
-            # 如果 node_name invalid, force_valid_node_name=True 会自动清理
+            # directlyuse createNode, letitselfselfprocesstypematch
+            # if node_name invalid, force_valid_node_name=True willautocleanup
             new_node = network.createNode(
-                type_hint,  # 直接传原始type名, 让 Houdini 处理匹配
-                safe_name,  # 如果为 None, Houdini 会自动生成name
+                type_hint,  # directlypassoriginaltypename, let Houdini processmatch
+                safe_name,  # ifas None, Houdini willautogeneratename
                 run_init_scripts=True,
                 load_contents=True,
-                exact_type_name=False,  # 允许模糊匹配
-                force_valid_node_name=True  # 自动清理invalid节点名
+                exact_type_name=False,  # allowfuzzymatch
+                force_valid_node_name=True  # autocleanupinvalidnodename
             )
         except hou.OperationFailed as exc:
-            # 提供更详细的error信息
+            # raiseformoredetailfine errorinfo
             error_detail = str(exc)
             current_cat = network.childTypeCategory() if network else None
             cat_name = current_cat.name().lower() if current_cat else "unknown"
             network_path = network.path() if network else "unknown"
             
-            # 尝试提供Suggestion
+            # tryraiseforSuggestion
             suggestions = []
             try:
                 if current_cat:
@@ -1675,25 +1668,25 @@ class HoudiniMCP:
             except Exception:
                 pass
             
-            error_msg = f"创建节点Failed: {type_hint}\n"
+            error_msg = f"createnodeFailed: {type_hint}\n"
             error_msg += f"errorDetails: {error_detail}\n"
-            error_msg += f"当前网络: {network_path} (category: {cat_name})"
+            error_msg += f"currentnetwork: {network_path} (category: {cat_name})"
             if suggestions:
-                error_msg += f"\nSuggestion的Node type: {', '.join(suggestions[:5])}"
+                error_msg += f"\nSuggestion Node type: {', '.join(suggestions[:5])}"
             return False, error_msg
         except Exception as exc:
             import traceback
             error_detail = str(exc)
             network_path = network.path() if network else "unknown" if network else "None"
-            error_msg = f"创建节点Failed: {type_hint}\n"
+            error_msg = f"createnodeFailed: {type_hint}\n"
             error_msg += f"error: {error_detail}\n"
-            error_msg += f"网络: {network_path}"
-            # 只在调试时输出完整traceback
+            error_msg += f"network: {network_path}"
+            # onlyindebugwhenoutputcompletetraceback
             if "DEBUG" in os.environ:
                 error_msg += f"\n{traceback.format_exc()}"
             return False, error_msg
         
-        # 设置参数
+        # setparameter
         if parameters and isinstance(parameters, dict):
             for parm_name, parm_value in parameters.items():
                 parm = new_node.parm(parm_name)
@@ -1720,15 +1713,15 @@ class HoudiniMCP:
         except Exception:
             pass
         
-        # 返回Node path + diff 信息 (让 AI 了解变化)
+        # returnNode path + diff info (let AI resolvechangeization)
         node_path = new_node.path()
         diff_parts = [f"✓{node_path}"]
         try:
             parent = new_node.parent()
             if parent:
                 siblings = len(parent.children())
-                diff_parts.append(f"(父网络: {parent.path()}, 子节Points: {siblings})")
-            # 输入连接信息
+                diff_parts.append(f"(parentnetwork: {parent.path()}, subsectionPoints: {siblings})")
+            # inputconnectinfo
             inputs = new_node.inputs()
             if inputs:
                 connected = [n.path() for n in inputs if n is not None]
@@ -1739,7 +1732,7 @@ class HoudiniMCP:
         return True, ' '.join(diff_parts)
 
     def create_network(self, plan: Dict[str, Any]) -> Tuple[bool, str]:
-        """批量创建节点网络"""
+        """batchcreatenodenetwork"""
         if hou is None:
             return False, "Houdini API not detected"
         
@@ -1749,14 +1742,14 @@ class HoudiniMCP:
         
         node_specs = plan.get("nodes") if isinstance(plan, dict) else None
         if not node_specs:
-            return False, "缺少 nodes 字段"
+            return False, "missing nodes field"
         
         created: Dict[str, Any] = {}
         creation_order: List[str] = []
         messages: List[str] = []
         
         try:
-            # 检测是否需要自动创建容器
+            # detectwhetherneedsautocreatecontain 
             current_cat = network.childTypeCategory()
             current_cat_name = current_cat.name().lower() if current_cat else ""
             
@@ -1768,22 +1761,22 @@ class HoudiniMCP:
             
             if has_sop_node and current_cat_name.startswith("object"):
                 try:
-                    # 根据文档, 直接使用 createNode, 让它自己处理匹配
+                    # based ondocument, directlyuse createNode, letitselfselfprocessmatch
                     auto_container = network.createNode(
                         "geo",
-                        None,  # 让 Houdini 自动生成name
+                        None,  # let Houdini autogeneratename
                         run_init_scripts=True,
                         load_contents=True,
                         exact_type_name=False,
                         force_valid_node_name=True
                     )
                     auto_container.moveToGoodPosition()
-                    messages.append(f"自动创建容器: {auto_container.name()}")
+                    messages.append(f"autocreatecontain : {auto_container.name()}")
                     network = auto_container
                 except Exception as exc:
-                    messages.append(f"创建容器Failed: {exc}")
+                    messages.append(f"createcontain Failed: {exc}")
             
-            # 创建节点
+            # createnode
             for idx, spec in enumerate(node_specs):
                 if not isinstance(spec, dict):
                     continue
@@ -1792,16 +1785,16 @@ class HoudiniMCP:
                 type_hint = spec.get("type") or spec.get("node_type")
                 
                 if not type_hint:
-                    messages.append(f"[{node_id}] 缺少 type")
+                    messages.append(f"[{node_id}] missing type")
                     continue
                 
-                # 根据文档, createNode 可以直接处理节点type匹配
+                # based ondocument, createNode candirectlyprocessnodetypematch
                 desired_cat = self._desired_category_from_hint(type_hint, network)
                 if desired_cat is None:
-                    # 如果无法识别category, 尝试使用当前网络的category
+                    # ifnomethodrecognizecategory, tryusecurrentnetwork category
                     desired_cat = network.childTypeCategory() if network else None
                     if desired_cat is None:
-                        messages.append(f"[{node_id}] 无法识别category: {type_hint}")
+                        messages.append(f"[{node_id}] nomethodrecognizecategory: {type_hint}")
                         continue
                 
                 network = self._ensure_target_network(network, desired_cat)
@@ -1809,24 +1802,24 @@ class HoudiniMCP:
                 node_name = spec.get("name")
                 safe_name = self._sanitize_node_name(node_name)
                 
-                # 直接使用 createNode, 让它自己处理type匹配
+                # directlyuse createNode, letitselfselfprocesstypematch
                 try:
                     new_node = network.createNode(
-                        type_hint,  # 直接传原始type名
+                        type_hint,  # directlypassoriginaltypename
                         safe_name,
                         run_init_scripts=True,
                         load_contents=True,
-                        exact_type_name=False,  # 允许模糊匹配
-                        force_valid_node_name=True  # 自动清理invalid节点名
+                        exact_type_name=False,  # allowfuzzymatch
+                        force_valid_node_name=True  # autocleanupinvalidnodename
                     )
                 except hou.OperationFailed as exc:
-                    messages.append(f"[{node_id}] 创建Failed: {type_hint} - {exc}")
+                    messages.append(f"[{node_id}] createFailed: {type_hint} - {exc}")
                     continue
                 except Exception as exc:
-                    messages.append(f"[{node_id}] 创建Failed: {exc}")
+                    messages.append(f"[{node_id}] createFailed: {exc}")
                     continue
                 
-                # 设置参数
+                # setparameter
                 params = spec.get("parameters") or spec.get("parms", {})
                 if isinstance(params, dict):
                     for parm_name, parm_value in params.items():
@@ -1858,9 +1851,9 @@ class HoudiniMCP:
                     try:
                         dst_node.setInput(input_index, src_node)
                     except Exception as exc:
-                        messages.append(f"连接Failed {src_id}->{dst_id}: {exc}")
+                        messages.append(f"connectFailed {src_id}->{dst_id}: {exc}")
             
-            # 自动布局
+            # autolayout
             if created:
                 network.layoutChildren()
                 if creation_order:
@@ -1876,12 +1869,12 @@ class HoudiniMCP:
             if created:
                 msg = f"Created {len(created)} nodes: {summary}"
                 if messages:
-                    msg += f"\n注意: {'; '.join(messages)}"
+                    msg += f"\nnote: {'; '.join(messages)}"
                 return True, msg
             
-            return False, "未创建任何节点"
+            return False, "notcreateanynode"
         except Exception as exc:
-            # 回滚: 删除Created的节点以保持场景干净
+            # Rollback: delete the created node to keep the scene clean
             if created:
                 _dbg(f"[MCP Client] Network creation error, rolling back {len(created)} created node(s)...")
                 for nid in reversed(creation_order):
@@ -1891,42 +1884,42 @@ class HoudiniMCP:
                             node.destroy()
                     except Exception:
                         pass
-            return False, f"创建网络Failed (已回滚): {exc}"
+            return False, f"createnetworkFailed (alreadybackscroll): {exc}"
 
     # ========================================
-    # 节点连接
+    # nodeconnect
     # ========================================
     
     def connect_nodes(self, output_node_path: str, input_node_path: str, 
                       input_index: int = 0) -> Tuple[bool, str]:
-        """连接两个节点"""
+        """connecttwonode"""
         if hou is None:
             return False, "Houdini API not detected"
         
         out_node = hou.node(output_node_path)
         if out_node is None:
-            return False, f"Not found输出Node: {output_node_path}"
+            return False, f"Not foundoutputNode: {output_node_path}"
         
         in_node = hou.node(input_node_path)
         if in_node is None:
-            return False, f"Not found输入Node: {input_node_path}"
+            return False, f"Not foundinputNode: {input_node_path}"
         
         try:
             in_node.setInput(int(input_index), out_node, 0)
-            return True, f"已连接: {output_node_path} → {input_node_path}[{input_index}]"
+            return True, f"alreadyconnect: {output_node_path} → {input_node_path}[{input_index}]"
         except Exception as exc:
-            return False, f"连接Failed: {exc}"
+            return False, f"connectFailed: {exc}"
 
     # ========================================
-    # 参数设置
+    # parameterset
     # ========================================
     
     def set_parameter(self, node_path: str, param_name: str, value: Any) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
-        """设置Node parameters (设置前自动快照旧值, 支持撤销)
+        """setNode parameters (setpreviousautosnapshotoldvalue, supportundo)
         
         Returns:
             (success, message, undo_snapshot)
-            undo_snapshot 包含 node_path, param_name, old_value, new_value
+            undo_snapshot packagecontaining node_path, param_name, old_value, new_value
         """
         if hou is None:
             return False, "Houdini API not detected", None
@@ -1935,33 +1928,33 @@ class HoudiniMCP:
         if node is None:
             return False, f"Not foundNode: {node_path}", None
         
-        # 尝试获取参数
+        # trygetparameter
         parm = node.parm(param_name)
         if parm is None:
-            # 尝试作为元组参数
+            # tryastupleparameter
             parm_tuple = node.parmTuple(param_name)
             if parm_tuple is None:
-                # 列出相似参数名帮助 AI 纠正
+                # List similar parameter names to help the AI self-correct
                 try:
                     all_parms = [p.name() for p in node.parms()]
                     hint_lower = param_name.lower()
                     similar = [p for p in all_parms if hint_lower in p.lower() or p.lower() in hint_lower][:8]
-                    err = f"节点 {node_path} 不存在参数 '{param_name}'"
+                    err = f"node {node_path} does not existparameter '{param_name}'"
                     if similar:
-                        err += f"\n相似参数: {', '.join(similar)}"
+                        err += f"\nsimilarparameter: {', '.join(similar)}"
                     else:
-                        # 列出前 15 个参数供参考
+                        # columnoutprevious 15 parameterforreference
                         sample = all_parms[:15]
-                        err += f"\n该节点可用参数(前15): {', '.join(sample)}"
+                        err += f"\nthisnodecanuseparameter(previous15): {', '.join(sample)}"
                         if len(all_parms) > 15:
-                            err += f" ... of {len(all_parms)} 个"
+                            err += f" ... of {len(all_parms)} "
                 except Exception:
-                    err = f"Not found参数: {param_name}"
+                    err = f"Not foundparameter: {param_name}"
                 return False, err, None
             
             if isinstance(value, (list, tuple)):
                 try:
-                    # 快照旧值 (元组参数)
+                    # snapshotoldvalue (tupleparameter)
                     old_value = list(parm_tuple.eval())
                     parm_tuple.set(value)
                     new_value = list(parm_tuple.eval())
@@ -1974,12 +1967,12 @@ class HoudiniMCP:
                     }
                     return True, f"Set {node_path} {param_name}: {old_value} → {new_value}", snapshot
                 except Exception as exc:
-                    return False, f"设置Failed: {exc}", None
+                    return False, f"setFailed: {exc}", None
             else:
-                return False, f"参数 {param_name} 需要列表或元组值", None
+                return False, f"parameter {param_name} needslistortuplevalue", None
         
         try:
-            # 快照旧值 (标量参数)
+            # snapshotoldvalue (markerquantityparameter)
             try:
                 old_expr = parm.expression()
                 old_lang = str(parm.expressionLanguage())
@@ -1998,26 +1991,26 @@ class HoudiniMCP:
             }
             return True, f"Set {node_path} {param_name}: {old_value} → {actual_value}", snapshot
         except Exception as exc:
-            return False, f"设置Failed: {exc}", None
+            return False, f"setFailed: {exc}", None
 
     # ========================================
-    # 节点删除
+    # nodedelete
     # ========================================
     
     @staticmethod
     def _snapshot_node(node, _depth: int = 0) -> Optional[Dict[str, Any]]:
-        """在删除前快照节点status (用于撤销重建)
+        """indeleteprevioussnapshotnodestatus (used forundorebuild)
         
-        ★ 递归快照: 自动保存所有子节点树, 确保删除父节点后可完整恢复. 
+        ★ recursivesnapshot: autosaveallsubnodetree, ensuredeleteparentnodeaftercancompleterestore. 
         
         Args:
-            node: 要快照的 Houdini 节点
-            _depth: 递归深度 (内部使用, 防止无限递归)
+            node: needsnapshot  Houdini node
+            _depth: recursivedepth (withinpartuse, preventnolimitrecursive)
         
         Returns:
-            快照字典, 包含重建节点及其完整子树所需的全部信息; FailedReturned None
+            Snapshot dict containing all info needed to rebuild the node and its full subtree; None on failure.
         """
-        if _depth > 20:  # 防止极端嵌套导致栈溢出
+        if _depth > 20:  # Prevent deeply nested structures from causing a stack overflow
             return None
         try:
             node_type = node.type()
@@ -2025,7 +2018,7 @@ class HoudiniMCP:
             if not node_type or not parent:
                 return None
             
-            # 基本信息
+            # basethisinfo
             snapshot: Dict[str, Any] = {
                 "parent_path": parent.path(),
                 "node_type": node_type.name(),
@@ -2033,18 +2026,18 @@ class HoudiniMCP:
                 "position": [node.position()[0], node.position()[1]],
             }
             
-            # 非default参数值
+            # notdefaultparametervalue
             params = {}
             try:
                 for parm in node.parms():
                     try:
-                        # 跳过locked/不可写参数
+                        # skiplocked/notcanwriteparameter
                         if parm.isLocked():
                             continue
-                        # 只保存与default不同的参数
+                        # onlysavewithdefaultdifferent parameter
                         default = parm.parmTemplate().defaultValue()
                         current = parm.eval()
-                        # 表达式优先保存
+                        # tableexpressionpreferredsave
                         try:
                             expr = parm.expression()
                             if expr:
@@ -2052,7 +2045,7 @@ class HoudiniMCP:
                                 continue
                         except Exception:
                             pass
-                        # 比较 float 时容忍精度误差
+                        # Use float tolerance when comparing floats
                         if isinstance(current, float) and isinstance(default, (float, int)):
                             if abs(current - float(default)) > 1e-9:
                                 params[parm.name()] = current
@@ -2064,7 +2057,7 @@ class HoudiniMCP:
                 pass
             snapshot["params"] = params
             
-            # 输入连接
+            # inputconnect
             input_connections = []
             try:
                 for i, conn in enumerate(node.inputs()):
@@ -2077,7 +2070,7 @@ class HoudiniMCP:
                 pass
             snapshot["input_connections"] = input_connections
             
-            # 输出连接
+            # outputconnect
             output_connections = []
             try:
                 for conn in node.outputConnections():
@@ -2090,7 +2083,7 @@ class HoudiniMCP:
                 pass
             snapshot["output_connections"] = output_connections
             
-            # 标志位
+            # flagbit
             try:
                 snapshot["display_flag"] = node.isDisplayFlagSet() if hasattr(node, 'isDisplayFlagSet') else False
                 snapshot["render_flag"] = node.isRenderFlagSet() if hasattr(node, 'isRenderFlagSet') else False
@@ -2098,7 +2091,7 @@ class HoudiniMCP:
                 snapshot["display_flag"] = False
                 snapshot["render_flag"] = False
             
-            # ★ 递归快照子节点树 — 确保删除父节点后可完整恢复子节点
+            # ★ recursivesnapshotsubnodetree — ensuredeleteparentnodeaftercancompleterestoresubnode
             children_snapshots = []
             try:
                 children = node.children()
@@ -2115,9 +2108,9 @@ class HoudiniMCP:
             if children_snapshots:
                 snapshot["children"] = children_snapshots
             
-            # ★ 快照子节点间的内部连接 (兄弟节点之间的连线)
-            # 外部连接已在各子节点的 input_connections / output_connections 中记录, 
-            # 但恢复时子节点是逐个创建的, 内部连接需要在所有子节点创建完毕后单独恢复. 
+            # ★ Snapshot connections between sub-nodes (sibling-node connections)
+            # externalconnectalreadyineachsubnode  input_connections / output_connections inrecord, 
+            # butrestorewhensubnodeisone by onecreate , withinpartconnectneedsinallsubnodecreatefinishfinishaftersingleindependentrestore. 
             internal_connections = []
             try:
                 if children:
@@ -2143,7 +2136,7 @@ class HoudiniMCP:
             return None
 
     def delete_node_by_path(self, node_path: str) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
-        """按路径删除节点 (删除前自动快照, 支持撤销重建)
+        """bypathdeletenode (deletepreviousautosnapshot, supportundorebuild)
         
         Returns:
             (success, message, undo_snapshot)
@@ -2156,7 +2149,7 @@ class HoudiniMCP:
             return False, f"Not foundNode: {node_path}", None
         
         try:
-            # 删除前快照 (用于撤销)
+            # deleteprevioussnapshot (used forundo)
             snapshot = self._snapshot_node(node)
             
             full_path = node.path()
@@ -2164,7 +2157,7 @@ class HoudiniMCP:
             parent = node.parent()
             parent_path = parent.path() if parent else ""
             
-            # 收集连接信息 (删除前)
+            # collectsetconnectinfo (deleteprevious)
             input_nodes = [n.path() for n in node.inputs() if n is not None] if node.inputs() else []
             output_conns = []
             try:
@@ -2177,31 +2170,31 @@ class HoudiniMCP:
             
             node.destroy()
             
-            # 返回完整路径 + diff 信息
+            # returncompletepath + diff info
             diff_parts = [f"DeletedNode: {full_path}"]
             if parent_path:
                 try:
                     remaining = len(hou.node(parent_path).children()) if hou.node(parent_path) else 0
-                    diff_parts.append(f"(父网络: {parent_path}, 剩余子Node: {remaining})")
+                    diff_parts.append(f"(parentnetwork: {parent_path}, remainingsubNode: {remaining})")
                 except Exception:
-                    diff_parts.append(f"(父网络: {parent_path})")
+                    diff_parts.append(f"(parentnetwork: {parent_path})")
             if input_nodes:
-                diff_parts.append(f"原Inputs: {', '.join(input_nodes)}")
+                diff_parts.append(f"originalInputs: {', '.join(input_nodes)}")
             if output_conns:
-                diff_parts.append(f"原输出到: {', '.join(output_conns[:3])}")
+                diff_parts.append(f"originaloutputto: {', '.join(output_conns[:3])}")
             
             return True, ' '.join(diff_parts), snapshot
         except Exception as exc:
-            return False, f"删除Failed: {exc}", None
+            return False, f"deleteFailed: {exc}", None
 
     def delete_selected(self) -> Tuple[bool, str]:
-        """删除选中的节点"""
+        """deleteselected node"""
         if hou is None:
             return False, "Houdini API not detected"
         
         nodes = list(hou.selectedNodes())
         if not nodes:
-            return False, "没有选中的节点"
+            return False, "nothasselected node"
         
         paths = [n.path() for n in nodes]
         for n in nodes:
@@ -2213,40 +2206,40 @@ class HoudiniMCP:
         return True, f"Deleted {len(paths)} nodes"
 
     # ========================================
-    # Python code执行 (类似 Cursor 终端)
+    # Python code execution (Cursor terminal-like)
     # ========================================
     
     class _ExecInterrupt(Exception):
-        """execute_python 超时或用户停止时抛出的中断异常"""
+        """Exception thrown when execute_python times out or the user stops it (to interrupt)."""
         pass
 
     def execute_python(self, code: str, timeout: int = 30) -> Tuple[bool, Dict[str, Any]]:
-        """在 Houdini Python 环境中执行code
+        """in Houdini Python environmentinexecutecode
         
-        类似 Cursor 的终端功能, 可以执行任意 Python code. 
+        Cursor-terminal-like feature; can execute arbitrary Python code.
         
         Args:
-            code: 要执行的 Python code
-            timeout: 超时时间 (秒)
+            code: needexecute  Python code
+            timeout: timeoutwhenbetween (second)
         
         Returns:
-            (success, result) 其中 result 包含:
+            (success, result) itsin result packagecontaining:
             {
-                "output": str,      # 输出内容
-                "return_value": Any, # 最后一个表达式的Return value
-                "error": str,       # error信息 (如果有)
-                "execution_time": float  # 执行时间 (秒)
+                "output": str,      # outputcontent
+                "return_value": Any, # lastonetableexpression Return value
+                "error": str,       # errorinfo (ifhas)
+                "execution_time": float  # executewhenbetween (second)
             }
         
-        安全注意: 
-        - 此功能允许执行任意code, 应谨慎使用
-        - 危险operation (如删除文件)需要用户确认
+        safenote: 
+        - This feature allows executing arbitrary code; use with care
+        - dangerousoperation (such asdeletefile)needsuserconfirm
         
-        ★ 超时保护 (v1.4.5): 
-        使用 sys.settrace 在每行 Python code执行前检查超时和停止标志. 
-        超时或用户停止时抛出 _ExecInterrupt 中断code执行, 防止卡死主线程. 
-        注意: 对 C 扩展内部的阻塞 (如 hou.node.cook)无法中断, 
-        但能在 C 调用返回后的下一行 Python code处中断. 
+        ★ timeoutprotect (v1.4.5): 
+        use sys.settrace ineachrow Python codeexecutepreviouschecktimeoutandstopflag. 
+        On timeout or user-stop, raises _ExecInterrupt to interrupt code execution and prevent main-thread deadlock.
+        Note: cannot interrupt blocking calls inside C extensions (e.g., hou.node.cook),
+        butcanin C callreturnafter belowonerow Python codeplaceinbreak. 
         """
         if hou is None:
             return False, {"error": "Houdini API not detected"}
@@ -2260,30 +2253,30 @@ class HoudiniMCP:
         import threading
         
         start_time = time.time()
-        _stop_event = self._stop_event  # 缓存引用
-        _deadline = start_time + max(timeout, 5)  # 最少 5 秒
-        _check_interval = 0.5  # 每 0.5s 检查一次 (避免过于频繁)
-        _last_check = [start_time]  # 用列表以便在闭包中修改
+        _stop_event = self._stop_event  # cachereference
+        _deadline = start_time + max(timeout, 5)  # at least 5 second
+        _check_interval = 0.5  # Check every 0.5s (avoid being too aggressive)
+        _last_check = [start_time]  # uselistso thatinclosepackageinmodify
         
         def _trace_timeout(frame, event, arg):
-            """sys.settrace 回调: 每行code执行前检查超时和停止标志"""
+            """sys.settrace callback: eachrowcodeexecutepreviouschecktimeoutandstopflag"""
             now = time.time()
-            # 降低检查频率: 距上次检查不足 _check_interval 则跳过
+            # Lower check frequency: skip if elapsed since last check is below _check_interval
             if now - _last_check[0] < _check_interval:
                 return _trace_timeout
             _last_check[0] = now
-            # 检查停止标志
+            # checkstopflag
             if _stop_event and _stop_event.is_set():
-                raise HoudiniMCP._ExecInterrupt("用户已停止执行")
-            # 检查超时
+                raise HoudiniMCP._ExecInterrupt("userstoppedexecute")
+            # checktimeout
             if now > _deadline:
                 raise HoudiniMCP._ExecInterrupt(
-                    f"codeExecution timed out ({timeout}s), 已中断. "
-                    f"如需更长时间, 请增加 timeout 参数. "
+                    f"codeExecution timed out ({timeout}s), alreadyinbreak. "
+                    f"such asneedsmorelongwhenbetween, pleaseaddadd timeout parameter. "
                 )
             return _trace_timeout
         
-        # 捕获输出
+        # Capture output
         old_stdout = sys.stdout
         old_stderr = sys.stderr
         old_trace = sys.gettrace()
@@ -2301,26 +2294,26 @@ class HoudiniMCP:
             sys.stdout = captured_output
             sys.stderr = captured_error
             
-            # 准备执行环境
+            # accuratebackupexecuteenvironment
             exec_globals = {
                 'hou': hou,
                 '__builtins__': __builtins__,
             }
             exec_locals = {}
             
-            # ★ 安装超时 trace
+            # ★ installtimeout trace
             sys.settrace(_trace_timeout)
             
-            # 尝试作为表达式求值 (返回最后一个值)
+            # tryastableexpressionrequestvalue (returnlastonevalue)
             try:
-                # 先尝试 eval (单个表达式)
+                # firsttry eval (singletableexpression)
                 return_value = eval(code.strip(), exec_globals, exec_locals)
                 result["return_value"] = self._safe_repr(return_value)
             except SyntaxError:
-                # 不是单个表达式, 用 exec 执行
+                # nosingletableexpression, use exec execute
                 exec(code, exec_globals, exec_locals)
                 
-                # 尝试获取最后一个赋值的值
+                # Try to fetch the last assigned value
                 if exec_locals:
                     last_var = list(exec_locals.keys())[-1]
                     if not last_var.startswith('_'):
@@ -2328,7 +2321,7 @@ class HoudiniMCP:
             
             result["output"] = captured_output.getvalue()
             
-            # 检查 stderr
+            # check stderr
             stderr_content = captured_error.getvalue()
             if stderr_content:
                 result["output"] += f"\n[stderr]\n{stderr_content}"
@@ -2349,15 +2342,15 @@ class HoudiniMCP:
             return False, result
             
         finally:
-            # ★ 必须恢复原始 trace, 否则影响后续所Python 执行
+            # ★ Must restore the original trace; otherwise it impacts subsequent Python execution
             sys.settrace(old_trace)
             sys.stdout = old_stdout
             sys.stderr = old_stderr
     
     def _safe_repr(self, value: Any, max_length: int = 1000) -> str:
-        """安全地获取对象的字符串表示"""
+        """safeplacegetobject stringtableshow"""
         try:
-            # 处理常见type
+            # processcommontype
             if value is None:
                 return "None"
             if isinstance(value, (int, float, bool)):
@@ -2379,7 +2372,7 @@ class HoudiniMCP:
                 items = [f"{k}: {self._safe_repr(v, 100)}" for k, v in value.items()]
                 return f"{{{', '.join(items)}}}"
             
-            # Houdini 对象
+            # Houdini object
             if hou and hasattr(value, 'path'):
                 return f"<{type(value).__name__}: {value.path()}>"
             if hou and hasattr(value, 'name'):
@@ -2394,13 +2387,13 @@ class HoudiniMCP:
             return f"<{type(value).__name__}>"
 
     # ========================================
-    # 工具分派处理器 (每个工具一个方法)
+    # toolpartdispatchprocess  (eachtoolonemethod)
     # ========================================
 
     def _tool_create_wrangle_node(self, args: Dict[str, Any]) -> Dict[str, Any]:
         vex_code = args.get("vex_code", "")
         if not vex_code:
-            return {"success": False, "error": "缺少 vex_code 参数"}
+            return {"success": False, "error": "missing vex_code parameter"}
         ok, msg = self.create_wrangle_node(
             vex_code, args.get("wrangle_type", "attribwrangle"),
             args.get("node_name"), args.get("run_over", "Points"),
@@ -2409,10 +2402,10 @@ class HoudiniMCP:
 
     def _tool_get_network_structure(self, args: Dict[str, Any]) -> Dict[str, Any]:
         network_path = args.get("network_path")
-        box_name = args.get("box_name")  # NetworkBox 钻入参数
+        box_name = args.get("box_name")  # NetworkBox drill-down parameter
         page = int(args.get("page", 1))
 
-        # 分页快速路径 (box_name 也参与缓存键)
+        # Pagination fast path (box_name also participates in the cache key)
         cache_suffix = f":{box_name}" if box_name else ""
         cache_key = f"get_network_structure:{network_path or '_current'}{cache_suffix}"
         if page > 1 and cache_key in self._tool_page_cache:
@@ -2433,16 +2426,16 @@ class HoudiniMCP:
         return {"success": False, "error": data.get("error", "Unknown error")}
 
     def _tool_get_node_parameters(self, args: Dict[str, Any]) -> Dict[str, Any]:
-        """获取节点的所有可用参数 (name、type、default、当前值), 支持分页"""
+        """getnode allcanuseparameter (name, type, default, currentvalue), supportpaginate"""
         node_path = args.get("node_path", "")
         if not node_path:
-            return {"success": False, "error": "缺少 node_path 参数"}
+            return {"success": False, "error": "missing node_path parameter"}
         page = int(args.get("page", 1))
 
         if hou is None:
             return {"success": False, "error": "Houdini API not detected"}
 
-        # 分页快速路径: 缓存中已有完整result
+        # paginatefastpath: cacheinalreadyhascompleteresult
         cache_key = f"get_node_parameters:{node_path}"
         if page > 1 and cache_key in self._tool_page_cache:
             hint = f'get_node_parameters(node_path="{node_path}", page={page})'
@@ -2461,8 +2454,8 @@ class HoudiniMCP:
                 f"type: {type_key} ({node_type.description()})",
             ]
 
-            # ★ 节点概况 (原 get_node_details 功能合并) ★
-            # status标志
+            # ★ Node overview (merged from the original get_node_details feature) ★
+            # statusflag
             flags = []
             if hasattr(node, 'isDisplayFlagSet') and node.isDisplayFlagSet():
                 flags.append('display')
@@ -2473,9 +2466,9 @@ class HoudiniMCP:
             if hasattr(node, 'isLocked') and node.isLocked():
                 flags.append('locked')
             if flags:
-                lines.append(f"标志: {', '.join(flags)}")
+                lines.append(f"flag: {', '.join(flags)}")
 
-            # error信息
+            # errorinfo
             try:
                 errs = node.errors()
                 if errs:
@@ -2483,7 +2476,7 @@ class HoudiniMCP:
             except Exception:
                 pass
 
-            # 输入连接
+            # inputconnect
             inputs = []
             for i, inp in enumerate(node.inputs()):
                 if inp is not None:
@@ -2491,17 +2484,17 @@ class HoudiniMCP:
             if inputs:
                 lines.append(f"Inputs: {', '.join(inputs)}")
 
-            # 输出连接
+            # outputconnect
             outputs = [o.path() for o in node.outputs()] if node.outputs() else []
             if outputs:
                 lines.append(f"Outputs: {', '.join(outputs[:5])}")
 
-            lines.append("")  # 空行分隔
+            lines.append("")  # emptyrowpartinterval
 
-            # 遍历所有参数模板 (完整列表)
+            # traverseallparametertemplate (completelist)
             parm_group = node_type.parmTemplateGroup()
             if not parm_group:
-                lines.append("(无参数)")
+                lines.append("(noparameter)")
                 return {"success": True, "result": "\n".join(lines)}
 
             count = 0
@@ -2513,7 +2506,7 @@ class HoudiniMCP:
                     ptype = pt.type().name() if hasattr(pt, 'type') else "?"
                     label = pt.label() if hasattr(pt, 'label') else ""
 
-                    # 获取default
+                    # getdefault
                     default = None
                     try:
                         default = pt.defaultValue()
@@ -2524,7 +2517,7 @@ class HoudiniMCP:
                     except Exception:
                         pass
 
-                    # 获取当前值
+                    # getcurrentvalue
                     current = None
                     try:
                         parm = node.parm(name)
@@ -2537,7 +2530,7 @@ class HoudiniMCP:
                     except Exception:
                         pass
 
-                    # 菜单options (如果有)
+                    # menusingleoptions (ifhas)
                     menu_items = ""
                     if ptype == "Menu" and hasattr(pt, 'menuItems'):
                         try:
@@ -2553,7 +2546,7 @@ class HoudiniMCP:
                             pass
 
                     is_default = (current == default) if current is not None and default is not None else None
-                    marker = "" if is_default else " *"  # * 标记非default
+                    marker = "" if is_default else " *"  # * marknotdefault
 
                     lines.append(
                         f"- {name} ({ptype}, {label}): "
@@ -2563,16 +2556,16 @@ class HoudiniMCP:
                 except Exception:
                     continue
 
-            lines.insert(2, f"参数Count: {count}")
+            lines.insert(2, f"parameterCount: {count}")
             full_text = "\n".join(lines)
 
-            # 分页返回
+            # paginatereturn
             hint = f'get_node_parameters(node_path="{node_path}", page={page})'
             return {"success": True, "result": self._paginate_tool_result(
                 full_text, cache_key, hint, page)}
 
         except Exception as e:
-            return {"success": False, "error": f"获取参数Failed: {str(e)}"}
+            return {"success": False, "error": f"getparameterFailed: {str(e)}"}
 
     def _tool_set_node_parameter(self, args: Dict[str, Any]) -> Dict[str, Any]:
         node_path = args.get("node_path", "")
@@ -2582,36 +2575,36 @@ class HoudiniMCP:
         if not node_path:
             missing.append("node_path(Node path)")
         if not param_name:
-            missing.append("param_name(参数名)")
+            missing.append("param_name(parametername)")
         if missing:
-            return {"success": False, "error": f"缺少必要参数: {', '.join(missing)}"}
+            return {"success": False, "error": f"missingmustneedparameter: {', '.join(missing)}"}
         ok, msg, snapshot = self.set_parameter(node_path, param_name, value)
         result = {"success": ok, "result": msg if ok else "", "error": "" if ok else msg}
         if ok and snapshot:
-            # ★ 参数前后值一致时不生成 checkpoint, 避免display无意义的"修改"
+            # ★ parameterpreviousaftervalueconsistentwhennotgenerate checkpoint, avoiddisplaynointentmeaning "modify"
             old_v = snapshot.get("old_value")
             new_v = snapshot.get("new_value")
             if old_v != new_v:
-                result["_undo_snapshot"] = snapshot  # 供 UI 撤销使用, 不会发给 AI
+                result["_undo_snapshot"] = snapshot  # for UI undouse, notwillsendgive AI
         return result
 
     def _tool_create_node(self, args: Dict[str, Any]) -> Dict[str, Any]:
         node_type = args.get("node_type", "")
         if not node_type:
-            return {"success": False, "error": "缺少 node_type 参数"}
+            return {"success": False, "error": "missing node_type parameter"}
         ok, msg = self.create_node(
             node_type, args.get("node_name"),
             args.get("parameters"), args.get("parent_path"))
         if ok:
             return {"success": True, "result": msg, "error": ""}
-        error_msg = msg if msg else f"创建节点Failed: {node_type}"
+        error_msg = msg if msg else f"createnodeFailed: {node_type}"
         _dbg(f"[MCP Client] create_node failed: {error_msg[:200]}")
         return {"success": False, "result": "", "error": error_msg}
 
     def _tool_create_nodes_batch(self, args: Dict[str, Any]) -> Dict[str, Any]:
         nodes = args.get("nodes", [])
         if not nodes:
-            return {"success": False, "error": "缺少 nodes 参数"}
+            return {"success": False, "error": "missing nodes parameter"}
         plan = {"nodes": nodes, "connections": args.get("connections", [])}
         ok, msg = self.create_network(plan)
         return {"success": ok, "result": msg if ok else "", "error": "" if ok else msg}
@@ -2621,35 +2614,35 @@ class HoudiniMCP:
         to_path = args.get("to_path", "")
         missing = []
         if not from_path:
-            missing.append("from_path(上游Node path)")
+            missing.append("from_path (upstream node path)")
         if not to_path:
-            missing.append("to_path(下游Node path)")
+            missing.append("to_path (downstream node path)")
         if missing:
-            return {"success": False, "error": f"缺少必要参数: {', '.join(missing)}"}
+            return {"success": False, "error": f"missingmustneedparameter: {', '.join(missing)}"}
         ok, msg = self.connect_nodes(from_path, to_path, args.get("input_index", 0))
         return {"success": ok, "result": msg if ok else "", "error": "" if ok else msg}
 
     def _tool_delete_node(self, args: Dict[str, Any]) -> Dict[str, Any]:
         node_path = args.get("node_path", "")
         if not node_path:
-            return {"success": False, "error": "缺少 node_path 参数"}
+            return {"success": False, "error": "missing node_path parameter"}
         ok, msg, snapshot = self.delete_node_by_path(node_path)
         result = {"success": ok, "result": msg if ok else "", "error": "" if ok else msg}
         if ok and snapshot:
-            result["_undo_snapshot"] = snapshot  # 供 UI 撤销使用, 不会发给 AI
+            result["_undo_snapshot"] = snapshot  # for UI undouse, notwillsendgive AI
         return result
 
     def _tool_search_node_types(self, args: Dict[str, Any]) -> Dict[str, Any]:
         keyword = args.get("keyword", "")
         if not keyword:
-            return {"success": False, "error": "缺少 keyword 参数"}
+            return {"success": False, "error": "missing keyword parameter"}
         ok, msg = self.search_nodes(keyword, args.get("limit", 10))
         return {"success": ok, "result": msg if ok else "", "error": "" if ok else msg}
 
     def _tool_semantic_search_nodes(self, args: Dict[str, Any]) -> Dict[str, Any]:
         description = args.get("description", "")
         if not description:
-            return {"success": False, "error": "缺少 description 参数"}
+            return {"success": False, "error": "missing description parameter"}
         ok, msg = self.semantic_search_nodes(description, args.get("category", "sop"))
         return {"success": ok, "result": msg if ok else "", "error": "" if ok else msg}
 
@@ -2658,7 +2651,7 @@ class HoudiniMCP:
         recursive = args.get("recursive", False)
         page = int(args.get("page", 1))
 
-        # 分页快速路径
+        # paginatefastpath
         cache_key = f"list_children:{network_path or '_current'}:r={recursive}"
         if page > 1 and cache_key in self._tool_page_cache:
             np_arg = f'network_path="{network_path}", ' if network_path else ''
@@ -2678,7 +2671,7 @@ class HoudiniMCP:
     def _tool_get_geometry_info(self, args: Dict[str, Any]) -> Dict[str, Any]:
         node_path = args.get("node_path", "")
         if not node_path:
-            return {"success": False, "error": "缺少 node_path 参数"}
+            return {"success": False, "error": "missing node_path parameter"}
         ok, msg = self.get_geometry_info(node_path, args.get("output_index", 0))
         return {"success": ok, "result": msg if ok else "", "error": "" if ok else msg}
 
@@ -2697,7 +2690,7 @@ class HoudiniMCP:
     def _tool_set_display_flag(self, args: Dict[str, Any]) -> Dict[str, Any]:
         node_path = args.get("node_path", "")
         if not node_path:
-            return {"success": False, "error": "缺少 node_path 参数"}
+            return {"success": False, "error": "missing node_path parameter"}
         ok, msg = self.set_display_flag(
             node_path, args.get("display", True), args.get("render", True))
         return {"success": ok, "result": msg if ok else "", "error": "" if ok else msg}
@@ -2705,7 +2698,7 @@ class HoudiniMCP:
     def _tool_copy_node(self, args: Dict[str, Any]) -> Dict[str, Any]:
         source_path = args.get("source_path", "")
         if not source_path:
-            return {"success": False, "error": "缺少 source_path 参数"}
+            return {"success": False, "error": "missing source_path parameter"}
         ok, msg = self.copy_node(
             source_path, args.get("dest_network"), args.get("new_name"))
         return {"success": ok, "result": msg if ok else "", "error": "" if ok else msg}
@@ -2715,18 +2708,18 @@ class HoudiniMCP:
         param_name = args.get("param_name", "")
         missing = []
         if not node_paths:
-            missing.append("node_paths(Node path列表)")
+            missing.append("node_paths(Node pathlist)")
         if not param_name:
-            missing.append("param_name(参数名)")
+            missing.append("param_name(parametername)")
         if missing:
-            return {"success": False, "error": f"缺少必要参数: {', '.join(missing)}"}
+            return {"success": False, "error": f"missingmustneedparameter: {', '.join(missing)}"}
         ok, msg = self.batch_set_parameters(node_paths, param_name, args.get("value"))
         return {"success": ok, "result": msg if ok else "", "error": "" if ok else msg}
 
     def _tool_find_nodes_by_param(self, args: Dict[str, Any]) -> Dict[str, Any]:
         param_name = args.get("param_name", "")
         if not param_name:
-            return {"success": False, "error": "缺少 param_name 参数"}
+            return {"success": False, "error": "missing param_name parameter"}
         ok, msg = self.find_nodes_by_param(
             param_name, args.get("value"),
             args.get("network_path"), args.get("recursive", True))
@@ -2739,27 +2732,27 @@ class HoudiniMCP:
     def _tool_undo_redo(self, args: Dict[str, Any]) -> Dict[str, Any]:
         action = args.get("action", "")
         if not action:
-            return {"success": False, "error": "缺少 action 参数"}
+            return {"success": False, "error": "missing action parameter"}
         ok, msg = self.undo_redo(action)
         return {"success": ok, "result": msg if ok else "", "error": "" if ok else msg}
 
     def _tool_execute_python(self, args: Dict[str, Any]) -> Dict[str, Any]:
         code = args.get("code", "")
         if not code:
-            return {"success": False, "error": "缺少 code 参数"}
+            return {"success": False, "error": "missing code parameter"}
         page = int(args.get("page", 1))
 
-        # 分页快速路径 (只对Success的输出缓存)
-        # 用 code 的 hash 作为缓存键, 避免 key 过长
+        # paginatefastpath (onlyforSuccess outputcache)
+        # use code   hash ascachekey, avoid key passedlong
         import hashlib
         code_hash = hashlib.md5(code.encode()).hexdigest()[:12]
         cache_key = f"execute_python:{code_hash}"
         if page > 1 and cache_key in self._tool_page_cache:
-            hint = f'execute_python(code="...同上...", page={page})'
+            hint = f'execute_python(code="...sameon...", page={page})'
             return {"success": True, "result": self._paginate_tool_result(
                 self._tool_page_cache[cache_key], cache_key, hint, page)}
 
-        # 安全检查: 检测危险operation
+        # safecheck: detectdangerousoperation
         security_msg = self._check_code_security(code)
         if security_msg:
             return {"success": False, "error": security_msg}
@@ -2774,58 +2767,58 @@ class HoudiniMCP:
             output_parts.append(f"Execution time: {result['execution_time']:.3f}s")
             full_text = "\n".join(output_parts)
 
-            hint = f'execute_python(code="...同上...", page={page})'
+            hint = f'execute_python(code="...sameon...", page={page})'
             return {"success": True, "result": self._paginate_tool_result(
                 full_text, cache_key, hint, page)}
-        # Failed: 包含部分输出 (如果有)+ 完整error + 执行时间
+        # Failed: packagecontainingpartpartoutput (ifhas)+ completeerror + executewhenbetween
         error_parts = []
         partial_output = result.get("output", "")
         if partial_output:
-            error_parts.append(f"[部分输出]\n{partial_output}")
+            error_parts.append(f"[partpartoutput]\n{partial_output}")
         error_parts.append(result.get("error", "Execution failed"))
         error_parts.append(f"Execution time: {result.get('execution_time', 0):.3f}s")
         return {"success": False, "error": "\n".join(error_parts), "result": partial_output}
 
     # ========================================
-    # 系统 Shell 沙盒执行
+    # System shell sandboxed execution
     # ========================================
 
-    # Shell command黑名单 (正则, 忽略大小写)
+    # Shell commandblacknamesingle (positivethen, ignorelargesmallwrite)
     _SHELL_DANGEROUS_PATTERNS = [
-        # 文件/目录批量删除
-        (r'\brm\s+.*-r', "禁止递归删除 (rm -r)"),
-        (r'\brm\s+.*-f', "禁止强制删除 (rm -f)"),
-        (r'\brmdir\s+/s', "禁止递归删除目录 (rmdir /s)"),
-        (r'\bdel\s+/s', "禁止递归删除 (del /s)"),
-        (r'\bdel\s+/q', "禁止静默删除 (del /q)"),
-        (r'\brd\s+/s', "禁止递归删除 (rd /s)"),
-        # 格式化
-        (r'\bformat\s+[a-zA-Z]:', "禁止格式化磁盘"),
-        # 注册表
-        (r'\breg\s+(delete|add)', "禁止修改注册表"),
-        # 关机/重启
-        (r'\bshutdown\b', "禁止关机"),
-        (r'\breboot\b', "禁止重启"),
-        # 权限提升
-        (r'\brunas\b', "禁止 runas 提权"),
-        (r'\bsudo\b', "禁止 sudo 提权"),
-        # 网络配置
-        (r'\bnetsh\b', "禁止修改网络配置"),
-        # 进程注入
-        (r'\btaskkill\s+/f', "禁止强制结束进程"),
-        # 危险 PowerShell
-        (r'Remove-Item\s+.*-Recurse', "禁止 PowerShell 递归删除"),
-        (r'Invoke-Expression', "禁止 Invoke-Expression"),
-        (r'\biex\b', "禁止 iex (Invoke-Expression 别名)"),
-        # 磁盘operation
-        (r'\bdiskpart\b', "禁止 diskpart"),
+        # file/directorybatchdelete
+        (r'\brm\s+.*-r', "disallowrecursivedelete (rm -r)"),
+        (r'\brm\s+.*-f', "disallowforcedelete (rm -f)"),
+        (r'\brmdir\s+/s', "disallowrecursivedeletedirectory (rmdir /s)"),
+        (r'\bdel\s+/s', "disallowrecursivedelete (del /s)"),
+        (r'\bdel\s+/q', "disallowsilentdelete (del /q)"),
+        (r'\brd\s+/s', "disallowrecursivedelete (rd /s)"),
+        # formatization
+        (r'\bformat\s+[a-zA-Z]:', "disallowformatizationdisk"),
+        # registertable
+        (r'\breg\s+(delete|add)', "disallowmodifyregistertable"),
+        # Shutdown / restart
+        (r'\bshutdown\b', "Shutdown disallowed"),
+        (r'\breboot\b', "disallowrestart"),
+        # permissionlimitraiserise
+        (r'\brunas\b', "disallow runas raisepermission"),
+        (r'\bsudo\b', "disallow sudo raisepermission"),
+        # networkconfig
+        (r'\bnetsh\b', "disallowmodifynetworkconfig"),
+        # processinject
+        (r'\btaskkill\s+/f', "disallowforceendprocess"),
+        # dangerous PowerShell
+        (r'Remove-Item\s+.*-Recurse', "disallow PowerShell recursivedelete"),
+        (r'Invoke-Expression', "disallow Invoke-Expression"),
+        (r'\biex\b', "disallow iex (Invoke-Expression alias)"),
+        # diskoperation
+        (r'\bdiskpart\b', "disallow diskpart"),
         # fork bomb
-        (r'%0\|%0', "禁止 fork bomb"),
-        (r':\(\)\{.*\}', "禁止 fork bomb"),
+        (r'%0\|%0', "disallow fork bomb"),
+        (r':\(\)\{.*\}', "disallow fork bomb"),
     ]
 
-    # 允许的command前缀白名单 (粗粒度, 不在名单中的也可以执行, 只有黑名单才拦截)
-    # 这个白名单仅用于日志Hint
+    # Allowed command prefixes (whitelist, coarse-grained; commands not on the list can still run, only the blacklist intercepts)
+    # thiswhitenamesingleonlyused forlogHint
     _SHELL_COMMON_COMMANDS = frozenset({
         'pip', 'python', 'git', 'dir', 'ls', 'cd', 'echo', 'type', 'cat',
         'where', 'which', 'whoami', 'hostname', 'ipconfig', 'ifconfig',
@@ -2838,39 +2831,39 @@ class HoudiniMCP:
     })
 
     def _check_shell_security(self, command: str) -> Optional[str]:
-        """检查 Shell command是否包含危险operation"""
+        """check Shell commandwhetherpackagecontainingdangerousoperation"""
         for pattern, msg in self._SHELL_DANGEROUS_PATTERNS:
             if re.search(pattern, command, re.IGNORECASE):
-                return f"安全拦截: {msg}\ncommand: {command}\n如确需执行, 请在系统终端中手动运行. "
+                return f"Blocked by safety filter: {msg}\nCommand: {command}\nIf you really need to run this, do it manually in a system terminal."
         return None
 
     def _tool_execute_shell(self, args: Dict[str, Any]) -> Dict[str, Any]:
-        """在系统 Shell 中执行command (沙盒环境)
-        
-        ★ v1.4.4 改进: 使用 Popen + 轮询替代 subprocess.run
-        - 支持用户通过停止按钮中断正在执行的command
-        - Windows 上正确杀死整个进程树 (不只是 cmd.exe 父进程)
-        - 防止 pipe buffer 满导致的死锁 (使用 communicate 分块读取)
+        """Execute a command in the system shell (sandboxed environment).
+
+        ★ v1.4.4 improved: use Popen + poll instead of subprocess.run
+        - Support user interruption of running commands via the Stop button
+        - Correctly kill the entire process tree on Windows (not just the cmd.exe parent)
+        - Prevent pipe-buffer-full deadlock (use communicate chunk-read)
         """
         import subprocess
         import hashlib
 
         command = args.get("command", "").strip()
         if not command:
-            return {"success": False, "error": "缺少 command 参数"}
+            return {"success": False, "error": "missing command parameter"}
 
         page = int(args.get("page", 1))
-        timeout = min(int(args.get("timeout", 30)), 120)  # 最大 120 秒
+        timeout = min(int(args.get("timeout", 30)), 120)  # max 120 second
 
-        # 分页快速路径
+        # paginatefastpath
         cmd_hash = hashlib.md5(command.encode()).hexdigest()[:12]
         cache_key = f"shell:{cmd_hash}"
         if page > 1 and cache_key in self._tool_page_cache:
-            hint = f'execute_shell(command="...同上...", page={page})'
+            hint = f'execute_shell(command="...sameon...", page={page})'
             return {"success": True, "result": self._paginate_tool_result(
                 self._tool_page_cache[cache_key], cache_key, hint, page)}
 
-        # 安全检查
+        # safecheck
         security_msg = self._check_shell_security(command)
         if security_msg:
             return {"success": False, "error": security_msg}
@@ -2878,18 +2871,18 @@ class HoudiniMCP:
         # working directory
         cwd = args.get("cwd", "")
         if not cwd:
-            # default: 项目根目录
+            # Default: project root directory
             cwd = str(Path(__file__).parent.parent.parent.parent)
         if not os.path.isdir(cwd):
-            return {"success": False, "error": f"working directory不存在: {cwd}"}
+            return {"success": False, "error": f"working directorydoes not exist: {cwd}"}
 
-        # ★ 获取停止事件引用 (从 AIClient 传入, 用于检测用户中断)
+        # ★ getstopeventreference (from AIClient passenter, used fordetectuserinbreak)
         stop_event = getattr(self, '_stop_event', None)
 
         start_time = time.time()
         proc = None
         try:
-            # 启动子进程 (非阻塞)
+            # startsubprocess (notblock)
             popen_kwargs = dict(
                 shell=True,
                 stdout=subprocess.PIPE,
@@ -2908,42 +2901,42 @@ class HoudiniMCP:
             
             proc = subprocess.Popen(command, **popen_kwargs)
             
-            # ★ 轮询等待: 每 0.5s 检查一次停止标志和超时
+            # ★ Poll-wait: every 0.5s check stop flag and timeout
             deadline = start_time + timeout
             while proc.poll() is None:
-                # 检查用户中断
+                # checkuserinbreak
                 if stop_event and stop_event.is_set():
                     self._kill_process_tree(proc)
                     elapsed = time.time() - start_time
-                    return {"success": False, "error": f"command被用户中断\ncommand: {command}\n已运行: {elapsed:.1f}s"}
+                    return {"success": False, "error": f"commandisuserinbreak\ncommand: {command}\nalreadyrun: {elapsed:.1f}s"}
                 
-                # 检查超时
+                # checktimeout
                 if time.time() > deadline:
                     self._kill_process_tree(proc)
                     elapsed = time.time() - start_time
-                    return {"success": False, "error": f"command超时 ({timeout}s 限制)\ncommand: {command}\n耗时: {elapsed:.2f}s"}
+                    return {"success": False, "error": f"commandtimeout ({timeout}s limit)\ncommand: {command}\nconsumewhen: {elapsed:.2f}s"}
                 
-                # 短暂等待避免 CPU 空转
+                # Brief sleep to avoid CPU spin
                 try:
                     proc.wait(timeout=0.5)
                 except subprocess.TimeoutExpired:
                     pass
             
-            # 进程已结束, 读取输出
+            # processalreadyend, readoutput
             stdout, stderr = proc.communicate(timeout=5)
             elapsed = time.time() - start_time
 
-            # 组装输出
+            # Assemble output
             parts = []
             if stdout:
                 parts.append(stdout.rstrip())
             if stderr:
                 parts.append(f"[stderr]\n{stderr.rstrip()}")
-            parts.append(f"[Exit code: {proc.returncode}, 耗时: {elapsed:.2f}s]")
+            parts.append(f"[Exit code: {proc.returncode}, consumewhen: {elapsed:.2f}s]")
             full_text = "\n".join(parts)
 
             success = proc.returncode == 0
-            hint = f'execute_shell(command="...同上...", page={page})'
+            hint = f'execute_shell(command="...sameon...", page={page})'
             return {"success": success, "result": self._paginate_tool_result(
                 full_text, cache_key, hint, page)}
 
@@ -2954,15 +2947,15 @@ class HoudiniMCP:
 
     @staticmethod
     def _kill_process_tree(proc):
-        """杀死进程及其所有子进程
+        """killdeadprocessanditsallsubprocess
         
-        Windows 上使用 taskkill /F /T 杀死整个进程树, 
-        避免只杀 cmd.exe 而子进程继续运行导致挂起. 
+        Windows onuse taskkill /F /T killdeadwholeprocesstree, 
+        avoidonlykill cmd.exe andsubprocessresumeruncauseshangstart. 
         """
         import subprocess as _sp
         try:
             if sys.platform == 'win32':
-                # /F = 强制  /T = 杀死整个进程树  /PID = 进程 ID
+                # /F = force  /T = killdeadwholeprocesstree  /PID = process ID
                 _sp.run(
                     f'taskkill /F /T /PID {proc.pid}',
                     shell=True,
@@ -2980,11 +2973,11 @@ class HoudiniMCP:
                 pass
 
     # ========================================
-    # 节点布局工具
+    # nodelayouttool
     # ========================================
 
     def _tool_layout_nodes(self, args: Dict[str, Any]) -> Dict[str, Any]:
-        """布局节点 — 多策略自动整理节点位置"""
+        """layoutnode — multistrategyautowholemanagenodeposition"""
         from . import hou_core
 
         parent_path = args.get("network_path", "") or args.get("parent_path", "")
@@ -3009,21 +3002,21 @@ class HoudiniMCP:
             spacing=spacing,
         )
         if ok:
-            # 构建可读的位置摘要
+            # buildcanread positionsummary
             lines = [msg]
             if positions and len(positions) <= 20:
-                lines.append("节点位置:")
+                lines.append("nodeposition:")
                 for p in positions:
                     lines.append(f"  {p['path']}: ({p['x']}, {p['y']})")
             elif positions:
-                lines.append(f"(of {len(positions)} nodes, 仅display前 10 个)")
+                lines.append(f"(of {len(positions)} nodes, onlydisplayprevious 10 )")
                 for p in positions[:10]:
                     lines.append(f"  {p['path']}: ({p['x']}, {p['y']})")
             return {"success": True, "result": "\n".join(lines)}
         return {"success": False, "error": msg}
 
     def _tool_get_node_positions(self, args: Dict[str, Any]) -> Dict[str, Any]:
-        """获取节点位置信息"""
+        """getnodepositioninfo"""
         from . import hou_core
 
         parent_path = args.get("network_path", "") or args.get("parent_path", "")
@@ -3054,15 +3047,15 @@ class HoudiniMCP:
     # ========================================
 
     def _tool_create_network_box(self, args: Dict[str, Any]) -> Dict[str, Any]:
-        """创建 NetworkBox 并options地将节点加入其中"""
+        """create NetworkBox andoptionsplacewillnodeaddenteritsin"""
         from . import hou_core
 
         parent_path = args.get("parent_path", "")
         if not parent_path:
-            # default使用当前网络
+            # defaultusecurrentnetwork
             net = self._current_network()
             if net is None:
-                return {"success": False, "error": "Current network not found, 请指定 parent_path"}
+                return {"success": False, "error": "Current network not found, pleasespecified parent_path"}
             parent_path = net.path()
 
         name = args.get("name", "")
@@ -3081,110 +3074,110 @@ class HoudiniMCP:
         return {"success": False, "error": msg}
 
     def _tool_add_nodes_to_box(self, args: Dict[str, Any]) -> Dict[str, Any]:
-        """将节点add到已有的 NetworkBox"""
+        """willnodeaddtoalreadyhas  NetworkBox"""
         from . import hou_core
 
         parent_path = args.get("parent_path", "")
         if not parent_path:
             net = self._current_network()
             if net is None:
-                return {"success": False, "error": "Current network not found, 请指定 parent_path"}
+                return {"success": False, "error": "Current network not found, pleasespecified parent_path"}
             parent_path = net.path()
 
         box_name = args.get("box_name", "")
         if not box_name:
-            return {"success": False, "error": "缺少 box_name 参数"}
+            return {"success": False, "error": "missing box_name parameter"}
 
         node_paths = args.get("node_paths", [])
         if isinstance(node_paths, str):
             node_paths = [p.strip() for p in node_paths.split(",") if p.strip()]
         if not node_paths:
-            return {"success": False, "error": "缺少 node_paths 参数"}
+            return {"success": False, "error": "missing node_paths parameter"}
 
         auto_fit = args.get("auto_fit", True)
         ok, msg = hou_core.add_nodes_to_box(parent_path, box_name, node_paths, auto_fit)
         return {"success": ok, "result": msg if ok else "", "error": "" if ok else msg}
 
     def _tool_list_network_boxes(self, args: Dict[str, Any]) -> Dict[str, Any]:
-        """列出网络中所NetworkBox 及其内容"""
+        """List all NetworkBoxes in the network and their contents."""
         from . import hou_core
 
         parent_path = args.get("parent_path", "")
         if not parent_path:
             net = self._current_network()
             if net is None:
-                return {"success": False, "error": "Current network not found, 请指定 parent_path"}
+                return {"success": False, "error": "Current network not found, pleasespecified parent_path"}
             parent_path = net.path()
 
         ok, msg, boxes_info = hou_core.list_network_boxes(parent_path)
         if ok:
             if not boxes_info:
-                return {"success": True, "result": f"{parent_path} 中没NetworkBox"}
-            lines = [f"{parent_path} 中{len(boxes_info)} 个 NetworkBox:\n"]
+                return {"success": True, "result": f"{parent_path} innotNetworkBox"}
+            lines = [f"{parent_path} in{len(boxes_info)}  NetworkBox:\n"]
             for box in boxes_info:
-                status = "📦" if not box["minimized"] else "📦(折叠)"
+                status = "📦" if not box["minimized"] else "📦(collapse)"
                 lines.append(f"{status} {box['name']}: {box['comment'] or '(no comment)'}")
-                lines.append(f"   包含 {box['node_count']} nodes: {', '.join(box['nodes'][:10])}")
+                lines.append(f"   packagecontaining {box['node_count']} nodes: {', '.join(box['nodes'][:10])}")
                 if box['node_count'] > 10:
-                    lines.append(f"   ...及另外 {box['node_count'] - 10} nodes")
+                    lines.append(f"   ...andadditionally {box['node_count'] - 10} nodes")
             return {"success": True, "result": "\n".join(lines)}
         return {"success": False, "error": msg}
 
     # ========================================
-    # Skill 系统
+    # Skill system
     # ========================================
 
     def _tool_list_skills(self, args: Dict[str, Any]) -> Dict[str, Any]:
-        """列出所有available skills"""
+        """columnoutallavailable skills"""
         if not HAS_SKILLS or _list_skills is None:
-            return {"success": False, "error": "Skill 系统未加载"}
+            return {"success": False, "error": "Skill systemnotload"}
         try:
             skills = _list_skills()
             if not skills:
-                return {"success": True, "result": "当前没有可用的 Skill. "}
+                return {"success": True, "result": "currentnothascanuse  Skill. "}
             lines = [f"available skills ({len(skills)}):\n"]
             for s in skills:
                 lines.append(f"### {s['name']}")
                 lines.append(f"  {s.get('description', '')}")
                 params = s.get('parameters', {})
                 if params:
-                    lines.append("  参数:")
+                    lines.append("  parameter:")
                     for pname, pinfo in params.items():
-                        req = " (必填)" if pinfo.get('required') else ""
+                        req = " (required)" if pinfo.get('required') else ""
                         lines.append(f"    - {pname}: {pinfo.get('description', '')}{req}")
                 lines.append("")
             return {"success": True, "result": "\n".join(lines)}
         except Exception as e:
-            return {"success": False, "error": f"列出 Skill Failed: {e}"}
+            return {"success": False, "error": f"columnout Skill Failed: {e}"}
 
     def _tool_run_skill(self, args: Dict[str, Any]) -> Dict[str, Any]:
-        """执行指定 Skill"""
+        """executespecified Skill"""
         if not HAS_SKILLS or _run_skill is None:
-            return {"success": False, "error": "Skill 系统未加载"}
+            return {"success": False, "error": "Skill systemnotload"}
 
         skill_name = args.get("skill_name", "")
         if not skill_name:
-            return {"success": False, "error": "缺少 skill_name 参数"}
+            return {"success": False, "error": "missing skill_name parameter"}
 
         params = args.get("params", {})
         if not isinstance(params, dict):
             try:
                 params = json.loads(str(params))
             except Exception:
-                return {"success": False, "error": "params 必须是 JSON 对象"}
+                return {"success": False, "error": "params mustis JSON object"}
 
         try:
             result = _run_skill(skill_name, params)
             if "error" in result:
                 return {"success": False, "error": result["error"]}
 
-            # 格式化输出
+            # formatizationoutput
             import json as _json
             formatted = _json.dumps(result, ensure_ascii=False, indent=2)
             return {"success": True, "result": formatted}
         except Exception as e:
             import traceback
-            return {"success": False, "error": f"Skill 执行Exception: {e}\n{traceback.format_exc()[:500]}"}
+            return {"success": False, "error": f"Skill executeException: {e}\n{traceback.format_exc()[:500]}"}
 
     def _tool_check_errors(self, args: Dict[str, Any]) -> Dict[str, Any]:
         ok, text = self.check_node_errors_text(args.get("node_path"))
@@ -3192,28 +3185,28 @@ class HoudiniMCP:
 
     def _tool_search_local_doc(self, args: Dict[str, Any]) -> Dict[str, Any]:
         if not HAS_DOC_RAG:
-            return {"success": False, "error": "DocIndex 模块未加载"}
+            return {"success": False, "error": "DocIndex modulenotload"}
         query = args.get("query", "")
         if not query:
-            return {"success": False, "error": "缺少 query 参数"}
+            return {"success": False, "error": "missing query parameter"}
         try:
             index = get_doc_rag()
             results = index.search(query, top_k=min(args.get("top_k", 5), 10))
             if not results:
-                return {"success": True, "result": f"Not found与 '{query}' 相关的文档"}
-            parts = [f"找到 {len(results)} 个相关条目:\n"]
+                return {"success": True, "result": f"Not foundwith '{query}' related document"}
+            parts = [f"findto {len(results)} relateditemitem:\n"]
             for idx, r in enumerate(results, 1):
                 parts.append(f"{idx}. [{r['type'].upper()}] {r['name']} (score={r['score']:.1f})")
                 parts.append(f"   {r['snippet']}\n")
             return {"success": True, "result": "\n".join(parts)}
         except Exception as e:
             import traceback
-            return {"success": False, "error": f"文档检索Failed: {e}\n{traceback.format_exc()}"}
+            return {"success": False, "error": f"documentsearchFailed: {e}\n{traceback.format_exc()}"}
 
     def _tool_get_houdini_node_doc(self, args: Dict[str, Any]) -> Dict[str, Any]:
         node_type = args.get("node_type", "")
         if not node_type:
-            return {"success": False, "error": "缺少 node_type 参数"}
+            return {"success": False, "error": "missing node_type parameter"}
         page = int(args.get("page", 1))
         ok, doc_text = self._get_houdini_local_doc(node_type, args.get("category", "sop"), page)
         return {"success": ok, "result": doc_text if ok else "", "error": "" if ok else doc_text}
@@ -3221,23 +3214,23 @@ class HoudiniMCP:
     def _tool_get_node_inputs(self, args: Dict[str, Any]) -> Dict[str, Any]:
         node_type = args.get("node_type", "")
         if not node_type:
-            return {"success": False, "error": "缺少 node_type 参数"}
+            return {"success": False, "error": "missing node_type parameter"}
         ok, info = self.get_node_input_info(node_type, args.get("category", "sop"))
         return {"success": ok, "result": info if ok else "", "error": "" if ok else info}
 
     # ========================================
-    # 性能分析 (perfMon) 工具
+    # performanceanalyze (perfMon) tool
     # ========================================
 
     def _tool_perf_start_profile(self, args: Dict[str, Any]) -> Dict[str, Any]:
-        """启动 hou.perfMon 性能 profile"""
+        """start hou.perfMon performance profile"""
         if hou is None:
-            return {"success": False, "error": "Houdini 环境不可用"}
+            return {"success": False, "error": "Houdini environmentunavailable"}
 
         title = args.get("title", "AI Performance Analysis")
         force_cook_node = args.get("force_cook_node", "")
 
-        # 如果已有活跃 profile, 先停止旧的
+        # ifalreadyhasactive profile, firststopold
         if self._active_perf_profile is not None:
             try:
                 self._active_perf_profile.stop()
@@ -3249,32 +3242,32 @@ class HoudiniMCP:
             profile = hou.perfMon.startProfile(title)
             self._active_perf_profile = profile
         except Exception as e:
-            return {"success": False, "error": f"启动 perfMon profile Failed: {e}"}
+            return {"success": False, "error": f"start perfMon profile Failed: {e}"}
 
-        result_msg = f"已启动性能 profile: {title}"
+        result_msg = f"alreadystartperformance profile: {title}"
 
-        # options: 启动后立即强制 cook 指定节点
+        # options: startafterstandi.e.force cook specifiednode
         if force_cook_node:
             node = hou.node(force_cook_node)
             if node:
                 try:
                     node.cook(force=True)
-                    result_msg += f"\n已强制 cook Node: {force_cook_node}"
+                    result_msg += f"\nalreadyforce cook Node: {force_cook_node}"
                 except Exception as e:
-                    result_msg += f"\n强制 cook {force_cook_node} Failed: {e}"
+                    result_msg += f"\nforce cook {force_cook_node} Failed: {e}"
             else:
-                result_msg += f"\n警告: 节点 {force_cook_node} 不存在, 跳过 cook"
+                result_msg += f"\nwarning: node {force_cook_node} does not exist, skip cook"
 
-        result_msg += "\nHint: Doneoperation后调用 perf_stop_and_report 获取分析报告. "
+        result_msg += "\nHint: after running the operations, call perf_stop_and_report to fetch the analysis report."
         return {"success": True, "result": result_msg}
 
     def _tool_perf_stop_and_report(self, args: Dict[str, Any]) -> Dict[str, Any]:
-        """停止 perfMon profile 并返回分析报告"""
+        """Stop the perfMon profile and return the analysis report."""
         if hou is None:
-            return {"success": False, "error": "Houdini 环境不可用"}
+            return {"success": False, "error": "Houdini environmentunavailable"}
 
         if self._active_perf_profile is None:
-            return {"success": False, "error": "没有活跃的性能 profile. 请先调用 perf_start_profile 启动. "}
+            return {"success": False, "error": "nothasactive performance profile. pleasefirstcall perf_start_profile start. "}
 
         save_path = args.get("save_path", "")
 
@@ -3284,36 +3277,36 @@ class HoudiniMCP:
         try:
             profile.stop()
         except Exception as e:
-            return {"success": False, "error": f"停止 profile Failed: {e}"}
+            return {"success": False, "error": f"stop profile Failed: {e}"}
 
-        # 获取统计数据
+        # getstatisticsdata
         stats_data = None
         try:
             stats_data = profile.stats()
         except Exception as e:
-            return {"success": False, "error": f"获取 profile 统计数据Failed: {e}"}
+            return {"success": False, "error": f"get profile statisticsdataFailed: {e}"}
 
-        # options: 保存到磁盘
+        # options: savetodisk
         save_msg = ""
         if save_path:
             try:
                 hou.perfMon.saveProfile(profile, save_path)
-                save_msg = f"\nSaved profile 到: {save_path}"
+                save_msg = f"\nSaved profile to: {save_path}"
             except Exception as e:
-                save_msg = f"\n保存 profile Failed: {e}"
+                save_msg = f"\nsave profile Failed: {e}"
 
-        # 解析统计数据, 提取关键指标
-        report_parts = ["=== 性能分析报告 ==="]
+        # parsestatisticsdata, extractkeyrefermarker
+        report_parts = ["=== Performance analysis report ==="]
 
         if isinstance(stats_data, dict):
-            # 尝试提取 cook 事件统计
+            # tryextract cook eventstatistics
             cook_stats = stats_data.get("cookStats", stats_data.get("cook_stats", {}))
             script_stats = stats_data.get("scriptStats", stats_data.get("script_stats", {}))
             memory_stats = stats_data.get("memoryStats", stats_data.get("memory_stats", {}))
 
             if cook_stats:
-                report_parts.append("\n--- Cook 统计 ---")
-                # 解析节点 cook 时间
+                report_parts.append("\n--- Cook statistics ---")
+                # parsenode cook whenbetween
                 node_times = []
                 if isinstance(cook_stats, dict):
                     for key, val in cook_stats.items():
@@ -3326,32 +3319,32 @@ class HoudiniMCP:
                 for name, t in node_times[:15]:
                     report_parts.append(f"  {name}: {t:.2f}ms")
                 if len(node_times) > 15:
-                    report_parts.append(f"  ... 还{len(node_times) - 15} 个条目")
+                    report_parts.append(f"  ... still{len(node_times) - 15} itemitem")
 
             if script_stats:
-                report_parts.append("\n--- 脚本统计 ---")
+                report_parts.append("\n--- scriptstatistics ---")
                 if isinstance(script_stats, dict):
                     for key, val in list(script_stats.items())[:10]:
                         report_parts.append(f"  {key}: {val}")
 
             if memory_stats:
-                report_parts.append("\n--- 内存统计 ---")
+                report_parts.append("\n--- withinsavestatistics ---")
                 if isinstance(memory_stats, dict):
                     for key, val in list(memory_stats.items())[:10]:
                         report_parts.append(f"  {key}: {val}")
 
             if not cook_stats and not script_stats and not memory_stats:
-                # 统计格式未知, 输出原始数据的摘要
+                # statisticsformatnotknow, outputoriginaldata summary
                 import json as _json
                 raw = _json.dumps(stats_data, indent=2, default=str, ensure_ascii=False)
                 if len(raw) > 2000:
                     raw = raw[:2000] + "\n... (truncated)"
-                report_parts.append("\n--- 原始统计数据 ---")
+                report_parts.append("\n--- originalstatisticsdata ---")
                 report_parts.append(raw)
         elif isinstance(stats_data, str):
             report_parts.append(stats_data[:3000])
         else:
-            report_parts.append(f"统计数据type: {type(stats_data).__name__}")
+            report_parts.append(f"statisticsdatatype: {type(stats_data).__name__}")
             report_parts.append(str(stats_data)[:3000])
 
         if save_msg:
@@ -3359,7 +3352,7 @@ class HoudiniMCP:
 
         full_report = "\n".join(report_parts)
 
-        # 使用分页返回
+        # usepaginatereturn
         page = int(args.get("page", 1))
         cache_key = "perf_stop_and_report:latest"
         hint = f'perf_stop_and_report(page={page})'
@@ -3367,10 +3360,10 @@ class HoudiniMCP:
             full_report, cache_key, hint, page)}
 
     # ========================================
-    # 工具分派表 & 用法Hint & 安全检查
+    # toolpartdispatchtable & usemethodHint & safecheck
     # ========================================
 
-    # 工具用法Hint: 参数缺失或调用出错时附带正确调用方式
+    # Tool-usage hints: when a parameter is missing or a call errors out, attach the correct calling pattern
     _TOOL_USAGE: Dict[str, str] = {
         "get_network_structure": 'get_network_structure(network_path="/obj/geo1", page=1)',
         "get_node_parameters": 'get_node_parameters(node_path="/obj/geo1/box1", page=1)',
@@ -3381,7 +3374,7 @@ class HoudiniMCP:
         "connect_nodes": 'connect_nodes(from_path="/obj/geo1/box1", to_path="/obj/geo1/merge1", input_index=0)',
         "delete_node": 'delete_node(node_path="/obj/geo1/box1")',
         "search_node_types": 'search_node_types(keyword="scatter", category="sop")',
-        "semantic_search_nodes": 'semantic_search_nodes(query="随机散布点", category="sop")',
+        "semantic_search_nodes": 'semantic_search_nodes(query="random scatter points", category="sop")',
         "list_children": 'list_children(path="/obj/geo1", page=1)',
         "read_selection": 'read_selection()',
         "set_display_flag": 'set_display_flag(node_path="/obj/geo1/box1")',
@@ -3398,19 +3391,19 @@ class HoudiniMCP:
         "get_node_inputs": 'get_node_inputs(node_type="copytopoints", category="sop")',
         "run_skill": 'run_skill(skill_name="analyze_geometry_attribs", params={"node_path":"/obj/geo1/box1"})',
         "list_skills": 'list_skills()',
-        # 节点布局
+        # nodelayout
         "layout_nodes": 'layout_nodes(network_path="/obj/geo1", method="auto")',
         "get_node_positions": 'get_node_positions(network_path="/obj/geo1")',
         # NetworkBox
-        "create_network_box": 'create_network_box(parent_path="/obj/geo1", name="input_stage", comment="数据输入", color_preset="input", node_paths=["/obj/geo1/box1"])',
+        "create_network_box": 'create_network_box(parent_path="/obj/geo1", name="input_stage", comment="datainput", color_preset="input", node_paths=["/obj/geo1/box1"])',
         "add_nodes_to_box": 'add_nodes_to_box(parent_path="/obj/geo1", box_name="input_stage", node_paths=["/obj/geo1/box1"])',
         "list_network_boxes": 'list_network_boxes(parent_path="/obj/geo1")',
-        # PerfMon 性能分析
+        # PerfMon performanceanalyze
         "perf_start_profile": 'perf_start_profile(title="Cook Analysis", force_cook_node="/obj/geo1/output0")',
         "perf_stop_and_report": 'perf_stop_and_report(save_path="C:/tmp/profile.hperf")',
     }
 
-    # 工具name -> 处理方法名的映射表
+    # toolname -> processmethodname mappingtable
     _TOOL_DISPATCH: Dict[str, str] = {
         "create_wrangle_node": "_tool_create_wrangle_node",
         "get_network_structure": "_tool_get_network_structure",
@@ -3423,7 +3416,7 @@ class HoudiniMCP:
         "search_node_types": "_tool_search_node_types",
         "semantic_search_nodes": "_tool_semantic_search_nodes",
         "list_children": "_tool_list_children",
-        # "get_geometry_info" 已remove, 由 skill 替代
+        # "get_geometry_info" alreadyremove, by skill replacement for
         "read_selection": "_tool_read_selection",
         "set_display_flag": "_tool_set_display_flag",
         "copy_node": "_tool_copy_node",
@@ -3439,43 +3432,43 @@ class HoudiniMCP:
         "get_node_inputs": "_tool_get_node_inputs",
         "run_skill": "_tool_run_skill",
         "list_skills": "_tool_list_skills",
-        # 节点布局
+        # nodelayout
         "layout_nodes": "_tool_layout_nodes",
         "get_node_positions": "_tool_get_node_positions",
         # NetworkBox
         "create_network_box": "_tool_create_network_box",
         "add_nodes_to_box": "_tool_add_nodes_to_box",
         "list_network_boxes": "_tool_list_network_boxes",
-        # PerfMon 性能分析
+        # PerfMon performanceanalyze
         "perf_start_profile": "_tool_perf_start_profile",
         "perf_stop_and_report": "_tool_perf_stop_and_report",
-        # 长期记忆主动search
+        # long-termmemorymainmovesearch
         "search_memory": "_tool_search_memory",
-        # 视口截图
+        # viewportscreenshot
         "capture_viewport": "_tool_capture_viewport",
     }
 
-    # Python code安全黑名单
+    # Python codesafeblacknamesingle
     _DANGEROUS_PATTERNS = [
-        (r'\bos\.remove\b', "禁止使用 os.remove 删除文件"),
-        (r'\bos\.rmdir\b', "禁止使用 os.rmdir 删除目录"),
-        (r'\bshutil\.rmtree\b', "禁止使用 shutil.rmtree 递归删除"),
-        (r'\bos\.system\b', "禁止使用 os.system 执行系统command"),
-        (r'\bsubprocess\b', "禁止使用 subprocess 执行外部进程"),
-        (r'\b__import__\b', "禁止使用 __import__ 动态导入"),
-        (r'\bopen\s*\([^)]*["\']w["\']', "禁止以写入模式打开文件 (可用读取模式)"),
-        (r'\bhou\.exit\b', "禁止使用 hou.exit 退出 Houdini"),
-        (r'\bhou\.hipFile\.clear\b', "禁止使用 hou.hipFile.clear 清空场景"),
+        (r'\bos\.remove\b', "disallowuse os.remove deletefile"),
+        (r'\bos\.rmdir\b', "disallowuse os.rmdir deletedirectory"),
+        (r'\bshutil\.rmtree\b', "disallowuse shutil.rmtree recursivedelete"),
+        (r'\bos\.system\b', "disallowuse os.system executesystemcommand"),
+        (r'\bsubprocess\b', "disallowuse subprocess executeexternalprocess"),
+        (r'\b__import__\b', "disallowuse __import__ movestateimportenter"),
+        (r'\bopen\s*\([^)]*["\']w["\']', "disallowbywritemodeopenfile (canusereadmode)"),
+        (r'\bhou\.exit\b', "disallowuse hou.exit exit Houdini"),
+        (r'\bhou\.hipFile\.clear\b', "disallowuse hou.hipFile.clear clearemptyscene"),
     ]
 
     def _check_code_security(self, code: str) -> Optional[str]:
-        """检查code是否包含危险operation, 返回警告消息或 None"""
+        """checkcodewhetherpackagecontainingdangerousoperation, returnwarningmessageor None"""
         for pattern, msg in self._DANGEROUS_PATTERNS:
             if re.search(pattern, code):
-                return f"⛔ 安全拦截: {msg}\n如确需执行, 请在 Houdini Python Shell 中手动运行. "
+                return f"⛔ safeinterceptcut: {msg}\nsuch ascertainneedsexecute, pleasein Houdini Python Shell inmanualrun. "
         return None
 
-    # 这些工具出错时应Hint AI 先查阅文档再重试, 不要盲目重试
+    # When these tools error out, hint the AI to look up docs first before retrying — don't blind-retry
     _DOC_CHECK_TOOLS: frozenset = frozenset({
         'create_node',
         'create_nodes_batch',
@@ -3486,38 +3479,38 @@ class HoudiniMCP:
     })
 
     def _append_usage_hint(self, tool_name: str, error_msg: str) -> str:
-        """在error消息末尾附加工具的正确调用方式, 以及查阅文档的Suggestion"""
+        """inerrormessageendattachtool correctcallway, andlook updocument Suggestion"""
         parts = [error_msg]
 
         usage = self._TOOL_USAGE.get(tool_name)
         if usage:
             parts.append(f"Correct usage: {usage}")
 
-        # 节点创建/参数设置类工具出错 → 强烈Suggestion查阅文档再重试
+        # node-create / parameter-set tool errors → strongly suggest looking up docs before retrying
         if tool_name in self._DOC_CHECK_TOOLS:
             parts.append(
-                "⚠️ 请不要盲目重试！先通过以下方式确认正确信息再重新调用:\n"
-                "  1. search_node_types(keyword=\"...\") — search正确的节点type名\n"
-                "  2. get_houdini_node_doc(node_type=\"...\") — 查阅该节点的参数文档\n"
-                "  3. get_node_parameters(node_path=\"...\") — view已有节点的actual参数名和当前值\n"
-                "确认节点type名、参数名、参数值type无误后, 再重新调用本工具. "
+                "⚠️ Do not blind-retry! First confirm the correct information via the methods below, then re-call:\n"
+                "  1. search_node_types(keyword=\"...\") — searchcorrect nodetypename\n"
+                "  2. get_houdini_node_doc(node_type=\"...\") — look upthisnode parameterdocument\n"
+                "  3. get_node_parameters(node_path=\"...\") — viewalreadyhasnode actualparameternameandcurrentvalue\n"
+                "confirmnodetypename, parametername, parametervaluetypenoerrorafter, againrenewcallthistool. "
             )
 
         return "\n\n".join(parts)
 
     def execute_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        """执行工具调用 - AI Agent 的统一工具入口 (基于分派表)
+        """executetoolcall - AI Agent  statsonetoolenterport (based onpartdispatchtable)
         
         Args:
-            tool_name: 工具name
-            arguments: 工具参数
+            tool_name: toolname
+            arguments: toolparameter
         
         Returns:
             {"success": bool, "result": str, "error": str}
         """
         _dbg(f"[MCP Client] Executing tool: {tool_name}, args: {list(arguments.keys())}")
         
-        # ★ Hook: on_before_tool — 允许插件拦截/审计/修改参数
+        # ★ Hook: on_before_tool — lets plugins intercept / audit / modify arguments
         try:
             from ..hooks import get_hook_manager as _ghm
             _hm = _ghm()
@@ -3527,7 +3520,7 @@ class HoudiniMCP:
         
         handler_name = self._TOOL_DISPATCH.get(tool_name)
         
-        # ★ 如果内部分派表中不存在, 尝试外部工具 (HookManager + ToolRegistry)
+        # ★ ifwithinpartpartdispatchtableindoes not exist, tryexternaltool (HookManager + ToolRegistry)
         if handler_name is None:
             try:
                 from ..hooks import get_hook_manager as _ghm
@@ -3542,7 +3535,7 @@ class HoudiniMCP:
                     return result
             except Exception:
                 pass
-            # ★ 尝试 ToolRegistry (Skill 工具以 skill: 前缀注册)
+            # ★ try ToolRegistry (Skill toolby skill: prefixregister)
             try:
                 from ..tool_registry import get_tool_registry
                 _reg = get_tool_registry()
@@ -3564,14 +3557,14 @@ class HoudiniMCP:
         
         handler = getattr(self, handler_name, None)
         if handler is None:
-            return {"success": False, "error": f"工具处理器Not implemented: {handler_name}"}
+            return {"success": False, "error": f"toolprocess Not implemented: {handler_name}"}
         
         try:
             result = handler(arguments)
-            # 工具返回Failed时, 自动附加用法Hint
+            # toolreturnFailedwhen, autoattachusemethodHint
             if not result.get("success") and result.get("error"):
                 result["error"] = self._append_usage_hint(tool_name, result["error"])
-            # ★ Hook: on_after_tool — 通知插件工具执行Done
+            # ★ Hook: on_after_tool — notifyplugintoolexecuteDone
             try:
                 from ..hooks import get_hook_manager as _ghm
                 _ghm().fire('on_after_tool', tool_name=tool_name, args=arguments, result=result)
@@ -3581,19 +3574,19 @@ class HoudiniMCP:
         except Exception as e:
             import traceback
             _dbg(f"[MCP Client] Tool execution error: {traceback.format_exc()}")
-            err = f"工具 {tool_name} 执行Exception: {str(e)}"
+            err = f"tool {tool_name} executeException: {str(e)}"
             return {"success": False, "error": self._append_usage_hint(tool_name, err)}
 
     # ========================================
-    # 长期记忆主动search
+    # long-termmemorymainmovesearch
     # ========================================
 
     def _tool_search_memory(self, args: Dict[str, Any]) -> Dict[str, Any]:
-        """search长期记忆库 — 跨层级 chunk 检索"""
+        """searchlong-termmemorylibrary — crosslayerlevel chunk search"""
         query = args.get("query", "")
         _dbg(f"[search_memory] Received search request: query={query!r}, args={args}")
-        # ★ 防御性守卫: 若全局记忆开关关闭, 直接返回空result, 
-        #   防止 agent 绕过工具过滤 (例如缓存到的旧 schema)读取记忆. 
+        # ★ Defensive guard: if the global memory toggle is off, return an empty result directly,
+        #   so the agent can't bypass the tool filter (e.g., cached old schema) to read memory.
         try:
             from morfyai.qt_compat import QSettings
             _s = QSettings("MorfyAI", "Settings")
@@ -3605,12 +3598,12 @@ class HoudiniMCP:
                     "success": True,
                     "count": 0,
                     "memories": [],
-                    "message": "长期记忆系统当前已禁用 (用户已在设置中关闭). ",
+                    "message": "long-termmemorysystemcurrentdisabled (useralreadyinsetinclose). ",
                 }
         except Exception:
             pass
         if not query:
-            return {"success": False, "error": "query 参数不能is empty"}
+            return {"success": False, "error": "query parametercannotis empty"}
 
         category = args.get("category")
         top_k = min(max(args.get("top_k", 5), 1), 10)
@@ -3634,7 +3627,7 @@ class HoudiniMCP:
                     "success": True,
                     "count": 0,
                     "memories": [],
-                    "message": f"Not found相关记忆 (库中of {total} 条语义记忆, min_confidence=0.1)",
+                    "message": f"Not foundrelatedmemory (libraryinof {total} itemsemanticmemory, min_confidence=0.1)",
                 }
 
             memories = []
@@ -3650,7 +3643,7 @@ class HoudiniMCP:
                     "activation_count": rec.activation_count,
                 })
 
-            # update激活计数
+            # updateactivatecountcount
             for rec, _ in results:
                 try:
                     store.increment_semantic_activation(rec.id)
@@ -3666,25 +3659,25 @@ class HoudiniMCP:
             }
 
         except Exception as e:
-            return {"success": False, "error": f"记忆searchFailed: {str(e)}"}
+            return {"success": False, "error": f"memorysearchFailed: {str(e)}"}
 
     # ========================================
-    # 视口截图
+    # viewportscreenshot
     # ========================================
 
     def _tool_capture_viewport(self, args: Dict[str, Any]) -> Dict[str, Any]:
-        """截取当前 Houdini 3D 视口的快照, Returned base64 编码的图片. 
+        """Capture the current Houdini 3D viewport snapshot; returns a base64-encoded image.
         
-        使用 flipbook 机制截取当前帧的单帧图片, 供 AI 视觉分析节点运行result. 
-        ★ 必须在主线程执行 (涉及 hou UI operation). 
+        use flipbook mechanismcutfetchcurrentframe singleframeimage, for AI visualanalyzenoderunresult. 
+        ★ mustinmainthreadexecute (involveand hou UI operation). 
         """
         if hou is None:
-            return {"success": False, "error": "Houdini 环境不可用"}
+            return {"success": False, "error": "Houdini environmentunavailable"}
         
         width = args.get("width", 960)
         height = args.get("height", 540)
         output_path = args.get("output_path", "")
-        # 限制分辨率range
+        # Cap resolution range
         width = max(160, min(width, 1920))
         height = max(120, min(height, 1080))
         
@@ -3692,7 +3685,7 @@ class HoudiniMCP:
             import tempfile
             import base64
             
-            # 获取 Scene Viewer
+            # get Scene Viewer
             viewer = None
             try:
                 desktop = hou.ui.curDesktop()
@@ -3708,16 +3701,16 @@ class HoudiniMCP:
                     pass
             
             if viewer is None:
-                return {"success": False, "error": "找不到 Scene Viewer 面板, 请确保有打开的 3D 视口"}
+                return {"success": False, "error": "findnotto Scene Viewer panel, pleaseensurehasopen  3D viewport"}
             
-            # 获取当前帧
+            # getcurrentframe
             current_frame = int(hou.frame())
             
-            # 生成临时文件路径
+            # generatetemporarywhenfile path
             tmp_dir = tempfile.gettempdir()
             tmp_file = os.path.join(tmp_dir, f"houdini_viewport_{int(time.time() * 1000)}.jpg")
             
-            # 使用 flipbook 截取单帧
+            # use flipbook cutfetchsingleframe
             try:
                 flip_settings = viewer.flipbookSettings().stash()
                 flip_settings.output(tmp_file)
@@ -3725,40 +3718,40 @@ class HoudiniMCP:
                 flip_settings.resolution((width, height))
                 flip_settings.outputToMPlay(False)
                 
-                # 执行单帧截图
+                # executesingleframescreenshot
                 viewport = viewer.curViewport()
                 viewer.flipbook(viewport, flip_settings)
             except Exception as e:
-                # 某些 Houdini 版本可能不支持 flipbook API
-                return {"success": False, "error": f"Flipbook 截图Failed: {e}"}
+                # some Houdini versionmaynot supported flipbook API
+                return {"success": False, "error": f"Flipbook screenshotFailed: {e}"}
             
-            # 读取生成的图片
+            # readgeneratedimage
             if not os.path.exists(tmp_file):
-                # flipbook 可能使用帧号作为文件名后缀
+                # flipbook mayuseframenumberasfilenamesuffix
                 import glob
                 pattern = tmp_file.replace('.jpg', '*.jpg')
                 candidates = sorted(glob.glob(pattern))
                 if candidates:
                     tmp_file = candidates[0]
                 else:
-                    return {"success": False, "error": "截图文件未生成, 请检查视口status"}
+                    return {"success": False, "error": "screenshotfilenotgenerate, pleasecheckviewportstatus"}
             
-            # 读取并编码
+            # Read and encode
             with open(tmp_file, 'rb') as f:
                 img_bytes = f.read()
             
             if len(img_bytes) == 0:
-                return {"success": False, "error": "截图文件is empty"}
+                return {"success": False, "error": "screenshotfileis empty"}
             
             b64_data = base64.b64encode(img_bytes).decode('utf-8')
             
-            # 清理临时文件
+            # cleanuptemporarywhenfile
             try:
                 os.remove(tmp_file)
             except Exception:
                 pass
             
-            # 获取视口信息
+            # getviewportinfo
             viewport_name = ""
             try:
                 viewport_name = viewer.curViewport().name()
@@ -3777,30 +3770,30 @@ class HoudiniMCP:
             size_kb = len(img_bytes) / 1024
             
             result_msg = (
-                f"已截取视口快照: {width}x{height}, frame={current_frame}, "
+                f"alreadycutfetchviewportsnapshot: {width}x{height}, frame={current_frame}, "
                 f"viewport={viewport_name}{cam_info}, "
                 f"size={size_kb:.1f}KB"
             )
             
-            # 如果指定了 output_path, 保存到文件
+            # ifspecified output_path, savetofile
             if output_path:
                 try:
-                    # 支持 $HIP plus  Houdini 变量展开
+                    # support $HIP plus  Houdini variableexpand
                     expanded_path = hou.text.expandString(output_path) if hasattr(hou, 'text') else output_path
                     save_dir = os.path.dirname(expanded_path)
                     if save_dir and not os.path.exists(save_dir):
                         os.makedirs(save_dir, exist_ok=True)
                     with open(expanded_path, 'wb') as f:
                         f.write(img_bytes)
-                    result_msg += f"\n截图Saved到: {expanded_path}"
+                    result_msg += f"\nscreenshotSavedto: {expanded_path}"
                 except Exception as e:
-                    result_msg += f"\n保存到 {output_path} Failed: {e}"
+                    result_msg += f"\nsaveto {output_path} Failed: {e}"
             
             return {
                 "success": True,
                 "result": result_msg,
-                # ★ 特殊字段: 包含 base64 图片数据, 
-                # agent_loop_stream 中检测到此字段会将图片注入消息
+                # ★ specialfield: packagecontaining base64 imagedata, 
+                # agent_loop_stream indetecttothisfieldwillwillimageinjectmessage
                 "_viewport_image": b64_data,
                 "_image_media_type": "image/jpeg",
             }
@@ -3808,31 +3801,31 @@ class HoudiniMCP:
         except Exception as e:
             import traceback
             traceback.print_exc()
-            return {"success": False, "error": f"视口截图Failed: {str(e)}"}
+            return {"success": False, "error": f"viewportscreenshotFailed: {str(e)}"}
 
     def _tool_unknown(self, tool_name: str) -> Dict[str, Any]:
-        """处理未知工具name, 提供Suggestion"""
+        """processnotknowtoolname, raiseforSuggestion"""
         available = list(self._TOOL_DISPATCH.keys())
-        error_msg = f"工具不存在: {tool_name}"
+        error_msg = f"tooldoes not exist: {tool_name}"
         similar = [t for t in available
                    if tool_name.lower() in t.lower() or t.lower() in tool_name.lower()]
         if similar:
-            error_msg += f"\nSuggestion的工具: {', '.join(similar[:3])}"
+            error_msg += f"\nSuggestion tool: {', '.join(similar[:3])}"
         else:
-            error_msg += f"\n可用工具: {', '.join(available[:8])}..."
-        error_msg += f"\n请使用正确的工具name, 不要重复调用不存在的工具. "
+            error_msg += f"\ncanusetool: {', '.join(available[:8])}..."
+        error_msg += f"\npleaseusecorrect toolname, don'tduplicatecalldoes not exist tool. "
         return {"success": False, "error": error_msg}
 
 
     # ========================================
-    # 内部辅助方法
+    # withinparthelpermethod
     # ========================================
     
     def _current_network(self) -> Any:
-        """获取当前网络编辑器中的网络
+        """getcurrentnetworkedit in network
         
-        优先级: 当前编辑器 > /obj/geo1 > /obj
-        使用回退路径时会打印警告. 
+        preferredlevel: currentedit  > /obj/geo1 > /obj
+        Prints a warning when using the fallback path.
         """
         try:
             editor = hou.ui.curDesktop().paneTabOfType(hou.paneTabType.NetworkEditor)
@@ -3840,7 +3833,7 @@ class HoudiniMCP:
                 network = editor.pwd()
                 if network:
                     return network
-            # 回退到 /obj/geo1
+            # fall backto /obj/geo1
             try:
                 geo1 = hou.node('/obj/geo1')
                 if geo1:
@@ -3848,7 +3841,7 @@ class HoudiniMCP:
                     return geo1
             except Exception:
                 pass
-            # 回退到 /obj
+            # fall backto /obj
             try:
                 obj = hou.node('/obj')
                 if obj:
@@ -3871,7 +3864,7 @@ class HoudiniMCP:
                 return None
 
     def _category_from_hint(self, prefix: str) -> Any:
-        """从前缀获取category"""
+        """fromprefixgetcategory"""
         try:
             prefix_lower = (prefix or '').strip().lower()
             for name, category in hou.nodeTypeCategories().items():
@@ -3882,13 +3875,13 @@ class HoudiniMCP:
         return None
 
     def _desired_category_from_hint(self, type_hint: str, network: Any) -> Any:
-        """从typeHint获取expected的category"""
+        """fromtypeHintgetexpected category"""
         try:
             if "/" in (type_hint or ''):
                 prefix = type_hint.split("/", 1)[0]
                 return self._category_from_hint(prefix) or (network.childTypeCategory() if network else None)
             
-            # 如果没有前缀, 尝试根据节点名推断category (常见SOP节点)
+            # If there's no prefix, try to infer category from the node name (common SOP nodes)
             hint_lower = (type_hint or '').lower().strip()
             common_sop_nodes = {
                 'box', 'sphere', 'grid', 'tube', 'line', 'circle', 'font', 'curve',
@@ -3899,16 +3892,16 @@ class HoudiniMCP:
                 'add', 'merge', 'connect', 'group', 'partition'
             }
             if hint_lower in common_sop_nodes:
-                # 这是一个SOP节点
+                # thisisoneSOPnode
                 return hou.sopNodeTypeCategory()
             
-            # default使用当前网络的category
+            # defaultusecurrentnetwork category
             return network.childTypeCategory() if network else None
         except Exception:
             return None
 
     def _ensure_target_network(self, network: Any, desired_category: Any) -> Any:
-        """确保目标网络type正确"""
+        """ensuretargetnetworktypecorrect"""
         if network is None or desired_category is None:
             return network
             
@@ -3917,7 +3910,7 @@ class HoudiniMCP:
             if current_cat is None:
                 return network
                 
-            # 如果category匹配, 直接返回
+            # ifcategorymatch, directlyreturn
             if current_cat == desired_category:
                 return network
             
@@ -3927,14 +3920,14 @@ class HoudiniMCP:
             if current_name == desired_name:
                 return network
             
-            # 如果在 obj 层级但需要创建 sop 节点, 自动创建 geo 容器
+            # ifin obj layerlevelbutneedscreate sop node, autocreate geo contain 
             if current_name.startswith("object") and desired_name.startswith("sop"):
                 try:
                     _dbg(f"[MCP Client] Auto-creating geo container, from {current_name} to {desired_name}")
-                    # 根据文档, 直接使用 createNode, 让它自己处理匹配
+                    # based ondocument, directlyuse createNode, letitselfselfprocessmatch
                     container = network.createNode(
                         "geo",
-                        None,  # 让 Houdini 自动生成name
+                        None,  # let Houdini autogeneratename
                         run_init_scripts=True,
                         load_contents=True,
                         exact_type_name=False,
@@ -3959,7 +3952,7 @@ class HoudiniMCP:
         return network
 
     def _sanitize_node_name(self, name: Optional[str]) -> Optional[str]:
-        """清理节点name"""
+        """cleanupnodename"""
         if not name:
             return None
         cleaned = str(name).strip()
@@ -3970,10 +3963,10 @@ class HoudiniMCP:
         return cleaned
 
     # ========================================
-    # Houdini 本地帮助文档查询
+    # Houdini thisplacehelpdocumentquery
     # ========================================
     
-    # Houdini nodeTypeCategories() 的 key 与 AI 传入的 category 映射
+    # Houdini nodeTypeCategories()   key with AI passenter  category mapping
     _CATEGORY_MAP: Dict[str, str] = {
         "sop": "Sop", "obj": "Object", "dop": "Dop", "vop": "Vop",
         "cop": "Cop2", "cop2": "Cop2", "rop": "Driver", "driver": "Driver",
@@ -3981,18 +3974,18 @@ class HoudiniMCP:
     }
 
     def _get_houdini_local_doc(self, node_type: str, category: str = "sop", page: int = 1) -> Tuple[bool, str]:
-        """获取节点文档 (多重降级策略, 支持分页)
+        """getnodedocument (multiredowngradestrategy, supportpaginate)
 
-        优先级: 
-        1. 分页缓存 (之前已获取的文档直接分页返回)
-        2. Houdini 本地帮助服务器 (http://127.0.0.1:{port})
-        3. SideFX 在线文档 (https://www.sidefx.com/docs/houdini/)
-        4. hou.NodeType.description() + 参数列表 作为最低限度的文档
+        preferredlevel: 
+        1. paginatecache (beforealreadyget documentdirectlypaginatereturn)
+        2. Houdini thisplacehelpservice  (http://127.0.0.1:{port})
+        3. SideFX inlinedocument (https://www.sidefx.com/docs/houdini/)
+        4. hou.NodeType.description() + parameterlist asmostlowlimitdegree document
 
         Args:
-            node_type: 节点type名
-            category: 节点category
-            page: 页码 (从 1 开始), 大于 1 时优先从缓存读取
+            node_type: nodetypename
+            category: nodecategory
+            page: pagecode (from 1 start), greater than 1 whenpreferredfromcacheread
 
         Returns:
             (success, doc_text)
@@ -4002,18 +3995,18 @@ class HoudiniMCP:
 
         type_name_lower = node_type.lower().strip()
 
-        # ---------- 分页快速路径: 缓存中已有完整文档 ----------
+        # ---------- paginatefastpath: cacheinalreadyhascompletedocument ----------
         cache_key = f"{category}/{node_type}".lower()
         if page > 1 and cache_key in self._doc_page_cache:
             return True, self._paginate_doc(self._doc_page_cache[cache_key], node_type, category, page)
 
-        # ---------- 查找节点type对象 ----------
+        # ---------- lookupnodetypeobject ----------
         node_type_obj = None
         try:
             categories = hou.nodeTypeCategories()
             hou_cat_name = self._CATEGORY_MAP.get(category.lower(), category.capitalize())
             cat_obj = categories.get(hou_cat_name)
-            # 如果精确匹配Failed, 遍历所有分类
+            # iffinecertainmatchFailed, traverseallpartclass
             if cat_obj is None:
                 for cname, cobj in categories.items():
                     if cname.lower() == category.lower():
@@ -4026,14 +4019,14 @@ class HoudiniMCP:
                     if name_low == type_name_lower or name_low.endswith(f"::{type_name_lower}"):
                         node_type_obj = nt
                         break
-            # 如果指定categoryNot found, search全部category
+            # ifspecifiedcategoryNot found, searchallpartcategory
             if node_type_obj is None:
                 for cname, cobj in categories.items():
                     for name, nt in cobj.nodeTypes().items():
                         name_low = name.lower()
                         if name_low == type_name_lower or name_low.endswith(f"::{type_name_lower}"):
                             node_type_obj = nt
-                            # update category 为actual找到的
+                            # update category asactualfindto 
                             for k, v in self._CATEGORY_MAP.items():
                                 if v == cname:
                                     category = k
@@ -4044,61 +4037,61 @@ class HoudiniMCP:
         except Exception as e:
             _dbg(f"[MCP] Node type lookup failed: {e}")
 
-        # ---------- 策略 1: 本地帮助服务器 ----------
+        # ---------- strategy 1: thisplacehelpservice  ----------
         local_result = self._fetch_local_help(node_type, category, node_type_obj, page)
         if local_result is not None:
             return True, local_result
 
-        # ---------- 策略 2: SideFX 在线文档 ----------
+        # ---------- strategy 2: SideFX inlinedocument ----------
         online_result = self._fetch_online_help(node_type, category, page)
         if online_result is not None:
             return True, online_result
 
-        # ---------- 策略 3: 从 hou.NodeType 提取基本信息 ----------
+        # ---------- strategy 3: from hou.NodeType extractbasethisinfo ----------
         if node_type_obj is not None:
             return self._extract_type_info(node_type_obj, node_type)
 
-        return False, f"找不到节点type '{node_type}' 的文档. 请用 search_node_types 确认正确的节点名. "
+        return False, f"findnottonodetype '{node_type}'  document. pleaseuse search_node_types confirmcorrect nodename. "
 
-    # ---- 帮助文档 子方法 ----
+    # ---- helpdocument submethod ----
 
     def _html_to_text(self, html: str) -> str:
-        """将 HTML 转为可读纯文本"""
+        """will HTML convertascanreadpuretext"""
         try:
             from bs4 import BeautifulSoup as BS
             soup = BS(html, 'html.parser')
-            # remove不需要的部分
+            # removenotneeds partpart
             for tag in soup.find_all(['script', 'style', 'nav', 'header', 'footer']):
                 tag.decompose()
             text = soup.get_text(separator='\n', strip=True)
         except Exception:
-            # 无 bs4 时用正则
+            # no bs4 whenusepositivethen
             text = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.DOTALL | re.IGNORECASE)
             text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL | re.IGNORECASE)
             text = re.sub(r'<nav[^>]*>.*?</nav>', '', text, flags=re.DOTALL | re.IGNORECASE)
             text = re.sub(r'<header[^>]*>.*?</header>', '', text, flags=re.DOTALL | re.IGNORECASE)
             text = re.sub(r'<footer[^>]*>.*?</footer>', '', text, flags=re.DOTALL | re.IGNORECASE)
-            # 块级label换行
+            # blocklevellabelswaprow
             text = re.sub(r'<(?:br|p|div|h[1-6]|li|tr)[^>]*>', '\n', text, flags=re.IGNORECASE)
             text = re.sub(r'<[^>]+>', ' ', text)
-        # 清理多余空行
+        # cleanupmultiremainingemptyrow
         lines = [l.strip() for l in text.split('\n')]
         lines = [l for l in lines if l]
         text = '\n'.join(lines)
         return text
 
-    # 文档分页缓存: key = "category/node_type" → 完整纯文本
+    # documentpaginatecache: key = "category/node_type" → completepuretext
     _doc_page_cache: Dict[str, str] = {}
-    _DOC_PAGE_SIZE = 2500  # 每页字符数
+    _DOC_PAGE_SIZE = 2500  # eachpagecharactercount
 
     def _paginate_doc(self, text: str, node_type: str, category: str, page: int = 1) -> str:
-        """将文档按页返回, 支持分页view完整内容
+        """willdocumentbypagereturn, supportpaginateviewcompletecontent
         
         Args:
-            text: 完整的纯文本文档
-            node_type: 节点type名
-            category: 节点category
-            page: 页码 (从 1 开始)
+            text: complete puretextdocument
+            node_type: nodetypename
+            category: nodecategory
+            page: pagecode (from 1 start)
         """
         cache_key = f"{category}/{node_type}".lower()
         self._doc_page_cache[cache_key] = text
@@ -4107,14 +4100,14 @@ class HoudiniMCP:
         page_size = self._DOC_PAGE_SIZE
         total_pages = max(1, (total_chars + page_size - 1) // page_size)
 
-        # 限制页码range
+        # limitpagecoderange
         page = max(1, min(page, total_pages))
 
         start = (page - 1) * page_size
         end = min(start + page_size, total_chars)
         page_text = text[start:end]
 
-        header = f"[{node_type} 节点文档] (Page {page}/{total_pages}/{total_chars} 字符)\n\n"
+        header = f"[{node_type} nodedocument] (Page {page}/{total_pages}/{total_chars} character)\n\n"
 
         if total_pages == 1:
             return header + page_text
@@ -4127,8 +4120,8 @@ class HoudiniMCP:
         return header + page_text + footer
 
     def _fetch_local_help(self, node_type: str, category: str, node_type_obj, page: int = 1) -> Optional[str]:
-        """从 Houdini 本地帮助服务器获取文档"""
-        # 先检查分页缓存 (避免重复请求)
+        """from Houdini thisplacehelpservice getdocument"""
+        # firstcheckpaginatecache (avoidduplicaterequest)
         cache_key = f"{category}/{node_type}".lower()
         if cache_key in self._doc_page_cache and page > 1:
             return self._paginate_doc(self._doc_page_cache[cache_key], node_type, category, page)
@@ -4139,7 +4132,7 @@ class HoudiniMCP:
         help_port = getattr(settings, "help_server_port", 48626)
         help_server = f"http://127.0.0.1:{help_port}"
 
-        # 构建 URL (优先 helpUrl, 否则用标准路径)
+        # build URL (preferred helpUrl, otherwiseusestandardpath)
         url_path = f"/nodes/{category.lower()}/{node_type.lower()}"
         if node_type_obj:
             try:
@@ -4157,14 +4150,14 @@ class HoudiniMCP:
                 if text and len(text) > 50:
                     return self._paginate_doc(text, node_type, category, page)
         except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
-            pass  # 本地服务器不可用, 降级到在线
+            pass  # thisplaceservice unavailable, downgradetoinline
         except Exception as e:
             _dbg(f"[MCP] Local help fetch failed: {e}")
         return None
 
     def _fetch_online_help(self, node_type: str, category: str, page: int = 1) -> Optional[str]:
-        """从 SideFX 在线文档获取"""
-        # 先检查分页缓存
+        """from SideFX inlinedocumentget"""
+        # firstcheckpaginatecache
         cache_key = f"{category}/{node_type}".lower()
         if cache_key in self._doc_page_cache and page > 1:
             return self._paginate_doc(self._doc_page_cache[cache_key], node_type, category, page)
@@ -4184,18 +4177,18 @@ class HoudiniMCP:
         return None
 
     def _extract_type_info(self, node_type_obj, node_type: str) -> Tuple[bool, str]:
-        """从 hou.NodeType 对象提取基本文档信息 (最后降级)"""
+        """from hou.NodeType objectextractbasethisdocumentinfo (lastdowngrade)"""
         try:
             label = node_type_obj.description() or node_type
-            # 输入信息
+            # inputinfo
             inputs = []
             try:
                 input_labels = node_type_obj.inputLabels()
                 for i, lbl in enumerate(input_labels):
-                    inputs.append(f"  输入 {i}: {lbl}")
+                    inputs.append(f"  input {i}: {lbl}")
             except Exception:
                 pass
-            # 参数摘要 (前 20)
+            # parametersummary (previous 20)
             parms = []
             try:
                 parm_templates = node_type_obj.parmTemplates()
@@ -4204,22 +4197,22 @@ class HoudiniMCP:
             except Exception:
                 pass
 
-            doc = [f"[{node_type} 节点基本信息]", f"name: {label}"]
+            doc = [f"[{node_type} nodebasethisinfo]", f"name: {label}"]
             if inputs:
-                doc.append("输入端口:\n" + '\n'.join(inputs))
+                doc.append("inputport:\n" + '\n'.join(inputs))
             if parms:
-                doc.append(f"参数 (前{min(20, len(parms))}个):\n" + '\n'.join(parms))
+                doc.append(f"parameter (previous{min(20, len(parms))}):\n" + '\n'.join(parms))
             return True, '\n'.join(doc)
         except Exception as e:
-            return False, f"提取节点信息Failed: {e}"
+            return False, f"extractnodeinfoFailed: {e}"
     
-    # 常见节点输入说明 (从外部 JSON 加载, 避免硬编码)
+    # Common node-input descriptions (loaded from an external JSON; avoids hard-coding)
     # ========================================
     _COMMON_NODE_INPUTS: Dict[str, str] = {}
 
     @classmethod
     def _load_common_node_inputs(cls) -> Dict[str, str]:
-        """从 node_inputs.json 懒加载常见节点输入信息"""
+        """Lazy-load common node-input info from node_inputs.json."""
         if cls._COMMON_NODE_INPUTS:
             return cls._COMMON_NODE_INPUTS
         json_path = os.path.join(os.path.dirname(__file__), 'node_inputs.json')
@@ -4234,24 +4227,24 @@ class HoudiniMCP:
         return cls._COMMON_NODE_INPUTS
 
     def get_node_input_info(self, node_type: str, category: str = "sop") -> Tuple[bool, str]:
-        """获取节点的输入端口信息 (使用缓存, 重要: 帮助 AI 理解输入顺序)
+        """getnode inputportinfo (usecache, reneed: help AI manageresolveinputorderorder)
         
         Args:
-            node_type: 节点typename
-            category: 节点category
+            node_type: nodetypename
+            category: nodecategory
         
         Returns:
-            (success, info) 输入端口信息
+            (success, info) inputportinfo
         """
         type_lower = node_type.lower()
         cache_key = f"{category}/{type_lower}"
         
-        # 检查常见节点缓存 (从 JSON 懒加载)
+        # Check common-node cache (lazy-loaded from JSON)
         common_inputs = self._load_common_node_inputs()
         if type_lower in common_inputs:
             return True, common_inputs[type_lower]
         
-        # 检查动态缓存
+        # checkmovestatecache
         if cache_key in HoudiniMCP._common_node_inputs_cache:
             return True, HoudiniMCP._common_node_inputs_cache[cache_key]
         
@@ -4259,7 +4252,7 @@ class HoudiniMCP:
             return False, "Houdini API not detected"
         
         try:
-            # 获取节点type
+            # getnodetype
             categories = hou.nodeTypeCategories()
             cat_obj = categories.get(category.capitalize()) or categories.get(category.upper())
             if not cat_obj:
@@ -4274,32 +4267,32 @@ class HoudiniMCP:
             if not node_type_obj:
                 return False, f"Node type not found: {node_type}"
             
-            # 获取输入信息
+            # getinputinfo
             max_inputs = node_type_obj.maxNumInputs()
             min_inputs = node_type_obj.minNumInputs()
             
             info_lines = [
                 f"Node: {node_type} ({node_type_obj.description()})",
-                f"输入端口Count: {min_inputs}-{max_inputs}",
+                f"inputportCount: {min_inputs}-{max_inputs}",
                 "",
-                "输入端口Details:"
+                "inputportDetails:"
             ]
             
             for i in range(min(max_inputs, 6)):
                 try:
                     label = node_type_obj.inputLabel(i)
                     required = i < min_inputs
-                    req_str = "必需" if required else "options"
+                    req_str = "mustneeds" if required else "options"
                     info_lines.append(f"  [{i}] {label} ({req_str})")
                 except Exception:
                     info_lines.append(f"  [{i}] Input {i}")
             
             result = "\n".join(info_lines)
             
-            # 缓存result
+            # cacheresult
             HoudiniMCP._common_node_inputs_cache[cache_key] = result
             
             return True, result
             
         except Exception as e:
-            return False, f"获取输入信息Failed: {str(e)}"
+            return False, f"getinputinfoFailed: {str(e)}"

@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Header UI 构建 — 顶部设置栏（模型选择、Provider、Web/Think 开关等）
+Header UI — top settings bar (model selection, provider, Web/Think toggles, etc.).
 
-从 ai_tab.py 中拆分出的 Mixin，所有方法通过 self 访问 AITab 实例状态。
-样式由全局 style_template.qss 通过 objectName 选择器控制。
+Extracted from ai_tab.py as a Mixin. All methods access AITab instance state via self.
+Styling is driven by the global style_template.qss via objectName selectors.
 """
 
 from pathlib import Path
@@ -18,10 +18,10 @@ except Exception:
 
 
 class HeaderMixin:
-    """顶部设置栏构建与交互逻辑"""
+    """Build logic and interactions for the top settings bar."""
 
     def _build_header(self) -> QtWidgets.QWidget:
-        """顶部设置栏 — 单行：Provider + Model + keyStatus + Web + Think + ⋯ 溢出菜单"""
+        """Top settings bar — single row: Provider + Model + keyStatus + Web + Think + ⋯ overflow menu."""
         header = QtWidgets.QFrame()
         header.setObjectName("headerFrame")
         
@@ -29,7 +29,7 @@ class HeaderMixin:
         outer.setContentsMargins(8, 2, 8, 2)
         outer.setSpacing(0)
         
-        # -------- 单行：Logo + Provider + Model + keyStatus + Web + Think + ⋯ --------
+        # -------- Single row: Logo + Provider + Model + keyStatus + Web + Think + ⋯ --------
         row = QtWidgets.QHBoxLayout()
         row.setSpacing(4)
 
@@ -59,7 +59,7 @@ class HeaderMixin:
         except Exception:
             pass
 
-        # 提供商
+        # Provider
         self.provider_combo = QtWidgets.QComboBox()
         self.provider_combo.setObjectName("providerCombo")
         self.provider_combo.addItem("Ollama", 'ollama')
@@ -73,7 +73,7 @@ class HeaderMixin:
         self.provider_combo.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed)
         row.addWidget(self.provider_combo)
         
-        # Custom 配置按钮（仅在 Custom provider 时可见）
+        # Custom config button (only visible for the Custom provider)
         self.btn_custom_config = QtWidgets.QPushButton("⚙")
         self.btn_custom_config.setObjectName("btnCustomConfig")
         self.btn_custom_config.setFixedSize(22, 22)
@@ -83,7 +83,7 @@ class HeaderMixin:
         self.btn_custom_config.clicked.connect(self._open_custom_provider_dialog)
         row.addWidget(self.btn_custom_config)
         
-        # 模型
+        # Model
         self.model_combo = QtWidgets.QComboBox()
         self.model_combo.setObjectName("modelCombo")
         self._model_map = {
@@ -104,6 +104,8 @@ class HeaderMixin:
                 'MiniMax-M2.7-highspeed',
             ],
             'openrouter': [
+                'anthropic/claude-opus-4.8',
+                'anthropic/claude-sonnet-4.8',
                 'anthropic/claude-sonnet-4.6',
                 'anthropic/claude-opus-4.6',
                 'anthropic/claude-sonnet-4.5',
@@ -121,16 +123,16 @@ class HeaderMixin:
                 'qwen/qwen3-235b-a22b',
                 'mistralai/mistral-large-2512',
             ],
-            'custom': [],  # 由用户通过配置对话框动态填充
+            'custom': [],  # populated dynamically by the user via the config dialog
         }
-        # Custom provider 的运行时配置（从持久化配置加载）
+        # Runtime configuration for the Custom provider (loaded from persisted config)
         self._custom_provider_config = {
             'api_url': '',
             'api_key': '',
-            'models': [],           # 用户配置的模型名列表
+            'models': [],           # user-configured model names
             'context_limit': 128000,
             'supports_vision': False,
-            'supports_fc': True,    # 是否支持 Function Calling
+            'supports_fc': True,    # whether function calling is supported
         }
         self._load_custom_provider_config()
         self._model_context_limits = {
@@ -140,7 +142,7 @@ class HeaderMixin:
             'glm-4.7': 200000,
             'gpt-5.2': 128000,
             'gpt-5.3-codex': 200000,
-            # Duojie 模型
+            # Duojie models
             'claude-opus-4-6-gemini': 200000,
             'claude-opus-4-6-max': 200000,
             'claude-sonnet-4-5': 200000,
@@ -151,7 +153,9 @@ class HeaderMixin:
             'glm-5.1': 200000,
             'MiniMax-M2.7': 128000,
             'MiniMax-M2.7-highspeed': 128000,
-            # OpenRouter 模型
+            # OpenRouter models
+            'anthropic/claude-opus-4.8': 1000000,
+            'anthropic/claude-sonnet-4.8': 1000000,
             'anthropic/claude-sonnet-4.6': 1000000,
             'anthropic/claude-opus-4.6': 1000000,
             'anthropic/claude-sonnet-4.5': 1000000,
@@ -169,14 +173,15 @@ class HeaderMixin:
             'qwen/qwen3-235b-a22b': 131072,
             'mistralai/mistral-large-2512': 262144,
         }
-        # 模型特性配置
+        # Model feature flags
         self._model_features = {
             # Ollama
             'qwen2.5:14b':               {'supports_prompt_caching': True, 'supports_vision': False},
             'qwen2.5:7b':                {'supports_prompt_caching': True, 'supports_vision': False},
             'llama3:8b':                  {'supports_prompt_caching': True, 'supports_vision': False},
             'mistral:7b':                 {'supports_prompt_caching': True, 'supports_vision': False},
-            # DeepSeek
+            # DeepSeek — the api.deepseek.com chat endpoint rejects image_url content
+            # ("unknown variant 'image_url'"), so NONE of these support vision.
             'deepseek-v4-flash':          {'supports_prompt_caching': True, 'supports_vision': False},
             'deepseek-v4-pro':            {'supports_prompt_caching': True, 'supports_vision': False},
             'deepseek-chat':              {'supports_prompt_caching': True, 'supports_vision': False},
@@ -194,13 +199,15 @@ class HeaderMixin:
             # Duojie - Gemini
             'gemini-3-flash':             {'supports_prompt_caching': True, 'supports_vision': True},
             'gemini-3.1-pro':             {'supports_prompt_caching': True, 'supports_vision': True},
-            # Duojie - GLM (Anthropic 协议)
+            # Duojie - GLM (Anthropic protocol)
             'glm-5-turbo':                {'supports_prompt_caching': True, 'supports_vision': False},
             'glm-5.1':                    {'supports_prompt_caching': True, 'supports_vision': False},
             # Duojie - MiniMax
             'MiniMax-M2.7':               {'supports_prompt_caching': True, 'supports_vision': False},
             'MiniMax-M2.7-highspeed':     {'supports_prompt_caching': True, 'supports_vision': False},
-            # OpenRouter 模型
+            # OpenRouter models
+            'anthropic/claude-opus-4.8':          {'supports_prompt_caching': True, 'supports_vision': True},
+            'anthropic/claude-sonnet-4.8':        {'supports_prompt_caching': True, 'supports_vision': True},
             'anthropic/claude-sonnet-4.6':        {'supports_prompt_caching': True, 'supports_vision': True},
             'anthropic/claude-opus-4.6':          {'supports_prompt_caching': True, 'supports_vision': True},
             'anthropic/claude-sonnet-4.5':        {'supports_prompt_caching': True, 'supports_vision': True},
@@ -221,10 +228,10 @@ class HeaderMixin:
         self._refresh_models('ollama')
         self.model_combo.setMinimumWidth(100)
         self.model_combo.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
-        self.model_combo.setEditable(False)  # 默认不可编辑，Custom 时切换为可编辑
+        self.model_combo.setEditable(False)  # not editable by default; switched to editable in Custom mode
         row.addWidget(self.model_combo, 1)
         
-        # API Key 状态 — 紧凑指示（行内，限宽 + 省略号）
+        # API Key status — compact inline indicator (width-limited, ellipsised)
         self.key_status = QtWidgets.QLabel()
         self.key_status.setObjectName("keyStatus")
         self.key_status.setMaximumWidth(90)
@@ -233,7 +240,7 @@ class HeaderMixin:
         self.key_status.setTextInteractionFlags(_qc.Qt.NoTextInteraction)
         row.addWidget(self.key_status)
         
-        # Web / Think 开关
+        # Web / Think toggles
         self.web_check = QtWidgets.QCheckBox("Web")
         self.web_check.setObjectName("chkWeb")
         self.web_check.setChecked(True)
@@ -245,7 +252,7 @@ class HeaderMixin:
         self.think_check.setToolTip(tr('header.think.tooltip'))
         row.addWidget(self.think_check)
         
-        # ⋯ 溢出菜单按钮
+        # ⋯ overflow menu button
         self.btn_overflow = QtWidgets.QPushButton("···")
         self.btn_overflow.setObjectName("btnOverflow")
         self.btn_overflow.setFixedSize(24, 22)
@@ -255,8 +262,8 @@ class HeaderMixin:
         
         outer.addLayout(row)
         
-        # -------- 隐藏按钮（保持 self.btn_xxx 引用兼容 _wire_events）--------
-        # 这些按钮不加入布局，仅用于信号连接
+        # -------- Hidden buttons (preserved as self.btn_xxx for _wire_events compatibility) --------
+        # These buttons are not added to any layout; they exist only for signal connections.
         self.btn_key = QtWidgets.QPushButton("Key")
         self.btn_key.setObjectName("btnSmall")
         self.btn_key.setVisible(False)
@@ -341,7 +348,7 @@ class HeaderMixin:
             return None
 
     def _show_overflow_menu(self):
-        """显示溢出菜单：低频功能集中在此"""
+        """Show the overflow menu — collects low-frequency features."""
         menu = QtWidgets.QMenu(self)
 
         menu.addAction("API Key", self.btn_key.click)
@@ -354,7 +361,7 @@ class HeaderMixin:
         menu.addAction(tr('rules.menu_label'), self._open_rules_editor)
         menu.addAction(tr('plugin.menu_label'), self._open_plugin_manager)
 
-        # 长期记忆系统全局开关（默认关闭）—— checkable action
+        # Long-term memory global toggle (off by default) — checkable action
         act_memory = menu.addAction(tr('memory.menu_label'))
         act_memory.setCheckable(True)
         act_memory.setChecked(bool(getattr(self, '_memory_enabled', False)))
@@ -362,13 +369,117 @@ class HeaderMixin:
         act_memory.toggled.connect(self._on_memory_toggle_from_menu)
 
         menu.addSeparator()
+        menu.addAction("Connect to Claude", self._open_claude_connect)
+        menu.addSeparator()
         menu.addAction("Debug Console", self._open_debug_console)
         menu.addAction("About MorfyAI", self._open_about_dialog)
 
-        # 弹出位置：溢出按钮下方
+        # Popup position: below the overflow button
         menu.exec_(self.btn_overflow.mapToGlobal(
             QtCore.QPoint(0, self.btn_overflow.height())
         ))
+
+    def _open_claude_connect(self):
+        """Start the MCP server and show a LIVE connection panel for Claude.
+
+        Shows auto-refreshing server + Claude-client status, step-by-step guidance,
+        and copy-paste configs. Fully defensive — never breaks the panel.
+        """
+        try:
+            from ..utils import claude_connect as cc
+        except Exception as e:
+            QtWidgets.QMessageBox.warning(self, "Connect to Claude", f"Module unavailable: {e}")
+            return
+        try:
+            cc.start()  # ensure the server is running
+            report0 = cc.connection_report()
+        except Exception as e:
+            QtWidgets.QMessageBox.warning(self, "Connect to Claude", f"Failed to start server: {e}")
+            return
+        url = report0.get("url", "")
+
+        steps = (
+            "Step 1.  Open Houdini + MorfyAI FIRST, then open Claude Code.\n"
+            "            (Claude Code attaches MCP servers at startup — order matters.)\n"
+            "Step 2.  Claude Code auto-connects via .mcp.json. If not, run the command\n"
+            "            below (or paste the config), then reopen Claude Code.\n"
+            "Step 3.  Watch the status above — it turns green when Claude connects."
+        )
+        cfg_text = (
+            "-- Claude Code (run once) --------------------------------\n"
+            + report0.get("claude_code_command", "") + "\n\n"
+            + "or save as .mcp.json in your project:\n" + report0.get("claude_code_json", "") + "\n\n"
+            + "-- Claude Desktop (claude_desktop_config.json) ----------\n"
+            + report0.get("claude_desktop_json", "")
+        )
+
+        try:
+            dlg = QtWidgets.QDialog(self)
+            dlg.setWindowTitle("Connect to Claude")
+            dlg.resize(660, 560)
+            lay = QtWidgets.QVBoxLayout(dlg)
+
+            lbl_server = QtWidgets.QLabel()
+            lbl_claude = QtWidgets.QLabel()
+            for _L in (lbl_server, lbl_claude):
+                _L.setTextFormat(QtCore.Qt.RichText)
+                lay.addWidget(_L)
+
+            steps_lbl = QtWidgets.QLabel(steps)
+            steps_lbl.setWordWrap(True)
+            steps_lbl.setStyleSheet("color:#cbd5e1; padding:6px 0;")
+            lay.addWidget(steps_lbl)
+
+            edit = QtWidgets.QPlainTextEdit()
+            edit.setReadOnly(True)
+            edit.setPlainText(cfg_text)
+            lay.addWidget(edit)
+
+            def _fmt(report):
+                if report.get("server_running"):
+                    lbl_server.setText(f"<b>Server:</b> <span style='color:#22c55e'>&#9679; RUNNING</span> &nbsp;&nbsp;{url}")
+                else:
+                    lbl_server.setText("<b>Server:</b> <span style='color:#ef4444'>&#9679; not started</span>")
+                if report.get("claude_connected"):
+                    s = report.get("last_client_activity_sec")
+                    ago = f" ({int(s)}s ago)" if isinstance(s, (int, float)) else ""
+                    lbl_claude.setText(f"<b>Claude:</b> <span style='color:#22c55e'>&#9679; connected{ago}</span>")
+                else:
+                    lbl_claude.setText("<b>Claude:</b> <span style='color:#eab308'>&#9675; waiting for Claude to connect...</span>")
+
+            def _refresh():
+                try:
+                    _fmt(cc.connection_report())
+                except Exception:
+                    pass
+
+            _fmt(report0)
+
+            btn_row = QtWidgets.QHBoxLayout()
+            btn_refresh = QtWidgets.QPushButton("Refresh")
+            btn_refresh.clicked.connect(_refresh)
+            btn_copy = QtWidgets.QPushButton("Copy Claude Code cmd")
+            btn_copy.clicked.connect(
+                lambda: QtWidgets.QApplication.clipboard().setText(report0.get("claude_code_command", "")))
+            btn_close = QtWidgets.QPushButton("Close")
+            btn_close.clicked.connect(dlg.accept)
+            btn_row.addWidget(btn_refresh)
+            btn_row.addWidget(btn_copy)
+            btn_row.addStretch()
+            btn_row.addWidget(btn_close)
+            lay.addLayout(btn_row)
+
+            # auto-refresh the status every 2s while the dialog is open
+            timer = QtCore.QTimer(dlg)
+            timer.timeout.connect(_refresh)
+            timer.start(2000)
+            dlg.finished.connect(lambda *_a: timer.stop())
+
+            dlg.exec_()
+        except Exception as e:
+            QtWidgets.QMessageBox.information(
+                self, "Connect to Claude", f"Server running at {url}\n\n{cfg_text[:1200]}")
+            _dbg(f"[Header] Claude connect dialog fallback: {e}")
 
     def _open_about_dialog(self):
         """About dialog — kredit, versi, license."""
@@ -393,7 +504,7 @@ class HeaderMixin:
             _dbg(f"[Header] Failed to open Debug Console: {e}")
 
     def _open_rules_editor(self):
-        """打开用户自定义规则编辑器"""
+        """Open the user-defined rules editor."""
         try:
             from .cursor_widgets import RulesEditorDialog
             dlg = RulesEditorDialog(parent=self)
@@ -402,7 +513,7 @@ class HeaderMixin:
             _dbg(f"[Header] Failed to open rules editor: {e}")
 
     def _open_plugin_manager(self):
-        """打开插件管理面板"""
+        """Open the plugin manager panel."""
         try:
             from .cursor_widgets import PluginManagerDialog
             dlg = PluginManagerDialog(parent=self)
@@ -412,7 +523,7 @@ class HeaderMixin:
             _dbg(f"[Header] Failed to open plugin manager: {e}")
 
     def _on_plugin_state_changed(self):
-        """插件状态变化后的回调（重新挂载按钮等）"""
+        """Callback after plugin state changes (re-mounts buttons, etc.)."""
         try:
             from ..utils.hooks import get_hook_manager
             bridge = get_hook_manager().get_ui_bridge()
@@ -422,17 +533,17 @@ class HeaderMixin:
             pass
 
     def _on_memory_toggle_from_menu(self, checked: bool):
-        """溢出菜单切换长期记忆系统开关"""
+        """Toggle the long-term memory system from the overflow menu."""
         try:
             self.set_memory_enabled(bool(checked))
         except Exception as e:
             _dbg(f"[Header] Memory toggle failed: {e}")
 
     def _set_lang_from_menu(self, lang: str):
-        """从溢出菜单切换语言"""
+        """Switch language from the overflow menu (no-op now: English only)."""
         if lang != get_language():
             set_language(lang)
-            # 同步隐藏的 lang_combo（保持状态一致）
+            # Sync the hidden lang_combo to keep state consistent
             expected_idx = 0 if lang == 'zh' else 1
             if self.lang_combo.currentIndex() != expected_idx:
                 self.lang_combo.blockSignals(True)
@@ -440,19 +551,19 @@ class HeaderMixin:
                 self.lang_combo.blockSignals(False)
 
     def _on_language_changed(self, index: int):
-        """语言下拉框切换"""
+        """Handle a change in the language combo box."""
         lang = self.lang_combo.itemData(index)
         if lang and lang != get_language():
             set_language(lang)
 
     def _retranslate_header(self):
-        """语言切换后更新 Header 区域所有翻译文本"""
+        """Refresh all translated text in the header after a language change."""
         self.think_check.setToolTip(tr('header.think.tooltip'))
         self.btn_cache.setToolTip(tr('header.cache.tooltip'))
         self.btn_optimize.setToolTip(tr('header.optimize.tooltip'))
         self.btn_update.setToolTip(tr('header.update.tooltip'))
         self.btn_font_scale.setToolTip(tr('header.font.tooltip'))
-        # 同步下拉框选中项（防止外部调用 set_language 后不同步）
+        # Sync the combo selection (in case set_language was called externally)
         lang = get_language()
         expected_idx = 0 if lang == 'zh' else 1
         if self.lang_combo.currentIndex() != expected_idx:
@@ -461,11 +572,11 @@ class HeaderMixin:
             self.lang_combo.blockSignals(False)
 
     # ============================================================
-    # Custom Provider 配置
+    # Custom Provider configuration
     # ============================================================
 
     def _load_custom_provider_config(self):
-        """从持久化配置文件加载 Custom Provider 设置"""
+        """Load Custom Provider settings from the persisted config file."""
         try:
             from shared.common_utils import load_config
             cfg, _ = load_config('ai', dcc_type='houdini')
@@ -481,15 +592,15 @@ class HeaderMixin:
                     pass
                 self._custom_provider_config['supports_vision'] = cfg.get('custom_supports_vision', 'false').lower() == 'true'
                 self._custom_provider_config['supports_fc'] = cfg.get('custom_supports_fc', 'true').lower() != 'false'
-                # 更新模型列表
+                # Update the model list
                 self._model_map['custom'] = self._custom_provider_config['models']
-                # 同步到 AIClient（如果已初始化）
+                # Sync to AIClient if it's already initialised
                 self._sync_custom_to_client()
         except Exception as e:
             _dbg(f"[Header] Load custom config failed: {e}")
 
     def _save_custom_provider_config(self):
-        """将 Custom Provider 设置持久化到配置文件"""
+        """Persist Custom Provider settings to the config file."""
         try:
             from shared.common_utils import load_config, save_config
             cfg, _ = load_config('ai', dcc_type='houdini')
@@ -506,7 +617,7 @@ class HeaderMixin:
             _dbg(f"[Header] Save custom config failed: {e}")
 
     def _sync_custom_to_client(self):
-        """将 Custom 配置同步到 AIClient"""
+        """Sync the Custom configuration over to AIClient."""
         try:
             client = getattr(self, 'client', None)
             if client is None:
@@ -524,43 +635,43 @@ class HeaderMixin:
             _dbg(f"[Header] Sync custom config to client failed: {e}")
 
     def _on_provider_changed_custom_visibility(self):
-        """Provider 切换时更新 Custom 配置按钮可见性和模型下拉框可编辑状态"""
+        """Toggle Custom config button visibility and combo editability when the provider changes."""
         provider = self._current_provider()
         is_custom = (provider == 'custom')
         self.btn_custom_config.setVisible(is_custom)
-        # Custom 模式下允许用户直接在 model_combo 中输入模型名
+        # In Custom mode, allow direct model-name entry in model_combo
         self.model_combo.setEditable(is_custom)
         if is_custom and not self._custom_provider_config.get('api_url'):
-            # 首次选择 Custom 且未配置，自动弹出配置对话框
+            # First time selecting Custom and not yet configured — open the config dialog
             QtCore.QTimer.singleShot(100, self._open_custom_provider_dialog)
 
     def _open_custom_provider_dialog(self):
-        """打开 Custom Provider 配置对话框"""
+        """Open the Custom Provider configuration dialog."""
         dlg = _CustomProviderDialog(self._custom_provider_config, parent=self)
         if dlg.exec_() == QtWidgets.QDialog.Accepted:
             new_cfg = dlg.get_config()
             self._custom_provider_config.update(new_cfg)
-            # 更新模型列表
+            # Update model list
             self._model_map['custom'] = new_cfg['models']
-            # 动态注册模型特性和上下文限制
+            # Dynamically register model features and context limits
             for m in new_cfg['models']:
                 self._model_context_limits[m] = new_cfg['context_limit']
                 self._model_features[m] = {
                     'supports_prompt_caching': True,
                     'supports_vision': new_cfg['supports_vision'],
                 }
-            # 同步到 AIClient
+            # Sync to AIClient
             self._sync_custom_to_client()
-            # 持久化
+            # Persist
             self._save_custom_provider_config()
-            # 刷新 UI
+            # Refresh UI
             if self._current_provider() == 'custom':
                 self._refresh_models('custom')
                 self._update_key_status()
 
 
 class _CustomProviderDialog(QtWidgets.QDialog):
-    """Custom Provider 配置对话框 — 配置 API URL、Key、模型名等"""
+    """Custom Provider configuration dialog — set API URL, key, model names, etc."""
 
     def __init__(self, current_config: dict, parent=None):
         super().__init__(parent)
@@ -574,7 +685,7 @@ class _CustomProviderDialog(QtWidgets.QDialog):
         layout.setSpacing(10)
         layout.setContentsMargins(16, 16, 16, 16)
 
-        # 说明
+        # Description
         info = QtWidgets.QLabel(
             "Configure any endpoint that's compatible with the OpenAI API.\n"
             "Examples: LM Studio, vLLM, Text Generation WebUI, other relays."
@@ -600,7 +711,7 @@ class _CustomProviderDialog(QtWidgets.QDialog):
         self._key_edit.setText(cfg.get('api_key', ''))
         self._key_edit.setEchoMode(QtWidgets.QLineEdit.Password)
         self._key_edit.setMinimumHeight(28)
-        # 显示/隐藏按钮
+        # Show/hide key button
         key_row = QtWidgets.QHBoxLayout()
         key_row.setSpacing(4)
         key_row.addWidget(self._key_edit)
@@ -615,14 +726,14 @@ class _CustomProviderDialog(QtWidgets.QDialog):
         key_row.addWidget(self._btn_show_key)
         form.addRow("API Key:", key_row)
 
-        # 模型名（支持多个，逗号分隔）
+        # Model names (multiple allowed, comma-separated)
         self._models_edit = QtWidgets.QLineEdit()
         self._models_edit.setPlaceholderText("model-name-1, model-name-2 (comma-separated)")
         self._models_edit.setText(', '.join(cfg.get('models', [])))
         self._models_edit.setMinimumHeight(28)
         form.addRow("Models:", self._models_edit)
 
-        # 上下文长度
+        # Context length
         self._ctx_spin = QtWidgets.QSpinBox()
         self._ctx_spin.setRange(1024, 10000000)
         self._ctx_spin.setSingleStep(1024)
@@ -631,7 +742,7 @@ class _CustomProviderDialog(QtWidgets.QDialog):
         self._ctx_spin.setMinimumHeight(28)
         form.addRow("Context length:", self._ctx_spin)
 
-        # 特性开关
+        # Feature toggles
         features_row = QtWidgets.QHBoxLayout()
         features_row.setSpacing(12)
         self._chk_vision = QtWidgets.QCheckBox("Vision input")
@@ -645,7 +756,7 @@ class _CustomProviderDialog(QtWidgets.QDialog):
 
         layout.addLayout(form)
 
-        # 测试连接按钮
+        # Test-connection button
         test_row = QtWidgets.QHBoxLayout()
         test_row.addStretch()
         self._btn_test = QtWidgets.QPushButton("Test connection")
@@ -659,7 +770,7 @@ class _CustomProviderDialog(QtWidgets.QDialog):
         test_row.addStretch()
         layout.addLayout(test_row)
 
-        # 按钮
+        # Dialog buttons
         btn_box = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
         )
@@ -667,7 +778,7 @@ class _CustomProviderDialog(QtWidgets.QDialog):
         btn_box.rejected.connect(self.reject)
         layout.addWidget(btn_box)
 
-        # 样式
+        # Stylesheet
         self.setStyleSheet("""
             QDialog#customProviderDialog {
                 background: #1e1e1e;
@@ -696,7 +807,7 @@ class _CustomProviderDialog(QtWidgets.QDialog):
         """)
 
     def _test_connection(self):
-        """测试 Custom API 连接"""
+        """Test the Custom API connection."""
         url = self._url_edit.text().strip()
         key = self._key_edit.text().strip()
         models = [m.strip() for m in self._models_edit.text().split(',') if m.strip()]
@@ -739,7 +850,7 @@ class _CustomProviderDialog(QtWidgets.QDialog):
             self._btn_test.setEnabled(True)
 
     def _on_accept(self):
-        """确认前校验必填项"""
+        """Validate required fields before accepting the dialog."""
         url = self._url_edit.text().strip()
         models_text = self._models_edit.text().strip()
         if not url:
@@ -751,7 +862,7 @@ class _CustomProviderDialog(QtWidgets.QDialog):
         self.accept()
 
     def get_config(self) -> dict:
-        """返回用户配置的字典"""
+        """Return the user's configuration as a dict."""
         models = [m.strip() for m in self._models_edit.text().split(',') if m.strip()]
         return {
             'api_url': self._url_edit.text().strip(),

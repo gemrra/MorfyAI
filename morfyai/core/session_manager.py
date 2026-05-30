@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-Session Manager — 多会话管理和缓存
+Session Manager — multi-session management and caching.
 
-从 ai_tab.py 中拆分出的 Mixin，负责：
-- 多会话创建/切换/关闭
-- 会话标签栏
-- 会话状态保存/恢复
+Extracted from ai_tab.py as a Mixin. Responsibilities:
+- Create / switch / close multiple sessions
+- Session tab bar
+- Save / restore session state
 """
 
 import uuid
@@ -14,6 +14,7 @@ from morfyai.qt_compat import QtWidgets, QtCore, QtGui
 
 from ..ui.i18n import tr
 from ..ui.cursor_widgets import TodoList
+from ..ui.chat_view import attach_scroll_to_bottom_button
 
 
 # ============================================================
@@ -100,10 +101,10 @@ class _ChromeTabBar(QtWidgets.QTabBar):
 
 
 class SessionManagerMixin:
-    """多会话管理"""
+    """Multi-session management."""
 
     def _build_session_tabs(self) -> QtWidgets.QWidget:
-        """会话标签栏 - 支持多个对话窗口"""
+        """Session tab bar — supports multiple conversation windows."""
         container = QtWidgets.QFrame()
         container.setObjectName("sessionBar")
 
@@ -127,7 +128,7 @@ class SessionManagerMixin:
         hl.addWidget(self.session_tabs, 0, QtCore.Qt.AlignLeft)
         hl.addStretch(1)
 
-        # "+" 新建对话按钮 — orange chip
+        # "+" new-session button — orange chip
         self.btn_new_session = QtWidgets.QPushButton("+")
         self.btn_new_session.setObjectName("btnNewSession")
         self.btn_new_session.setFixedSize(24, 22)
@@ -178,12 +179,12 @@ class SessionManagerMixin:
             return None
 
     def _on_tab_context_menu(self, pos):
-        """Tab 栏右键菜单：Rename / Close / Close others"""
+        """Tab bar right-click menu: Rename / Close / Close others."""
         tab_index = self.session_tabs.tabAt(pos)
         if tab_index < 0:
             return
         menu = QtWidgets.QMenu(self)
-        # QMenu 样式由全局 QSS 控制
+        # QMenu styling is driven by the global QSS
         rename_action = menu.addAction("Rename")
         menu.addSeparator()
         close_action = menu.addAction(tr('session.close'))
@@ -197,7 +198,7 @@ class SessionManagerMixin:
         elif chosen == close_action:
             self._close_session_tab(tab_index)
         elif chosen == close_others:
-            # 从后往前关闭，跳过当前 tab
+            # Close from back to front, skipping the current tab
             for i in range(self.session_tabs.count() - 1, -1, -1):
                 if i != tab_index:
                     self._close_session_tab(i)
@@ -229,7 +230,7 @@ class SessionManagerMixin:
         self.session_tabs.setTabText(tab_index, new_name)
     
     def _create_session_widgets(self) -> tuple:
-        """创建单个会话的 scroll_area / chat_container / chat_layout"""
+        """Create a single session's scroll_area / chat_container / chat_layout."""
         scroll_area = QtWidgets.QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_area.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
@@ -253,13 +254,17 @@ class SessionManagerMixin:
         scroll_area.viewport().setAutoFillBackground(False)
         scroll_area.setStyleSheet("background: transparent;")
         scroll_area.setWidgetResizable(True)
-        
+
+        # ★ Attach Claude-style floating "scroll to bottom" button.
+        #   Appears whenever user scrolls > 100px above the bottom, click to snap back.
+        attach_scroll_to_bottom_button(scroll_area)
+
         return scroll_area, chat_container, chat_layout
     
     def _create_initial_session(self):
-        """创建第一个（默认）会话"""
+        """Create the first (default) session."""
         self._session_counter = 1
-        session_id = self._session_id  # __init__ 已生成
+        session_id = self._session_id  # already created in __init__
         
         scroll_area, chat_container, chat_layout = self._create_session_widgets()
         self.session_stack.addWidget(scroll_area)
@@ -267,16 +272,16 @@ class SessionManagerMixin:
         tab_index = self.session_tabs.addTab("Chat 1")
         self.session_tabs.setTabData(tab_index, session_id)
         
-        # 设置当前引用
+        # Wire up the active references
         self.scroll_area = scroll_area
         self.chat_container = chat_container
         self.chat_layout = chat_layout
         
-        # 每个会话独立的 TodoList
+        # Each session has its own TodoList
         todo = self._create_todo_list(chat_container)
         self.todo_list = todo
         
-        # 存入 sessions 字典
+        # Store into the sessions dict
         self._sessions[session_id] = {
             'scroll_area': scroll_area,
             'chat_container': chat_container,
@@ -290,39 +295,39 @@ class SessionManagerMixin:
         self._sync_tabs_backup()
     
     def _create_todo_list(self, parent=None) -> TodoList:
-        """为会话创建 TodoList 控件（初始隐藏，首次使用时插入 chat_layout）"""
+        """Create a TodoList widget for a session (hidden initially; inserted into chat_layout on first use)."""
         return TodoList(parent)
-    
+
     def _ensure_todo_in_chat(self, todo=None, layout=None):
-        """确保 todo_list 已在 chat_layout 中（跟随对话流）
-        
+        """Ensure todo_list is in chat_layout (so it follows the conversation flow).
+
         Args:
-            todo: 要插入的 TodoList，默认使用 self.todo_list
-            layout: 目标 chat_layout，默认使用 self.chat_layout
+            todo: TodoList to insert; defaults to self.todo_list
+            layout: target chat_layout; defaults to self.chat_layout
         """
         todo = todo or self.todo_list
         layout = layout or self.chat_layout
         if not todo or not layout:
             return
-        # 如果已在 layout 中，不要重复插入
+        # If it's already in the layout, don't re-insert
         for i in range(layout.count()):
             if layout.itemAt(i).widget() is todo:
                 return
-        # 插入到当前最末的消息之后（stretch 之前）
-        idx = layout.count() - 1  # -1 跳过末尾 stretch
+        # Insert after the last message (before the trailing stretch)
+        idx = layout.count() - 1  # -1 skips the trailing stretch
         layout.insertWidget(idx, todo)
     
     def _new_session(self):
-        """新建对话会话"""
-        # 保存当前会话状态（如果当前 session 正在被 agent 写入则跳过，避免覆盖）
+        """Create a new conversation session."""
+        # Save current session state (skip if the current session is mid-agent-write to avoid overwriting)
         if self._agent_session_id != self._session_id:
             self._save_current_session_state()
         
-        # 自动保存旧会话缓存
+        # Auto-save the previous session cache
         if self._auto_save_cache and self._conversation_history:
             self._save_cache()
         
-        # 创建新会话
+        # Create the new session
         self._session_counter += 1
         new_id = str(uuid.uuid4())[:8]
         label = f"Chat {self._session_counter}"
@@ -333,7 +338,7 @@ class SessionManagerMixin:
         tab_index = self.session_tabs.addTab(label)
         self.session_tabs.setTabData(tab_index, new_id)
         
-        # 初始化新会话状态
+        # Initialize new session state
         new_token_stats = {
             'input_tokens': 0, 'output_tokens': 0,
             'cache_read': 0, 'cache_write': 0,
@@ -353,7 +358,7 @@ class SessionManagerMixin:
             'token_stats': new_token_stats,
         }
         
-        # 切换到新会话
+        # Switch to the new session
         self._session_id = new_id
         self._conversation_history = []
         self._context_summary = ''
@@ -361,7 +366,7 @@ class SessionManagerMixin:
         self._token_stats = new_token_stats
         self._pending_ops.clear()
         
-        # ★ 重置睡眠计数器（新会话重新计数）
+        # ★ Reset sleep counter (new session starts fresh)
         if hasattr(self, '_sleep_msg_counter'):
             self._sleep_msg_counter = 0
         self._update_batch_bar()
@@ -370,7 +375,7 @@ class SessionManagerMixin:
         self.chat_layout = chat_layout
         self.todo_list = todo
         
-        # 切换 UI
+        # Switch UI
         self.session_tabs.blockSignals(True)
         self.session_tabs.setCurrentIndex(tab_index)
         self.session_tabs.blockSignals(False)
@@ -380,30 +385,30 @@ class SessionManagerMixin:
         self._update_context_stats()
     
     def _switch_session(self, tab_index: int):
-        """切换到指定标签页的会话（运行中也允许切换）"""
+        """Switch to the session at the given tab index (allowed even while the agent runs)."""
         new_session_id = self.session_tabs.tabData(tab_index)
         if not new_session_id or new_session_id == self._session_id:
             return
         
-        # 保存当前会话（如果当前不是 agent 正在写入的 session，正常保存）
+        # Save current session (only if it's not the session the agent is writing to)
         if self._agent_session_id != self._session_id:
             self._save_current_session_state()
         
-        # 加载目标会话
+        # Load the target session
         self._load_session_state(new_session_id)
-        
-        # 切换显示
+
+        # Switch display
         sdata = self._sessions[new_session_id]
         self.session_stack.setCurrentWidget(sdata['scroll_area'])
         
-        # 更新按钮状态（取决于目标 session 是否就是正在运行的 session）
+        # Update button state (depends on whether the target session is the running one)
         self._update_run_buttons()
         self._update_context_stats()
     
     def _close_session_tab(self, tab_index: int):
-        """关闭指定标签页"""
+        """Close the specified tab."""
         sid = self.session_tabs.tabData(tab_index)
-        # 禁止关闭正在运行的 session
+        # Disallow closing the session that the agent is currently running in
         if sid and self._agent_session_id == sid:
             return
         
@@ -411,12 +416,12 @@ class SessionManagerMixin:
         if not session_id:
             return
         
-        # 如果只剩一个标签，不关闭，只清空
+        # If only one tab remains, don't close — just clear it
         if self.session_tabs.count() <= 1:
             self._on_clear()
             return
         
-        # 如果关闭的是当前活动会话，先切到相邻标签
+        # If we're closing the active session, switch to an adjacent tab first
         if session_id == self._session_id:
             new_index = tab_index - 1 if tab_index > 0 else tab_index + 1
             new_sid = self.session_tabs.tabData(new_index)
@@ -425,14 +430,14 @@ class SessionManagerMixin:
                 sdata = self._sessions[new_sid]
                 self.session_stack.setCurrentWidget(sdata['scroll_area'])
         
-        # 移除标签和会话数据
+        # Remove the tab and session data
         self.session_tabs.removeTab(tab_index)
         sdata = self._sessions.pop(session_id, None)
         if sdata and sdata.get('scroll_area'):
             self.session_stack.removeWidget(sdata['scroll_area'])
             sdata['scroll_area'].deleteLater()
         
-        # ★ 关闭 tab 后同步删除对应的磁盘 session 文件
+        # ★ Once the tab is closed, also delete the matching on-disk session file
         try:
             session_file = self._cache_dir / f"session_{session_id}.json"
             if session_file.exists():
@@ -444,7 +449,7 @@ class SessionManagerMixin:
         self._update_context_stats()
     
     def _save_current_session_state(self):
-        """将当前瞬态状态存入 _sessions 字典"""
+        """Persist the current transient state into the _sessions dict."""
         if self._session_id not in self._sessions:
             return
         s = self._sessions[self._session_id]
@@ -454,7 +459,7 @@ class SessionManagerMixin:
         s['token_stats'] = self._token_stats
     
     def _sync_tabs_backup(self):
-        """同步 tab 顺序和标签名到纯 Python 备份（atexit 时 Qt widget 可能已销毁）"""
+        """Mirror tab order and labels to a plain-Python backup (Qt widgets may be gone at atexit)."""
         try:
             backup = []
             for i in range(self.session_tabs.count()):
@@ -464,10 +469,10 @@ class SessionManagerMixin:
                     backup.append((sid, label))
             self._tabs_backup = backup
         except (RuntimeError, AttributeError):
-            pass  # Qt widget 已销毁，保留旧备份
+            pass  # Qt widget destroyed; keep the prior backup
     
     def _load_session_state(self, session_id: str):
-        """从 _sessions 恢复指定会话的状态"""
+        """Restore the given session's state from _sessions."""
         sdata = self._sessions.get(session_id)
         if not sdata:
             return
@@ -487,7 +492,7 @@ class SessionManagerMixin:
         self.todo_list = sdata.get('todo_list') or self._create_todo_list(self.chat_container)
     
     def _auto_rename_tab(self, text: str):
-        """根据用户首条消息自动重命名当前标签"""
+        """Auto-rename the current tab based on the user's first message."""
         for i in range(self.session_tabs.count()):
             if self.session_tabs.tabData(i) == self._session_id:
                 current_label = self.session_tabs.tabText(i)
@@ -499,5 +504,5 @@ class SessionManagerMixin:
                 break
 
     def _retranslate_session_tabs(self):
-        """语言切换后更新会话标签栏翻译文本"""
+        """Refresh session tab bar text after a language change."""
         self.btn_new_session.setToolTip(tr('session.new'))

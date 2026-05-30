@@ -24,36 +24,36 @@ try:
 except Exception:
     _dbg = lambda *a, **kw: None
 
-# ---------- 常量 ----------
+# ---------- Constants ----------
 
 GITHUB_OWNER = "Kazama-Suichiku"
 GITHUB_REPO = "Houdini-Agent"
 
-# GitHub API 端点 — 基于 Release（而非 branch）
+# GitHub API endpoint — based on Release (not branch)
 _API_LATEST_RELEASE = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/latest"
 
-# 项目根目录（VERSION 文件所在目录）
+# Project root (where the VERSION file lives)
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 _VERSION_FILE = _PROJECT_ROOT / "VERSION"
 
-# ETag 缓存文件（用于减少 GitHub API 计数、应对 403 限流）
+# ETag cache file (reduces GitHub API quota usage, handles 403 rate limiting)
 _ETAG_CACHE_FILE = _PROJECT_ROOT / "cache" / "update_cache.json"
 
-# 更新时需要保留（不覆盖）的路径
+# Paths to preserve (do not overwrite) during update
 _PRESERVE_PATHS = frozenset({
-    "config",           # 用户 API key 等配置
-    "cache",            # 对话缓存、文档索引
-    "trainData",        # 训练数据
-    ".git",             # git 仓库
+    "config",           # user config such as API keys
+    "cache",            # conversation cache, document index
+    "trainData",        # training data
+    ".git",             # git repo
 })
 
 
 # ==========================================================
-# 版本工具
+# Version utilities
 # ==========================================================
 
 def get_local_version() -> str:
-    """读取本地 VERSION 文件，返回版本字符串，失败返回 '0.0.0'"""
+    """Read the local VERSION file; return the version string, or '0.0.0' on failure"""
     try:
         return _VERSION_FILE.read_text(encoding="utf-8").strip()
     except Exception:
@@ -61,7 +61,7 @@ def get_local_version() -> str:
 
 
 def _parse_version(v: str) -> Tuple[int, ...]:
-    """把 '1.2.1' 解析为 (1, 2, 1) 用于比较"""
+    """Parse '1.2.1' into (1, 2, 1) for comparison"""
     parts = []
     for seg in v.strip().split("."):
         try:
@@ -72,11 +72,12 @@ def _parse_version(v: str) -> Tuple[int, ...]:
 
 
 def _is_legacy_internal_version(v: str) -> bool:
-    """检测旧的内部版本号（major >= 5，如 7.0.1, 6.8.3 等）
-    
-    项目历史中 v1.0.0 之前使用了内部版本号 v5.0~v7.0.1，
-    这些数值大于正式 Release 版本号（1.x.x），会导致更新器
-    误判本地版本更新，需要特殊处理强制更新。
+    """Detect old internal version numbers (major >= 5, e.g. 7.0.1, 6.8.3)
+
+    Prior to v1.0.0 the project used internal versions v5.0~v7.0.1.
+    Those numbers are greater than the official Release versions (1.x.x),
+    which would cause the updater to wrongly think the local version is newer,
+    so we need special handling to force an update.
     """
     parts = _parse_version(v)
     return len(parts) > 0 and parts[0] >= 5
@@ -84,26 +85,26 @@ def _is_legacy_internal_version(v: str) -> bool:
 
 def _version_gt(remote: str, local: str) -> bool:
     """remote > local ?
-    
-    特殊处理: 如果本地是旧内部版本号（major >= 5），
-    而远程是正式 Release 版本号（major < 5），强制视为有更新。
+
+    Special case: if local is an old internal version (major >= 5)
+    and remote is an official Release version (major < 5), force an update.
     """
     local_parts = _parse_version(local)
     remote_parts = _parse_version(remote)
-    
-    # 旧内部版本号 → 正式版本号: 强制更新
+
+    # Old internal version -> official version: force update
     if _is_legacy_internal_version(local) and not _is_legacy_internal_version(remote):
         return True
-    
+
     return remote_parts > local_parts
 
 
 # ==========================================================
-# ETag 缓存
+# ETag cache
 # ==========================================================
 
 def _load_etag_cache() -> dict:
-    """加载 ETag 缓存（包含上次的 ETag 和 release 数据）"""
+    """Load the ETag cache (contains last ETag and release data)"""
     try:
         if _ETAG_CACHE_FILE.exists():
             with open(_ETAG_CACHE_FILE, "r", encoding="utf-8") as f:
@@ -114,7 +115,7 @@ def _load_etag_cache() -> dict:
 
 
 def _save_etag_cache(data: dict):
-    """保存 ETag 缓存"""
+    """Save the ETag cache"""
     try:
         _ETAG_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
         with open(_ETAG_CACHE_FILE, "w", encoding="utf-8") as f:
@@ -124,29 +125,29 @@ def _save_etag_cache(data: dict):
 
 
 # ==========================================================
-# 检查更新
+# Check for updates
 # ==========================================================
 
-# 模块级缓存：最新 release 的 zipball_url（check_update 写入，download_and_apply 读取）
+# Module-level cache: zipball_url of latest release (written by check_update, read by download_and_apply)
 _cached_zipball_url: str = ""
 
 
 def check_update(timeout: float = 8.0) -> dict:
-    """检查 GitHub Releases 上是否有新版本
-    
-    使用 ETag 缓存机制:
-    - 首次请求：记录 ETag + 完整 release 数据
-    - 后续请求：发送 If-None-Match → 304 不计入限流配额
-    - 遇到 403 限流：降级使用缓存数据
-    
+    """Check GitHub Releases for a newer version
+
+    Uses an ETag cache mechanism:
+    - First request: record ETag + full release data
+    - Subsequent requests: send If-None-Match -> 304 does not count against rate limit
+    - On 403 rate limit: fall back to cached data
+
     Returns:
         {
             'has_update': bool,
             'local_version': str,
-            'remote_version': str,   # Release tag（如 'v1.2.1' → '1.2.1'）
-            'release_name': str,     # Release 标题
-            'release_notes': str,    # Release 说明（首行）
-            'error': str,            # 出错信息（成功为 ''）
+            'remote_version': str,   # Release tag (e.g. 'v1.2.1' -> '1.2.1')
+            'release_name': str,     # Release title
+            'release_notes': str,    # Release notes (first line)
+            'error': str,            # Error message ('' on success)
         }
     """
     global _cached_zipball_url
@@ -168,71 +169,71 @@ def check_update(timeout: float = 8.0) -> dict:
             sys.path.insert(0, lib_dir)
         import requests  # type: ignore
     
-    # 加载 ETag 缓存
+    # Load ETag cache
     etag_cache = _load_etag_cache()
-    
+
     try:
         headers = {"Accept": "application/vnd.github.v3+json"}
-        
-        # 如果有缓存的 ETag，使用条件请求（304 不计入 API 配额）
+
+        # If we have a cached ETag, use a conditional request (304 doesn't count toward API quota)
         cached_etag = etag_cache.get("etag", "")
         if cached_etag:
             headers["If-None-Match"] = cached_etag
-        
+
         resp = requests.get(_API_LATEST_RELEASE, headers=headers, timeout=timeout)
-        
+
         if resp.status_code == 304:
-            # 304 Not Modified: Release 数据未变，使用缓存
+            # 304 Not Modified: Release data unchanged, use cache
             data = etag_cache.get("release_data", {})
             if not data:
-                result['error'] = "缓存数据异常，请稍后重试"
+                result['error'] = "Cache data invalid, please retry later"
                 return result
         elif resp.status_code == 404:
-            result['error'] = "暂无 Release 版本"
+            result['error'] = "No Release version available"
             return result
         elif resp.status_code == 403:
-            # 403: API 限流 — 降级使用缓存
+            # 403: API rate limited — fall back to cache
             cached_data = etag_cache.get("release_data", {})
             if cached_data:
                 data = cached_data
-                # 不报错，静默使用缓存（但在 release_notes 中提示）
+                # Don't error out, silently use cache (release_notes will reflect this)
             else:
-                result['error'] = "GitHub API 限流 (403)，请等待几分钟后重试"
+                result['error'] = "GitHub API rate limited (403), please retry in a few minutes"
                 return result
         elif resp.status_code != 200:
-            result['error'] = f"GitHub API 返回 {resp.status_code}"
+            result['error'] = f"GitHub API returned {resp.status_code}"
             return result
         else:
-            # 200 OK: 解析新数据并更新缓存
+            # 200 OK: parse new data and update cache
             data = resp.json()
             new_etag = resp.headers.get("ETag", "")
             _save_etag_cache({
                 "etag": new_etag,
                 "release_data": data,
             })
-        
-        # 解析 release 数据
+
+        # Parse release data
         tag = data.get("tag_name", "")
-        remote_ver = tag.lstrip("vV")  # 去掉前缀 v/V
+        remote_ver = tag.lstrip("vV")  # strip v/V prefix
         result['remote_version'] = remote_ver
         result['release_name'] = data.get("name", "") or tag
-        
-        # Release notes（取首行作为摘要）
+
+        # Release notes (use first line as a summary)
         body = data.get("body", "") or ""
         result['release_notes'] = body.split("\n")[0].strip() if body else ""
-        
-        # 缓存下载地址（zipball_url 由 GitHub 自动提供）
+
+        # Cache the download URL (zipball_url is provided by GitHub)
         _cached_zipball_url = data.get("zipball_url", "")
-        
-        # 比较版本 — 如果 remote_version 为空，视为解析失败
+
+        # Compare versions — if remote_version is empty, treat as parse failure
         if not remote_ver:
-            result['error'] = "无法解析远程版本号"
+            result['error'] = "Could not parse remote version"
             return result
-        
+
         result['has_update'] = _version_gt(remote_ver, result['local_version'])
-        
+
     except Exception as e:
-        # 网络异常时尝试降级到缓存
+        # On network error, try to fall back to cache
         cached_data = etag_cache.get("release_data", {})
         if cached_data:
             tag = cached_data.get("tag_name", "")
@@ -245,29 +246,29 @@ def check_update(timeout: float = 8.0) -> dict:
                 _cached_zipball_url = cached_data.get("zipball_url", "")
                 result['has_update'] = _version_gt(remote_ver, result['local_version'])
                 return result
-        
+
         if 'Timeout' in type(e).__name__:
-            result['error'] = "连接 GitHub 超时，请检查网络"
+            result['error'] = "Connection to GitHub timed out, please check your network"
         else:
-            result['error'] = f"检查更新失败: {e}"
-    
+            result['error'] = f"Update check failed: {e}"
+
     return result
 
 
 # ==========================================================
-# 下载 & 应用更新
+# Download & apply update
 # ==========================================================
 
 def download_and_apply(progress_callback=None) -> dict:
-    """下载最新 Release 版本并覆盖本地文件
-    
-    必须先调用 check_update() 以缓存 zipball_url。
-    
+    """Download the latest Release version and overwrite local files
+
+    check_update() must have been called first to cache the zipball_url.
+
     Args:
-        progress_callback: 可选回调 (stage: str, percent: int) -> None
+        progress_callback: optional callback (stage: str, percent: int) -> None
             stage: 'downloading' | 'extracting' | 'applying' | 'done'
             percent: 0-100
-    
+
     Returns:
         {'success': bool, 'error': str, 'updated_files': int}
     """
@@ -281,7 +282,7 @@ def download_and_apply(progress_callback=None) -> dict:
                 pass
     
     if not _cached_zipball_url:
-        return {'success': False, 'error': '未找到下载地址，请先检查更新', 'updated_files': 0}
+        return {'success': False, 'error': 'Download URL not found, please check for updates first', 'updated_files': 0}
     
     try:
         import requests  # type: ignore
@@ -293,16 +294,16 @@ def download_and_apply(progress_callback=None) -> dict:
     
     tmp_dir = None
     try:
-        # ---- 1. 下载 Release ZIP ----
+        # ---- 1. Download Release ZIP ----
         _progress('downloading', 0)
         resp = requests.get(_cached_zipball_url, stream=True, timeout=60)
         resp.raise_for_status()
-        
+
         total_size = int(resp.headers.get('content-length', 0))
-        
+
         tmp_dir = tempfile.mkdtemp(prefix="morfyai_update_")
         zip_path = os.path.join(tmp_dir, "update.zip")
-        
+
         downloaded = 0
         with open(zip_path, 'wb') as f:
             for chunk in resp.iter_content(chunk_size=8192):
@@ -311,67 +312,67 @@ def download_and_apply(progress_callback=None) -> dict:
                     downloaded += len(chunk)
                     if total_size > 0:
                         _progress('downloading', min(95, int(downloaded / total_size * 95)))
-        
+
         _progress('downloading', 100)
-        
-        # ---- 2. 解压 ----
+
+        # ---- 2. Extract ----
         _progress('extracting', 0)
         extract_dir = os.path.join(tmp_dir, "extracted")
         with zipfile.ZipFile(zip_path, 'r') as zf:
             zf.extractall(extract_dir)
         _progress('extracting', 100)
-        
-        # GitHub ZIP 解压后有一个顶层目录，如 Houdini-Agent-main/
+
+        # GitHub ZIP extracts to a single top-level directory, e.g. Houdini-Agent-main/
         entries = os.listdir(extract_dir)
         if len(entries) == 1 and os.path.isdir(os.path.join(extract_dir, entries[0])):
             source_root = os.path.join(extract_dir, entries[0])
         else:
             source_root = extract_dir
-        
-        # ---- 3. 覆盖文件 ----
+
+        # ---- 3. Overwrite files ----
         _progress('applying', 0)
         updated_count = 0
         target_root = str(_PROJECT_ROOT)
-        
+
         for dirpath, dirnames, filenames in os.walk(source_root):
-            # 计算相对路径
+            # Compute relative path
             rel_dir = os.path.relpath(dirpath, source_root)
-            
-            # 跳过需要保留的目录
+
+            # Skip directories that should be preserved
             top_dir = rel_dir.split(os.sep)[0] if rel_dir != '.' else ''
             if top_dir in _PRESERVE_PATHS:
                 continue
-            
-            # 过滤子目录（不递归进入需要保留的目录）
+
+            # Filter subdirectories (don't recurse into preserved dirs)
             dirnames[:] = [d for d in dirnames if d not in _PRESERVE_PATHS]
-            
-            # 确保目标目录存在
+
+            # Ensure target directory exists
             target_dir = os.path.join(target_root, rel_dir) if rel_dir != '.' else target_root
             os.makedirs(target_dir, exist_ok=True)
-            
+
             for fname in filenames:
                 src_file = os.path.join(dirpath, fname)
                 dst_file = os.path.join(target_dir, fname)
-                
+
                 try:
                     shutil.copy2(src_file, dst_file)
                     updated_count += 1
                 except PermissionError:
-                    # .pyd / .dll 可能被锁定，跳过
+                    # .pyd / .dll may be locked, skip
                     pass
                 except Exception:
                     pass
-        
+
         _progress('applying', 100)
         _progress('done', 100)
-        
+
         return {'success': True, 'error': '', 'updated_files': updated_count}
-        
+
     except Exception as e:
         return {'success': False, 'error': str(e), 'updated_files': 0}
-    
+
     finally:
-        # 清理临时目录
+        # Clean up temp directory
         if tmp_dir and os.path.exists(tmp_dir):
             try:
                 shutil.rmtree(tmp_dir, ignore_errors=True)
@@ -380,28 +381,28 @@ def download_and_apply(progress_callback=None) -> dict:
 
 
 # ==========================================================
-# 重启插件
+# Restart the plugin
 # ==========================================================
 
 def restart_plugin():
     """Restart the MorfyAI plugin window
-    
-    通过重新加载模块并调用 show_tool() 来实现"重启"效果。
-    必须在 Qt 主线程调用。
+
+    Achieves a "restart" effect by reloading modules and calling show_tool().
+    Must be called on the Qt main thread.
     """
     try:
         import importlib
-        
-        # 强制清除所有已加载的 morfyai 模块
+
+        # Force-remove all loaded morfyai modules
         mods_to_remove = [k for k in sys.modules if k.startswith('morfyai')]
         for k in mods_to_remove:
             del sys.modules[k]
-        
-        # 重新导入并启动
-        # 注意：main.py 中的 _reload_modules 会处理模块重新加载
+
+        # Re-import and launch
+        # Note: _reload_modules in main.py handles module reloading
         if 'morfyai.main' in sys.modules:
             del sys.modules['morfyai.main']
-        
+
         from morfyai.main import show_tool
         return show_tool()
         

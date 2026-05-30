@@ -1,26 +1,26 @@
 # -*- coding: utf-8 -*-
 """
-Hook 插件系统 (Plugin Hook System)
+Hook pluginsystem (Plugin Hook System)
 
 Provides external community extension capabilities for MorfyAI:
-  - HookManager: 单例，管理所有 hook 注册和事件分发
-  - PluginLoader: 扫描 plugins/ 目录，加载插件模块
-  - PluginContext: 传给每个插件的上下文对象（API 入口）
-  - 装饰器 API: @hook, @tool, @ui_button
+  - HookManager: singleexample, manageall hook registerandeventpartsend
+  - PluginLoader: scan plugins/ directory, loadpluginmodule
+  - PluginContext: passgiveeachplugin contextobject (API enterport) 
+  - decorative  API: @hook, @tool, @ui_button
 
-支持的事件:
-  on_before_request  — AI API 请求前（可修改 messages）
-  on_after_response  — AI 回复完成后
-  on_before_tool     — 工具执行前
-  on_after_tool      — 工具执行后
-  on_content_chunk   — AI 输出文本 chunk
-  on_session_start   — 新会话开始
-  on_session_end     — 会话结束
+support event:
+  on_before_request  — AI API requestprevious (canmodify messages) 
+  on_after_response  — AI replycompleteafter
+  on_before_tool     — toolexecuteprevious
+  on_after_tool      — toolexecuteafter
+  on_content_chunk   — AI outputtext chunk
+  on_session_start   — newsessionstart
+  on_session_end     — sessionend
 
-插件约定:
-  - 放在 plugins/ 目录下的 .py 文件
-  - 以 _ 开头的文件不会被自动加载
-  - 必须包含 PLUGIN_INFO dict 和 register(ctx) 函数
+pluginconvention:
+  - putin plugins/ directorybelow  .py file
+  - by _ start filenotwillisautoload
+  - mustpackagecontaining PLUGIN_INFO dict and register(ctx) function
 """
 
 from __future__ import annotations
@@ -40,7 +40,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 
 # ============================================================
-# Hook 事件名称常量
+# Hook eventnameconstant
 # ============================================================
 
 EVENT_BEFORE_REQUEST = "on_before_request"
@@ -63,16 +63,16 @@ ALL_EVENTS = (
 
 
 # ============================================================
-# HookManager — 单例，管理所有 hook 注册和事件分发
+# HookManager — singleexample, manageall hook registerandeventpartsend
 # ============================================================
 
 class HookManager:
-    """全局 Hook 管理器（单例）
+    """Global hook manager (singleton).
 
-    - register / unregister: 注册 / 注销事件钩子
-    - fire:        触发事件（通知型，不修改数据）
-    - fire_filter: 管道式过滤（每个回调可修改并返回值）
-    - register_tool / get_external_tools / execute_external_tool: 外部工具管理
+    - register / unregister: register / unregister an event hook
+    - fire:        fire an event (notify-type — callbacks cannot modify data)
+    - fire_filter: pipeline-style filter (each callback can modify and return the value)
+    - register_tool / get_external_tools / execute_external_tool: external tool management
     """
 
     _instance: Optional[HookManager] = None
@@ -84,24 +84,24 @@ class HookManager:
         return cls._instance
 
     def _init(self):
-        # event_name -> [(priority, callback), ...]  按 priority 升序
+        # event_name -> [(priority, callback), ...]  by priority riseorder
         self._hooks: Dict[str, List[Tuple[int, Callable]]] = {e: [] for e in ALL_EVENTS}
-        # 外部工具: tool_name -> {"schema": {...}, "handler": callable, "plugin": str}
+        # externaltool: tool_name -> {"schema": {...}, "handler": callable, "plugin": str}
         self._external_tools: Dict[str, Dict[str, Any]] = {}
-        # UI 按钮: [(plugin_name, icon, tooltip, callback), ...]
+        # UI button: [(plugin_name, icon, tooltip, callback), ...]
         self._ui_buttons: List[Tuple[str, str, str, Callable]] = []
-        # UI Bridge 引用（由 AITab 初始化时设置）
+        # UI Bridge reference (by AITab initializationwhenset) 
         self._ui_bridge: Optional[PluginUIBridge] = None
 
-    # ---------- 事件注册 ----------
+    # ---------- eventregister ----------
 
     def register(self, event: str, callback: Callable, priority: int = 0):
-        """注册钩子函数
+        """registerhookfunction
 
         Args:
-            event: 事件名称（见 ALL_EVENTS）
-            callback: 回调函数
-            priority: 优先级（数字越小越先执行，默认 0）
+            event: eventname (see ALL_EVENTS) 
+            callback: callbackfunction
+            priority: preferredlevel (countcharacterexceedsmallexceedfirstexecute, default 0) 
         """
         if event not in self._hooks:
             self._hooks[event] = []
@@ -109,25 +109,25 @@ class HookManager:
         self._hooks[event].sort(key=lambda x: x[0])
 
     def unregister(self, event: str, callback: Callable):
-        """注销钩子函数"""
+        """unregisterhookfunction"""
         if event in self._hooks:
             self._hooks[event] = [
                 (p, cb) for p, cb in self._hooks[event] if cb is not callback
             ]
 
     def unregister_all(self, plugin_name: str = ""):
-        """注销所有钩子（或指定插件的钩子）
+        """unregisterallhook (orspecifiedplugin hook) 
 
         .. deprecated::
-            按 plugin_name 注销请使用 PluginContext._cleanup()，
-            它会精确跟踪并清理该插件注册的所有钩子、工具和按钮。
-            此方法仅用于全局清理（plugin_name 为空时）。
+            by plugin_name unregisterpleaseuse PluginContext._cleanup(), 
+            itwillfinecertaintrackandcleanupthispluginregister allhook, toolandbutton. 
+            thismethodonlyused forglobalcleanup (plugin_name asemptywhen) . 
         """
         if not plugin_name:
             for event in self._hooks:
                 self._hooks[event] = []
         else:
-            # ★ 通过 PluginContext._cleanup() 实现，此处仅做提示
+            # ★ via PluginContext._cleanup() realnow, hereonlydohint
             import warnings
             warnings.warn(
                 "unregister_all(plugin_name) is deprecated. "
@@ -135,12 +135,12 @@ class HookManager:
                 DeprecationWarning, stacklevel=2,
             )
 
-    # ---------- 事件触发 ----------
+    # ---------- eventtrigger ----------
 
     def fire(self, event: str, **kwargs):
-        """触发事件（通知型 — 所有回调依次调用，不修改数据）
+        """Fire an event (notify-type — all callbacks are called in order; they cannot modify data).
 
-        任何回调抛出异常不会中断后续回调或主流程。
+        Any callback raising an exception will not interrupt subsequent callbacks or the main flow.
         """
         for _priority, callback in self._hooks.get(event, []):
             try:
@@ -150,18 +150,18 @@ class HookManager:
                 traceback.print_exc()
 
     def fire_filter(self, event: str, value: Any, **kwargs) -> Any:
-        """管道式过滤事件（每个回调接收 value，返回修改后的 value）
+        """Pipeline-style filter event (each callback receives a value, returns a modified value).
 
-        用于 on_before_request 等需要修改数据的场景。
-        如果回调返回 None，保留原值。
-        回调签名可以是 callback(value) 或 callback(value, **kwargs)。
+        used for on_before_request etc.needsmodifydata scene. 
+        ifcallbackreturn None, keeporiginalvalue. 
+        callbacksignaturecanis callback(value) or callback(value, **kwargs). 
         """
         for _priority, callback in self._hooks.get(event, []):
             try:
                 try:
                     result = callback(value, **kwargs)
                 except TypeError:
-                    # 降级：回调不接受额外 kwargs
+                    # downgrade: callbacknotacceptextra kwargs
                     result = callback(value)
                 if result is not None:
                     value = result
@@ -170,18 +170,18 @@ class HookManager:
                 traceback.print_exc()
         return value
 
-    # ---------- 外部工具管理 ----------
+    # ---------- externaltoolmanage ----------
 
     def register_tool(self, name: str, schema: dict, description: str,
                       handler: Callable, plugin_name: str = ""):
-        """注册外部工具
+        """registerexternaltool
 
         Args:
-            name: 工具名称（AI 调用时使用）
-            schema: OpenAI Function Calling 的 parameters schema
-            description: 工具描述
-            handler: 执行函数，签名 (args: dict) -> dict
-            plugin_name: 所属插件名
+            name: toolname (AI callwhenuse) 
+            schema: OpenAI Function Calling   parameters schema
+            description: tooldescription
+            handler: executefunction, signature (args: dict) -> dict
+            plugin_name: owning plugin name
         """
         full_schema = {
             "type": "function",
@@ -196,7 +196,7 @@ class HookManager:
             "handler": handler,
             "plugin": plugin_name,
         }
-        # ★ 同步注册到 ToolRegistry
+        # ★ syncregisterto ToolRegistry
         try:
             from .tool_registry import get_tool_registry
             get_tool_registry().register(
@@ -213,10 +213,10 @@ class HookManager:
         _dbg(f"[Hook] Registered external tool: {name} (from {plugin_name or 'unknown'})")
 
     def unregister_tool(self, name: str):
-        """注销外部工具"""
+        """unregisterexternaltool"""
         if name in self._external_tools:
             del self._external_tools[name]
-            # ★ 同步从 ToolRegistry 注销
+            # ★ syncfrom ToolRegistry unregister
             try:
                 from .tool_registry import get_tool_registry
                 get_tool_registry().unregister(name)
@@ -224,12 +224,12 @@ class HookManager:
                 pass
 
     def unregister_tools_by_plugin(self, plugin_name: str):
-        """注销指定插件的所有工具"""
+        """unregisterspecifiedplugin alltool"""
         to_remove = [n for n, v in self._external_tools.items()
                      if v.get("plugin") == plugin_name]
         for n in to_remove:
             del self._external_tools[n]
-        # ★ 同步从 ToolRegistry 注销
+        # ★ syncfrom ToolRegistry unregister
         try:
             from .tool_registry import get_tool_registry
             get_tool_registry().unregister_by_source("plugin", plugin_name)
@@ -237,74 +237,74 @@ class HookManager:
             pass
 
     def get_external_tools(self) -> List[dict]:
-        """获取所有外部工具的 OpenAI schema 列表"""
+        """getallexternaltool  OpenAI schema list"""
         return [v["schema"] for v in self._external_tools.values()]
 
     def has_external_tool(self, name: str) -> bool:
-        """检查是否存在指定外部工具"""
+        """checkwhethersaveinspecifiedexternaltool"""
         return name in self._external_tools
 
     def execute_external_tool(self, name: str, args: dict) -> dict:
-        """执行外部工具"""
+        """executeexternaltool"""
         tool_info = self._external_tools.get(name)
         if not tool_info:
-            return {"success": False, "error": f"外部工具不存在: {name}"}
+            return {"success": False, "error": f"externaltooldoes not exist: {name}"}
         try:
             result = tool_info["handler"](args)
             if not isinstance(result, dict):
                 result = {"success": True, "result": str(result)}
             return result
         except Exception as e:
-            return {"success": False, "error": f"外部工具 {name} 执行失败: {e}"}
+            return {"success": False, "error": f"externaltool {name} execution failed: {e}"}
 
-    # ---------- UI 按钮管理 ----------
+    # ---------- UI buttonmanage ----------
 
     def register_button(self, plugin_name: str, icon: str, tooltip: str,
                         callback: Callable):
-        """注册 UI 按钮"""
+        """register UI button"""
         self._ui_buttons.append((plugin_name, icon, tooltip, callback))
 
     def unregister_buttons_by_plugin(self, plugin_name: str):
-        """注销指定插件的所有按钮"""
+        """unregisterspecifiedplugin allbutton"""
         self._ui_buttons = [b for b in self._ui_buttons if b[0] != plugin_name]
 
     def get_buttons(self) -> List[Tuple[str, str, str, Callable]]:
-        """获取所有注册的 UI 按钮"""
+        """getallregister  UI button"""
         return list(self._ui_buttons)
 
     # ---------- UI Bridge ----------
 
     def set_ui_bridge(self, bridge: PluginUIBridge):
-        """设置 UI 桥接（由 AITab 初始化时调用）"""
+        """set UI bridgeconnect (by AITab initializationwhencall) """
         self._ui_bridge = bridge
 
     def get_ui_bridge(self) -> Optional[PluginUIBridge]:
-        """获取 UI 桥接"""
+        """get UI bridgeconnect"""
         return self._ui_bridge
 
-    # ---------- 重置 ----------
+    # ---------- replace ----------
 
     def reset(self):
-        """完全重置（用于重载插件时）"""
+        """finishallreplace (used forreloadpluginwhen) """
         self._init()
 
 
 # ============================================================
-# PluginUIBridge — UI API 桥接层
+# PluginUIBridge — UI API bridgeconnectlayer
 # ============================================================
 
 class PluginUIBridge:
-    """桥接插件与 UI 层，提供线程安全的 UI 操作
+    """bridgeconnectpluginwith UI layer, raiseforthreadsafe  UI operation
 
-    由 AITab.__init__ 创建并传入 chat_layout 引用。
-    插件通过 PluginContext 间接使用这些能力。
+    Created by AITab.__init__ which passes in a chat_layout reference.
+    Plugins access these capabilities indirectly via PluginContext.
     """
 
     def __init__(self):
-        self._chat_layout = None         # QVBoxLayout 引用
-        self._button_container = None    # QHBoxLayout 引用
-        self._insert_card_signal = None  # Signal 引用（线程安全插入）
-        self._ai_tab = None              # AITab 引用
+        self._chat_layout = None         # QVBoxLayout reference
+        self._button_container = None    # QHBoxLayout reference
+        self._insert_card_signal = None  # Signal reference (threadsafeinsert) 
+        self._ai_tab = None              # AITab reference
 
     def set_chat_layout(self, layout):
         self._chat_layout = layout
@@ -319,12 +319,12 @@ class PluginUIBridge:
         self._ai_tab = ai_tab
 
     def insert_chat_card(self, widget):
-        """在聊天区域插入自定义 QWidget（主线程安全）"""
+        """inchatareainsertcustom QWidget (mainthreadsafe) """
         if self._insert_card_signal:
-            # 通过信号调度到主线程
+            # viasignaladjustdegreetomainthread
             self._insert_card_signal.emit(widget)
         elif self._chat_layout:
-            # 直接插入（仅在主线程调用时安全）
+            # directlyinsert (onlyinmainthreadcallwhensafe) 
             try:
                 self._chat_layout.insertWidget(
                     self._chat_layout.count() - 1, widget)
@@ -332,7 +332,7 @@ class PluginUIBridge:
                 _dbg(f"[Hook] ⚠ insert_chat_card error: {e}")
 
     def mount_buttons(self):
-        """将所有注册的插件按钮挂载到工具栏"""
+        """willallregister pluginbuttonhangloadtotoolbar"""
         if not self._button_container:
             return
         manager = get_hook_manager()
@@ -341,7 +341,7 @@ class PluginUIBridge:
         except ImportError:
             return
 
-        # ★ 先清空旧按钮，防止重复挂载
+        # ★ firstclearemptyoldbutton, preventduplicatehangload
         while self._button_container.count():
             item = self._button_container.takeAt(0)
             w = item.widget()
@@ -360,39 +360,39 @@ class PluginUIBridge:
 
 
 # ============================================================
-# PluginContext — 传给每个插件 register() 的上下文对象
+# PluginContext — passgiveeachplugin register()  contextobject
 # ============================================================
 
 class PluginContext:
-    """插件的 API 入口对象
+    """plugin  API enterportobject
 
-    每个插件在 register(ctx) 中通过 ctx 访问所有能力。
+    Each plugin's register(ctx) accesses all capabilities via ctx.
     """
 
     def __init__(self, plugin_name: str, manager: HookManager,
                  settings: dict, config_path: Path):
         self._plugin_name = plugin_name
         self._manager = manager
-        self._settings = settings           # 该插件的设置值 dict
-        self._config_path = config_path     # plugins.json 路径
-        self._registered_hooks: List[Tuple[str, Callable]] = []  # 跟踪注册的钩子
+        self._settings = settings           # thisplugin setvalue dict
+        self._config_path = config_path     # plugins.json path
+        self._registered_hooks: List[Tuple[str, Callable]] = []  # trackregister hook
 
     @property
     def plugin_name(self) -> str:
         return self._plugin_name
 
-    # ---------- 事件 Hook ----------
+    # ---------- event Hook ----------
 
     def on(self, event: str, callback: Callable, priority: int = 0):
-        """注册事件钩子"""
+        """registereventhook"""
         self._manager.register(event, callback, priority)
         self._registered_hooks.append((event, callback))
 
-    # ---------- 工具注册 ----------
+    # ---------- toolregister ----------
 
     def register_tool(self, name: str, description: str, schema: dict,
                       handler: Callable):
-        """注册自定义工具（AI 可调用）"""
+        """registercustomtool (AI cancall) """
         self._manager.register_tool(
             name=name, schema=schema, description=description,
             handler=handler, plugin_name=self._plugin_name,
@@ -401,39 +401,39 @@ class PluginContext:
     # ---------- UI ----------
 
     def register_button(self, icon: str, tooltip: str, callback: Callable):
-        """注册工具栏按钮"""
+        """registertoolbarbutton"""
         self._manager.register_button(
             self._plugin_name, icon, tooltip, callback)
 
     def insert_chat_card(self, widget):
-        """在聊天区域插入自定义 QWidget"""
+        """inchatareainsertcustom QWidget"""
         bridge = self._manager.get_ui_bridge()
         if bridge:
             bridge.insert_chat_card(widget)
         else:
             _dbg(f"[Hook] ⚠ UI bridge not available, cannot insert chat card")
 
-    # ---------- 设置 ----------
+    # ---------- set ----------
 
     def get_setting(self, key: str, default: Any = None) -> Any:
-        """读取插件设置"""
+        """readpluginset"""
         return self._settings.get(key, default)
 
     def set_setting(self, key: str, value: Any):
-        """写入插件设置（自动持久化）"""
+        """writepluginset (autopersistentization) """
         self._settings[key] = value
         _save_plugin_config(self._config_path)
 
-    # ---------- 日志 ----------
+    # ---------- log ----------
 
     def log(self, msg: str):
-        """插件日志输出"""
+        """pluginlogoutput"""
         _dbg(f"[Plugin:{self._plugin_name}] {msg}")
 
-    # ---------- 清理 ----------
+    # ---------- cleanup ----------
 
     def _cleanup(self):
-        """注销该插件注册的所有钩子和工具"""
+        """unregisterthispluginregister allhookandtool"""
         for event, callback in self._registered_hooks:
             self._manager.unregister(event, callback)
         self._registered_hooks.clear()
@@ -442,23 +442,23 @@ class PluginContext:
 
 
 # ============================================================
-# PluginLoader — 扫描 plugins/ 目录，加载插件
+# PluginLoader — scan plugins/ directory, loadplugin
 # ============================================================
 
-# 插件配置文件路径
+# pluginconfigfile path
 _CONFIG_DIR = Path(__file__).parent.parent.parent / "config"
 _CONFIG_FILE = _CONFIG_DIR / "plugins.json"
 
-# 全局配置缓存
+# globalconfigcache
 _plugin_config: Dict[str, Any] = {}
 
-# 已加载的插件: plugin_name -> {"module": mod, "info": PLUGIN_INFO, "ctx": PluginContext, "enabled": bool, "file": Path}
+# alreadyload plugin: plugin_name -> {"module": mod, "info": PLUGIN_INFO, "ctx": PluginContext, "enabled": bool, "file": Path}
 _loaded_plugins: Dict[str, Dict[str, Any]] = {}
 _plugins_loaded = False
 
 
 def _load_plugin_config() -> Dict[str, Any]:
-    """加载插件配置"""
+    """loadpluginconfig"""
     global _plugin_config
     try:
         if _CONFIG_FILE.exists():
@@ -472,7 +472,7 @@ def _load_plugin_config() -> Dict[str, Any]:
 
 
 def _save_plugin_config(config_path: Optional[Path] = None):
-    """保存插件配置"""
+    """savepluginconfig"""
     path = config_path or _CONFIG_FILE
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -483,12 +483,12 @@ def _save_plugin_config(config_path: Optional[Path] = None):
 
 
 def _get_plugins_dir() -> Path:
-    """获取 plugins/ 目录路径"""
+    """get plugins/ directory path"""
     return Path(__file__).parent.parent.parent / "plugins"
 
 
 def load_all_plugins():
-    """扫描并加载所有插件"""
+    """scanandloadallplugin"""
     global _loaded_plugins, _plugins_loaded
 
     if _plugins_loaded:
@@ -506,7 +506,7 @@ def load_all_plugins():
 
     for f in sorted(plugins_dir.glob("*.py")):
         if f.name.startswith("_"):
-            continue  # 下划线开头的不自动加载
+            continue  # belowplanlinestart notautoload
 
         module_name = f.stem
         try:
@@ -519,9 +519,9 @@ def load_all_plugins():
     if _loaded_plugins:
         enabled = [n for n, v in _loaded_plugins.items() if v["enabled"]]
         _dbg(f"[Hook] Loaded {len(_loaded_plugins)} plugin(s), "
-              f"启用 {len(enabled)} 个: {', '.join(enabled) or '(无)'}")
+              f"enable {len(enabled)} : {', '.join(enabled) or '(no)'}")
 
-    # ★ 从配置加载禁用工具列表到 ToolRegistry
+    # ★ fromconfigloaddisabletoollistto ToolRegistry
     try:
         disabled_tools = config.get("disabled_tools", [])
         if disabled_tools:
@@ -535,8 +535,8 @@ def load_all_plugins():
 def _load_single_plugin(filepath: Path, module_name: str,
                          disabled_list: List[str],
                          manager: HookManager):
-    """加载单个插件"""
-    # ★ 清空装饰器收集器，防止多插件之间串扰
+    """Load a single plugin."""
+    # ★ Clear decorator-collection sets so multiple plugins don't interfere with each other.
     global _pending_hooks, _pending_tools, _pending_buttons
     _pending_hooks = []
     _pending_tools = []
@@ -561,15 +561,15 @@ def _load_single_plugin(filepath: Path, module_name: str,
     is_disabled = plugin_name in disabled_list
     is_enabled = not is_disabled
 
-    # 构建插件设置
+    # buildpluginset
     plugin_settings = _plugin_config.get("settings", {}).get(plugin_name, {})
-    # 用 schema 中的 default 值填充未设置的项
+    # use schema in  default valuefillfillnotset item
     for setting_def in info.get("settings", []):
         key = setting_def.get("key")
         if key and key not in plugin_settings:
             plugin_settings[key] = setting_def.get("default")
 
-    # 创建上下文
+    # createcontext
     ctx = PluginContext(
         plugin_name=plugin_name,
         manager=manager,
@@ -577,7 +577,7 @@ def _load_single_plugin(filepath: Path, module_name: str,
         config_path=_CONFIG_FILE,
     )
 
-    # 注册插件记录
+    # registerpluginrecord
     _loaded_plugins[plugin_name] = {
         "module": mod,
         "info": info,
@@ -586,11 +586,11 @@ def _load_single_plugin(filepath: Path, module_name: str,
         "file": filepath,
     }
 
-    # 如果启用，调用 register
+    # ifenable, call register
     if is_enabled:
         try:
             register_fn(ctx)
-            # ★ 应用装饰器收集的钩子/工具/按钮
+            # ★ applicationdecorative collectset hook/tool/button
             _apply_decorators(ctx)
             _dbg(f"[Hook] ✔ Plugin {plugin_name} v{info.get('version', '?')} loaded")
         except Exception as e:
@@ -600,17 +600,17 @@ def _load_single_plugin(filepath: Path, module_name: str,
 
 
 def reload_plugin(plugin_name: str) -> bool:
-    """重载指定插件"""
+    """reloadspecifiedplugin"""
     plugin_data = _loaded_plugins.get(plugin_name)
     if not plugin_data:
         _dbg(f"[Hook] ⚠ Plugin {plugin_name} not found")
         return False
 
-    # 清理旧注册
+    # cleanupoldregister
     ctx = plugin_data["ctx"]
     ctx._cleanup()
 
-    # 重新加载模块
+    # renewloadmodule
     filepath = plugin_data["file"]
     module_name = filepath.stem
     manager = get_hook_manager()
@@ -618,11 +618,11 @@ def reload_plugin(plugin_name: str) -> bool:
     disabled_list = config.get("disabled", [])
 
     try:
-        # 移除旧记录
+        # removeoldrecord
         del _loaded_plugins[plugin_name]
-        # 重新加载
+        # renewload
         _load_single_plugin(filepath, module_name, disabled_list, manager)
-        # 重新挂载 UI 按钮
+        # renewhangload UI button
         bridge = manager.get_ui_bridge()
         if bridge:
             bridge.mount_buttons()
@@ -635,13 +635,13 @@ def reload_plugin(plugin_name: str) -> bool:
 
 
 def enable_plugin(plugin_name: str) -> bool:
-    """启用插件"""
+    """enableplugin"""
     plugin_data = _loaded_plugins.get(plugin_name)
     if not plugin_data:
         return False
 
     if plugin_data["enabled"]:
-        return True  # 已启用
+        return True  # enabled
 
     manager = get_hook_manager()
     ctx = plugin_data["ctx"]
@@ -651,13 +651,13 @@ def enable_plugin(plugin_name: str) -> bool:
         try:
             register_fn(ctx)
             plugin_data["enabled"] = True
-            # 更新配置
+            # updateconfig
             disabled = _plugin_config.get("disabled", [])
             if plugin_name in disabled:
                 disabled.remove(plugin_name)
                 _plugin_config["disabled"] = disabled
                 _save_plugin_config()
-            # 重新挂载按钮
+            # renewhangloadbutton
             bridge = manager.get_ui_bridge()
             if bridge:
                 bridge.mount_buttons()
@@ -670,27 +670,27 @@ def enable_plugin(plugin_name: str) -> bool:
 
 
 def disable_plugin(plugin_name: str) -> bool:
-    """禁用插件"""
+    """disableplugin"""
     plugin_data = _loaded_plugins.get(plugin_name)
     if not plugin_data:
         return False
 
     if not plugin_data["enabled"]:
-        return True  # 已禁用
+        return True  # disabled
 
-    # 清理钩子和工具
+    # cleanuphookandtool
     ctx = plugin_data["ctx"]
     ctx._cleanup()
     plugin_data["enabled"] = False
 
-    # 更新配置
+    # updateconfig
     disabled = _plugin_config.get("disabled", [])
     if plugin_name not in disabled:
         disabled.append(plugin_name)
         _plugin_config["disabled"] = disabled
         _save_plugin_config()
 
-    # 重新挂载按钮（移除已禁用的）
+    # renewhangloadbutton (removedisabled ) 
     manager = get_hook_manager()
     bridge = manager.get_ui_bridge()
     if bridge:
@@ -701,12 +701,12 @@ def disable_plugin(plugin_name: str) -> bool:
 
 
 def get_plugin_setting(plugin_name: str, key: str, default: Any = None) -> Any:
-    """获取插件设置值"""
+    """getpluginsetvalue"""
     return _plugin_config.get("settings", {}).get(plugin_name, {}).get(key, default)
 
 
 def set_plugin_setting(plugin_name: str, key: str, value: Any):
-    """设置插件设置值"""
+    """setpluginsetvalue"""
     if "settings" not in _plugin_config:
         _plugin_config["settings"] = {}
     if plugin_name not in _plugin_config["settings"]:
@@ -716,7 +716,7 @@ def set_plugin_setting(plugin_name: str, key: str, value: Any):
 
 
 def list_plugins() -> List[Dict[str, Any]]:
-    """列出所有插件的元数据"""
+    """columnoutallplugin metadatadata"""
     load_all_plugins()
     result = []
     for name, data in _loaded_plugins.items():
@@ -728,21 +728,21 @@ def list_plugins() -> List[Dict[str, Any]]:
 
 
 def get_plugins_dir() -> Path:
-    """获取 plugins 目录路径（供外部使用）"""
+    """get plugins directory path (forexternaluse) """
     return _get_plugins_dir()
 
 
 def reload_all_plugins():
-    """重载所有插件"""
+    """reloadallplugin"""
     global _loaded_plugins, _plugins_loaded
-    # 清理所有
+    # cleanupall
     for name, data in _loaded_plugins.items():
         data["ctx"]._cleanup()
     _loaded_plugins.clear()
     _plugins_loaded = False
-    # 重新加载
+    # renewload
     load_all_plugins()
-    # 重新挂载按钮
+    # renewhangloadbutton
     manager = get_hook_manager()
     bridge = manager.get_ui_bridge()
     if bridge:
@@ -750,19 +750,19 @@ def reload_all_plugins():
 
 
 # ============================================================
-# 装饰器 API — 让插件代码更简洁
+# decorative  API — letplugincodemoreconcise
 # ============================================================
 
-# 装饰器收集器（用于自动注册模式）
+# decorative collectset  (used forautoregistermode) 
 _pending_hooks: List[Tuple[str, Callable, int]] = []
 _pending_tools: List[Dict[str, Any]] = []
 _pending_buttons: List[Dict[str, Any]] = []
 
 
 def hook(event: str, priority: int = 0):
-    """装饰器：注册事件钩子
+    """decorative : registereventhook
 
-    用法:
+    usemethod:
         @hook("on_after_tool")
         def my_callback(tool_name, args, result):
             print(f"Tool {tool_name} called")
@@ -774,9 +774,9 @@ def hook(event: str, priority: int = 0):
 
 
 def tool(name: str, description: str, parameters: dict):
-    """装饰器：注册自定义工具
+    """decorative : registercustomtool
 
-    用法:
+    usemethod:
         @tool(name="my_tool", description="...", parameters={...})
         def handler(args):
             return {"success": True, "result": "..."}
@@ -793,9 +793,9 @@ def tool(name: str, description: str, parameters: dict):
 
 
 def ui_button(icon: str, tooltip: str):
-    """装饰器：注册 UI 按钮
+    """decorative : register UI button
 
-    用法:
+    usemethod:
         @ui_button(icon="📊", tooltip="Stats")
         def on_click(ctx):
             print("Clicked!")
@@ -811,7 +811,7 @@ def ui_button(icon: str, tooltip: str):
 
 
 def _apply_decorators(ctx: PluginContext):
-    """将装饰器收集的钩子/工具/按钮注册到 ctx"""
+    """willdecorative collectset hook/tool/buttonregisterto ctx"""
     global _pending_hooks, _pending_tools, _pending_buttons
 
     for event, callback, priority in _pending_hooks:
@@ -826,16 +826,16 @@ def _apply_decorators(ctx: PluginContext):
             icon=b["icon"], tooltip=b["tooltip"], callback=b["callback"],
         )
 
-    # 清空收集器
+    # clearemptycollectset 
     _pending_hooks = []
     _pending_tools = []
     _pending_buttons = []
 
 
 # ============================================================
-# 单例获取器
+# singleexampleget 
 # ============================================================
 
 def get_hook_manager() -> HookManager:
-    """获取全局 HookManager 单例"""
+    """getglobal HookManager singleexample"""
     return HookManager()
