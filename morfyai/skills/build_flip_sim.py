@@ -34,6 +34,16 @@ SKILL_INFO = {
             "description": "True = keep emitting (a stream); False (default) = one-shot drop that falls",
             "default": False,
         },
+        "fountain": {
+            "type": "boolean",
+            "description": "True = a fountain/jet: small nozzle near the ground shoots water UP (continuous + upward velocity). Use for 'air mancur', fountain, jet, geyser, spray.",
+            "default": False,
+        },
+        "jet_speed": {
+            "type": "number",
+            "description": "Fountain only: upward launch speed (higher = taller jet). Default 9.0",
+            "default": 9.0,
+        },
         "resolution": {
             "type": "number",
             "description": "Particle separation (smaller = finer/slower). Default 0.08",
@@ -80,7 +90,7 @@ def _set_frame_range(duration_seconds):
 
 
 def run(container_name="flip_sim", source_shape="sphere", continuous=False,
-        resolution=0.08, ground=True, duration_seconds=4.0):
+        fountain=False, jet_speed=9.0, resolution=0.08, ground=True, duration_seconds=4.0):
     import hou  # type: ignore
 
     obj = hou.node("/obj")
@@ -101,23 +111,42 @@ def run(container_name="flip_sim", source_shape="sphere", continuous=False,
         return {"success": False, "error": "FLIP Container ('flipcontainer') not available", "created": created}
     tank = geo.createNode(cont_type, "flipcontainer1")
     _set_parms(tank, {"particlesep": float(resolution)})
+    if fountain:
+        # tall, raised domain so the jet arc fits inside the container
+        _set_parms(tank, {"size": (4.0, 8.0, 4.0), "t": (0.0, 3.6, 0.0)})
     created.append(tank.path())
 
-    # 2. fluid shape (raised so it falls)
-    src_type = _find_sop_type([source_shape, "sphere"])
-    if not src_type:
-        return {"success": False, "error": f"no source primitive type available ({source_shape})"}
-    src = geo.createNode(src_type, f"fluid_{source_shape}")
-    if src_type == "sphere":
-        _set_parms(src, {"type": 2, "scale": 0.6, "ty": 3.0})
+    if fountain:
+        # 2f. small nozzle near the ground + upward velocity = a jet/fountain
+        noz = geo.createNode("sphere", "nozzle")
+        _set_parms(noz, {"type": 2, "rad": (0.22, 0.22, 0.22), "t": (0.0, 0.4, 0.0)})
+        created.append(noz.path())
+        vel = geo.createNode("attribwrangle", "add_velocity")
+        vel.setInput(0, noz)
+        _set_parms(vel, {"class": 2})  # run over points
+        spd = float(jet_speed)
+        vp = vel.parm("snippet")
+        if vp is not None:
+            vp.set("v@v = set( (rand(@ptnum*1.7)-0.5)*1.5, %.4f, (rand(@ptnum*3.1)-0.5)*1.5 );" % spd)
+        created.append(vel.path())
+        fluid_geo = vel
+        continuous = True  # a fountain is inherently continuous
     else:
-        _set_parms(src, {"ty": 3.0})
-    created.append(src.path())
-    sub = geo.createNode("subdivide", "subdivide") if _find_sop_type(["subdivide"]) else None
-    if sub:
-        sub.setInput(0, src)
-        created.append(sub.path())
-    fluid_geo = sub or src
+        # 2. fluid shape (raised so it falls)
+        src_type = _find_sop_type([source_shape, "sphere"])
+        if not src_type:
+            return {"success": False, "error": f"no source primitive type available ({source_shape})"}
+        src = geo.createNode(src_type, f"fluid_{source_shape}")
+        if src_type == "sphere":
+            _set_parms(src, {"type": 2, "scale": 0.6, "ty": 3.0})
+        else:
+            _set_parms(src, {"ty": 3.0})
+        created.append(src.path())
+        sub = geo.createNode("subdivide", "subdivide") if _find_sop_type(["subdivide"]) else None
+        if sub:
+            sub.setInput(0, src)
+            created.append(sub.path())
+        fluid_geo = sub or src
 
     # 3. flipboundary = the real source: container 0/1/2 threaded + geometry on input 3
     b_type = _find_sop_type(["flipboundary", "flipboundary::2.0"])
@@ -146,7 +175,7 @@ def run(container_name="flip_sim", source_shape="sphere", continuous=False,
     solver.setInput(2, source, 2)
     _set_parms(solver, {"doreseeding": 0, "donarrowband": 0})
     if ground:
-        _set_parms(solver, {"useground": "ground", "ground_posy": -2.0})
+        _set_parms(solver, {"useground": "ground", "ground_posy": 0.0 if fountain else -2.0})
     created.append(solver.path())
 
     try:
@@ -168,7 +197,7 @@ def run(container_name="flip_sim", source_shape="sphere", continuous=False,
 
     return {
         "success": True,
-        "mode": "continuous" if continuous else "one-shot drop",
+        "mode": "fountain/jet" if fountain else ("continuous" if continuous else "one-shot drop"),
         "container": geo.path(),
         "solver": solver.path(),
         "created_nodes": created,
