@@ -43,8 +43,23 @@ SKILL_INFO = {
         },
         "ground_collision": {
             "type": "boolean",
-            "description": "Add a ground grid wired into the MPM Collider",
+            "description": "Use the solver's built-in ground plane (floor at y=0). No extra nodes — the "
+                           "MPM solver already provides this. Set False for no floor (free fall).",
             "default": True,
+        },
+        "collider_path": {
+            "type": "string",
+            "description": "OPTIONAL path to existing geometry (e.g. '/obj/bowl/OUT') to use as a CUSTOM "
+                           "MPM collider — a wall, bowl, terrain, character, etc. Leave empty for just the "
+                           "built-in ground. This is the 'pake collider ini' hook.",
+            "default": "",
+        },
+        "initial_velocity": {
+            "type": "array",
+            "description": "Optional initial velocity [x, y, z] given to the material at birth — e.g. "
+                           "[8, 2, 0] throws it sideways+up (a thrown snowball). Default [0,0,0] = just drops.",
+            "items": {"type": "number"},
+            "default": [0, 0, 0],
         },
         "resolution": {
             "type": "number",
@@ -165,7 +180,8 @@ def _tune_snow_shape(node):
 
 
 def run(container_name="mpm_sim", material="snow", source_shape="sphere",
-        ground_collision=True, resolution=0, duration_seconds=4.0):
+        ground_collision=True, collider_path="", initial_velocity=None,
+        resolution=0, duration_seconds=4.0):
     import hou  # type: ignore
 
     obj = hou.node("/obj")
@@ -202,6 +218,21 @@ def run(container_name="mpm_sim", material="snow", source_shape="sphere",
         _set_parms(src, {"t": (0.0, 3.0, 0.0)})
     created.append(src.path())
 
+    # optional initial velocity (e.g. throw the material sideways). MPM reads the
+    # source geometry's v@v as the birth velocity.
+    iv = list(initial_velocity) if initial_velocity else [0.0, 0.0, 0.0]
+    iv = (iv + [0.0, 0.0, 0.0])[:3]
+    fill_geo = src
+    if any(abs(float(c)) > 1e-6 for c in iv):
+        vw = geo.createNode("attribwrangle", "throw_velocity")
+        vw.setInput(0, src)
+        _set_parms(vw, {"class": 2})  # points
+        vp = vw.parm("snippet")
+        if vp is not None:
+            vp.set("v@v = set(%.5f, %.5f, %.5f);" % (float(iv[0]), float(iv[1]), float(iv[2])))
+        created.append(vw.path())
+        fill_geo = vw
+
     # resolution: auto-scale to the object so snow has enough particles to
     # fracture/pack (resolution is the #1 lever for snow look). 0 = auto.
     sep = float(resolution) if resolution and float(resolution) > 0 else _auto_particle_sep(src)
@@ -217,7 +248,7 @@ def run(container_name="mpm_sim", material="snow", source_shape="sphere",
                 "error": "MPM Source ('mpmsource') not available in this Houdini build",
                 "created": created}
     mpmsrc = geo.createNode(mpmsrc_type, "mpmsource1")
-    mpmsrc.setInput(0, src)
+    mpmsrc.setInput(0, fill_geo)
     mpmsrc.setInput(1, container)
     # Set the physical BEHAVIOR (materialtype) — the reliable correctness lever.
     behavior = _BEHAVIOR.get(material, "chunky")
@@ -237,27 +268,26 @@ def run(container_name="mpm_sim", material="snow", source_shape="sphere",
         if tuned:
             warnings.append(f"tuned {material} to hold shape (c_compress/c_stretch raised): {tuned}")
 
-    # 5. optional MPM Collider (ground)
+    # 5. CUSTOM MPM Collider — ONLY when the user supplies real collision geometry.
+    #    The plain floor is the solver's built-in ground plane (set below), so we do
+    #    NOT make a redundant grid+collider for the ground. mpmcollider is reserved
+    #    for actual objects (a bowl, wall, terrain, character) via collider_path.
     collider = None
-    if ground_collision:
-        grid_type = _find_sop_type(["grid"])
+    if collider_path:
+        coll_geo = hou.node(collider_path)
         coll_type = _find_sop_type(["mpmcollider", "mpmcollider::2.0"])
-        if grid_type and coll_type:
-            ground = geo.createNode(grid_type, "ground")
-            # orient MUST be 'zx' = horizontal floor (XZ plane). 'xy' (the old 0) makes
-            # a VERTICAL wall the material falls straight through. Verified live.
-            _set_parms(ground, {"orient": "zx", "sizex": 10.0, "sizey": 10.0, "size": (10.0, 10.0)})
-            created.append(ground.path())
+        if coll_geo is None:
+            warnings.append(f"collider_path '{collider_path}' not found — skipping custom collider")
+        elif not coll_type:
+            warnings.append("MPM Collider ('mpmcollider') not available in this build — skipping custom collider")
+        else:
             collider = geo.createNode(coll_type, "mpmcollider1")
-            collider.setInput(0, ground)
-            # container input on collider (try common indices via label)
+            collider.setInput(0, coll_geo)
             try:
                 collider.setInput(1, container)
             except Exception:
                 pass
             created.append(collider.path())
-        elif not coll_type:
-            warnings.append("MPM Collider ('mpmcollider') not found — using the solver's built-in ground plane instead")
 
     # 6. MPM Solver
     solver_type = _find_sop_type(["mpmsolver", "mpmsolver::2.0"])
@@ -274,13 +304,12 @@ def run(container_name="mpm_sim", material="snow", source_shape="sphere",
 
     # ★ More substeps = stable MPM that isn't mushy (confirmed H21 parm names).
     _set_parms(solver, {"doglobalsubsteps": 1, "globalsubsteps": 6})
-    # Granular materials read better with some ground friction.
-    if material in _GRANULAR:
-        _set_parms(solver, {"groundfriction": 0.8})
 
-    # built-in ground plane fallback when no collider node
-    if ground_collision and collider is None:
-        _set_parms(solver, {"groundplane": 1, "enable_ground": 1, "useground": 1})
+    # Built-in ground plane (solver default is ON). This IS the floor — verified
+    # parm name 'groundactive'. Toggle it from ground_collision; no extra nodes.
+    _set_parms(solver, {"groundactive": 1 if ground_collision else 0})
+    if ground_collision and material in _GRANULAR:
+        _set_parms(solver, {"groundfriction": 0.8})  # granular reads better with friction
 
     # 7. display + layout + frame range
     try:
