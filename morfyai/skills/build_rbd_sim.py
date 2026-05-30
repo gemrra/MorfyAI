@@ -38,8 +38,16 @@ SKILL_INFO = {
         },
         "ground_collision": {
             "type": "boolean",
-            "description": "Add a ground grid wired into the solver's ground/collision input",
+            "description": "Use the solver's built-in ground plane (floor at y=0). No extra nodes — the "
+                           "RBD Bullet Solver already provides this. Set False for no floor (free fall).",
             "default": True,
+        },
+        "collider_path": {
+            "type": "string",
+            "description": "OPTIONAL path to existing geometry to use as a CUSTOM collider (wall, ramp, "
+                           "bowl, terrain) wired into the solver's Collision Geometry input. Leave empty "
+                           "for just the built-in ground. This is the 'pake collider ini' hook.",
+            "default": "",
         },
         "duration_seconds": {
             "type": "number",
@@ -104,7 +112,7 @@ def _set_frame_range(duration_seconds):
 
 
 def run(container_name="rbd_sim", source_shape="box",
-        fracture=True, ground_collision=True, duration_seconds=4.0):
+        fracture=True, ground_collision=True, collider_path="", duration_seconds=4.0):
     import hou  # type: ignore
 
     obj = hou.node("/obj")
@@ -155,23 +163,27 @@ def run(container_name="rbd_sim", source_shape="box",
     solver.setInput(0, upstream)
     created.append(solver.path())
 
-    # 5. optional ground collider
+    # 5. ground: use the solver's BUILT-IN ground plane (verified parm 'useground',
+    #    default OFF). No grid node — a grid wired as collision was a vertical wall
+    #    the pieces fell straight through. Toggle from ground_collision.
+    _set_parms(solver, {"useground": 1 if ground_collision else 0})
+
+    # 5b. OPTIONAL custom collider wired into the 'Collision Geometry' input.
     ground = None
-    if ground_collision:
-        grid_type = _find_sop_type(["grid"])
-        if grid_type:
-            ground = geo.createNode(grid_type, "ground")
-            _set_parms(ground, {"sizex": 20.0, "sizey": 20.0,
-                                 "size": (20.0, 20.0), "orient": 0})
-            created.append(ground.path())
-            col_idx = _input_index_by_label(solver, ["ground", "collision", "collide", "static"])
+    if collider_path:
+        coll_geo = hou.node(collider_path)
+        if coll_geo is None:
+            warnings.append(f"collider_path '{collider_path}' not found — skipping custom collider")
+        else:
+            col_idx = _input_index_by_label(solver, ["collision", "collide"])
             if col_idx is not None:
                 try:
-                    solver.setInput(col_idx, ground)
+                    solver.setInput(col_idx, coll_geo)
+                    ground = coll_geo
                 except Exception as e:
-                    warnings.append(f"could not wire ground to collision input: {e}")
+                    warnings.append(f"could not wire custom collider: {e}")
             else:
-                warnings.append("ground/collision input port not found on RBD solver — ground left unconnected")
+                warnings.append("Collision Geometry input not found on RBD solver — custom collider skipped")
 
     # 6. display flag + layout + frame range
     try:
