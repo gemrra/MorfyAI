@@ -102,9 +102,21 @@ def _set_frame_range(duration_seconds):
 # Granular materials that collapse and PACK (vs elastic ones that spring back).
 _GRANULAR = {"snow", "sand", "mud", "soil"}
 
-# Exact H21 MPM Source material parameter names (verified against SideFX docs).
-#   E=Young's modulus, nu=Poisson, hardening, c_compress=critical compression,
-#   c_stretch=critical stretch, density.
+# H21 MPM Source 'materialtype' (Behavior) menu tokens — VERIFIED live:
+#   elastic / chunky / liquid / viscous / sandy
+# Setting the right behavior is THE correctness lever (the dynamic 'materialpreset'
+# menu is unreliable to set programmatically). materialtype accepts the token string.
+_BEHAVIOR = {
+    "snow": "chunky", "sand": "sandy", "soil": "sandy", "mud": "sandy",
+    "jello": "elastic", "rubber": "elastic", "concrete": "elastic", "metal": "elastic",
+    "honey": "viscous", "water": "liquid",
+}
+
+# Approximate real-world densities (kg/m^3) for a believable scale.
+_DENSITY = {
+    "snow": 400, "sand": 1600, "soil": 1500, "mud": 1400, "jello": 1000,
+    "rubber": 1100, "concrete": 2400, "metal": 7800, "honey": 1400, "water": 1000,
+}
 
 
 def _auto_particle_sep(src_node, across=40):
@@ -136,7 +148,10 @@ def _tune_snow_shape(node):
     names and only nudges values that exist.
     """
     changed = {}
-    for name, factor in (("c_compress", 1.8), ("c_stretch", 1.8)):
+    # H21 verified parm names: criticalcompressionstretchx = Critical Compression,
+    # criticalcompressionstretchy = Critical Stretch (old c_compress/c_stretch were wrong).
+    for name, factor in (("criticalcompressionstretchx", 1.8),
+                         ("criticalcompressionstretchy", 1.8)):
         try:
             p = node.parm(name)
             if p is not None:
@@ -204,12 +219,15 @@ def run(container_name="mpm_sim", material="snow", source_shape="sphere",
     mpmsrc = geo.createNode(mpmsrc_type, "mpmsource1")
     mpmsrc.setInput(0, src)
     mpmsrc.setInput(1, container)
-    # material preset — parm name varies by build, try several
-    mat_applied = _set_parms(mpmsrc, {"materialpreset": material, "material_preset": material,
-                                      "preset": material, "material": material})
+    # Set the physical BEHAVIOR (materialtype) — the reliable correctness lever.
+    behavior = _BEHAVIOR.get(material, "chunky")
+    mat_applied = _set_parms(mpmsrc, {"materialtype": behavior})
     if not mat_applied:
-        warnings.append(f"could not set material preset '{material}' (version parm name differs) — "
-                        "set Material Preset manually on the MPM Source")
+        warnings.append(f"could not set materialtype='{behavior}' — set Behavior manually on the MPM Source")
+    # Density for believable scale.
+    dens = _DENSITY.get(material)
+    if dens:
+        _set_parms(mpmsrc, {"density": float(dens)})
     created.append(mpmsrc.path())
 
     # ★ Granular materials (snow/sand/mud): raise critical compression/stretch so
