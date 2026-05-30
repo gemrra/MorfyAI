@@ -244,7 +244,9 @@ def run(container_name="mpm_sim", material="snow", source_shape="sphere",
         coll_type = _find_sop_type(["mpmcollider", "mpmcollider::2.0"])
         if grid_type and coll_type:
             ground = geo.createNode(grid_type, "ground")
-            _set_parms(ground, {"sizex": 10.0, "sizey": 10.0, "size": (10.0, 10.0), "orient": 0})
+            # orient MUST be 'zx' = horizontal floor (XZ plane). 'xy' (the old 0) makes
+            # a VERTICAL wall the material falls straight through. Verified live.
+            _set_parms(ground, {"orient": "zx", "sizex": 10.0, "sizey": 10.0, "size": (10.0, 10.0)})
             created.append(ground.path())
             collider = geo.createNode(coll_type, "mpmcollider1")
             collider.setInput(0, ground)
