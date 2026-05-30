@@ -72,8 +72,8 @@ SKILL_INFO = {
         "turbulence": {
             "type": "number",
             "description": "Chaotic noise added to the motion so the stream breaks up naturally. "
-                           "0 = none, ~1 = subtle, 3+ = very turbulent.",
-            "default": 1.0,
+                           "0 = none, ~0.5 = subtle (default), 1-2 = lively, 3+ = very turbulent.",
+            "default": 0.5,
         },
         "duration_seconds": {
             "type": "number",
@@ -131,7 +131,7 @@ def _set_frame_range(duration_seconds):
 
 def run(container_name="particle_sim", emitter_shape="grid",
         rate=3000.0, life=3.0, gravity=True, ground_collision=True,
-        wind=3.0, wind_dir=25.0, turbulence=1.0, duration_seconds=4.0):
+        wind=3.0, wind_dir=25.0, turbulence=0.5, duration_seconds=4.0):
     import hou  # type: ignore
     import math
 
@@ -233,14 +233,15 @@ def run(container_name="particle_sim", emitter_shape="grid",
             warnings.append(f"wiring {node.name() if node else '?'} failed: {e}")
 
     # 3c. gravity + turbulence (one POP Force). Turbulence breaks up the straight column.
+    #     NOTE: 'turb' is an int TOGGLE (0/1), not a strength — strength is 'amp'.
     if gravity or float(turbulence) > 0:
         popforce = _dop(["popforce"], "popforce1")
         if popforce is not None:
             _set_parms(popforce, {"force": (0.0, -9.81 if gravity else 0.0, 0.0)})
             if float(turbulence) > 0:
-                _set_parms(popforce, {"turb": float(turbulence),
-                                      "amp": 6.0 * float(turbulence),
-                                      "swirlsize": 0.8})
+                _set_parms(popforce, {"turb": 1,                        # toggle ON
+                                      "amp": 3.0 * float(turbulence),   # actual strength
+                                      "swirlsize": 1.0})
             _wire(popforce)
 
     # 3d. wind — pushes particles sideways so they don't fall straight down
@@ -252,17 +253,22 @@ def run(container_name="particle_sim", emitter_shape="grid",
                                  "windspeed": float(wind), "airresist": 1.5})
             _wire(popwind)
 
-    # 3e. ground collision — particles land on a ground plane and slide across it
+    # 3e. ground collision — REAL collision response (not just detection).
+    #     A 'groundplane' DOP is an infinite collider with bounce/friction. The key:
+    #     it must feed the SOLVER's object input (merged with the popobject) so the
+    #     solver sees it as a collider — merging it into the output does NOT collide.
     if ground_collision:
-        if _find_sop_type(["grid"]):
-            ground = geo.createNode("grid", "ground")
-            _set_parms(ground, {"orient": "zx", "sizex": 40.0, "sizey": 40.0, "size": (40.0, 40.0)})
-            created.append(ground.path())
-            pcd = _dop(["popcollisiondetect"], "popcollisiondetect1")
-            if pcd is not None:
-                _set_parms(pcd, {"soppath": ground.path()})
-                _wire(pcd)
+        groundplane = _dop(["groundplane"], "groundplane1")
+        if groundplane is not None:
+            _set_parms(groundplane, {"bounce": 0.2, "friction": 0.4})
+            try:
+                objmerge = dopnet.createNode("merge", "obj_merge")
+                objmerge.setInput(0, popobj)
+                objmerge.setInput(1, groundplane)
+                popsolver.setInput(0, objmerge)   # solver now sees the ground collider
                 _set_parms(popsolver, {"docollision": 1, "collisionresponse": "slide"})
+            except Exception as e:
+                warnings.append(f"ground collider wiring failed: {e}")
 
     # 3d. ★ wire the solver into the dopnet output (else the sim is empty)
     try:
