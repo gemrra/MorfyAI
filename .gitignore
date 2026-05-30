@@ -58,3 +58,6 @@ HOUDINI_HIP_MANAGER/
 Thumbs.db
 .DS_Store
 desktop.ini
+
+# sim render flipbook scratch dirs
+_*/
