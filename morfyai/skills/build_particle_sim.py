@@ -53,6 +53,28 @@ SKILL_INFO = {
             "description": "Apply downward gravity so particles fall. False = they keep their birth motion.",
             "default": True,
         },
+        "ground_collision": {
+            "type": "boolean",
+            "description": "Add a ground plane the particles land on and slide across (instead of falling forever).",
+            "default": True,
+        },
+        "wind": {
+            "type": "number",
+            "description": "Wind strength — pushes particles sideways so they don't fall in a straight column. "
+                           "0 = no wind, ~3 = a gentle breeze, 8+ = strong gusts.",
+            "default": 3.0,
+        },
+        "wind_dir": {
+            "type": "number",
+            "description": "Wind direction in degrees (0 = +X). Particles drift this way.",
+            "default": 25.0,
+        },
+        "turbulence": {
+            "type": "number",
+            "description": "Chaotic noise added to the motion so the stream breaks up naturally. "
+                           "0 = none, ~1 = subtle, 3+ = very turbulent.",
+            "default": 1.0,
+        },
         "duration_seconds": {
             "type": "number",
             "description": "Simulation length in seconds (drives the playback range)",
@@ -108,8 +130,10 @@ def _set_frame_range(duration_seconds):
 
 
 def run(container_name="particle_sim", emitter_shape="grid",
-        rate=3000.0, life=3.0, gravity=True, duration_seconds=4.0):
+        rate=3000.0, life=3.0, gravity=True, ground_collision=True,
+        wind=3.0, wind_dir=25.0, turbulence=1.0, duration_seconds=4.0):
     import hou  # type: ignore
+    import math
 
     obj = hou.node("/obj")
     if obj is None:
@@ -201,16 +225,44 @@ def run(container_name="particle_sim", emitter_shape="grid",
     except Exception as e:
         warnings.append(f"source merge wiring failed: {e}")
 
-    # 3c. gravity
-    if gravity:
+    def _wire(node):
+        try:
+            if node is not None and merge is not None:
+                merge.setNextInput(node)
+        except Exception as e:
+            warnings.append(f"wiring {node.name() if node else '?'} failed: {e}")
+
+    # 3c. gravity + turbulence (one POP Force). Turbulence breaks up the straight column.
+    if gravity or float(turbulence) > 0:
         popforce = _dop(["popforce"], "popforce1")
         if popforce is not None:
-            _set_parms(popforce, {"force": (0.0, -9.81, 0.0)})
-            try:
-                if merge is not None:
-                    merge.setNextInput(popforce)
-            except Exception as e:
-                warnings.append(f"gravity wiring failed: {e}")
+            _set_parms(popforce, {"force": (0.0, -9.81 if gravity else 0.0, 0.0)})
+            if float(turbulence) > 0:
+                _set_parms(popforce, {"turb": float(turbulence),
+                                      "amp": 6.0 * float(turbulence),
+                                      "swirlsize": 0.8})
+            _wire(popforce)
+
+    # 3d. wind — pushes particles sideways so they don't fall straight down
+    if float(wind) > 0:
+        popwind = _dop(["popwind"], "popwind1")
+        if popwind is not None:
+            rad = math.radians(float(wind_dir))
+            _set_parms(popwind, {"windx": math.cos(rad), "windy": 0.0, "windz": math.sin(rad),
+                                 "windspeed": float(wind), "airresist": 1.5})
+            _wire(popwind)
+
+    # 3e. ground collision — particles land on a ground plane and slide across it
+    if ground_collision:
+        if _find_sop_type(["grid"]):
+            ground = geo.createNode("grid", "ground")
+            _set_parms(ground, {"orient": "zx", "sizex": 40.0, "sizey": 40.0, "size": (40.0, 40.0)})
+            created.append(ground.path())
+            pcd = _dop(["popcollisiondetect"], "popcollisiondetect1")
+            if pcd is not None:
+                _set_parms(pcd, {"soppath": ground.path()})
+                _wire(pcd)
+                _set_parms(popsolver, {"docollision": 1, "collisionresponse": "slide"})
 
     # 3d. ★ wire the solver into the dopnet output (else the sim is empty)
     try:
