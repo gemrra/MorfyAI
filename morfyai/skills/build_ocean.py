@@ -112,9 +112,11 @@ def run(container_name="ocean_surface", grid_size=20.0,
     if not grid_type:
         return {"success": False, "error": "grid node type not available"}
     grid = geo.createNode(grid_type, "ocean_grid")
+    # orient 'zx' = HORIZONTAL sea surface (XZ plane); waves displace up in Y.
+    # orient 0 ('xy') makes a vertical wall of water (wrong).
     _set_parms(grid, {"sizex": float(grid_size), "sizey": float(grid_size),
                       "size": (float(grid_size), float(grid_size)),
-                      "rows": 200, "cols": 200, "orient": 0})
+                      "rows": 200, "cols": 200, "orient": "zx"})
     created.append(grid.path())
 
     # 3. Ocean Spectrum
