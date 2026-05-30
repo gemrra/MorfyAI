@@ -41,8 +41,16 @@ SKILL_INFO = {
         },
         "ground_collision": {
             "type": "boolean",
-            "description": "Add a ground grid wired into the solver's collision input",
+            "description": "Use the solver's built-in ground plane (floor at y=0). No extra nodes — the "
+                           "Vellum Solver already provides this. Set False for no floor.",
             "default": True,
+        },
+        "collider_path": {
+            "type": "string",
+            "description": "OPTIONAL path to existing geometry to use as a CUSTOM collider (character, "
+                           "sphere, terrain) wired into the solver's Collision Geometry input. Leave empty "
+                           "for just the built-in ground. This is the 'pake collider ini' hook.",
+            "default": "",
         },
         "duration_seconds": {
             "type": "number",
@@ -109,18 +117,22 @@ _DEFAULT_SHAPE = {
     "balloon": "sphere", "grain": "box",
 }
 
-# candidate constraint-type tokens per vellum type (parm enum varies by build)
-_TYPE_TOKENS = {
+# Constraint CHAIN per vellum type — VERIFIED against the live H21 'constrainttype'
+# menu: none/distance/bend/cloth/hair/string/pin/attach/stitch/pressure/tetvolume/
+# weld/glue/struts/tetfiber/tristretch/tetstretch/shapematch/surfacestruts.
+# Some looks need MULTIPLE chained constraint nodes (e.g. a balloon needs surface
+# stiffness from 'cloth' PLUS internal 'pressure', else it over-inflates and flops).
+_TYPE_CHAIN = {
     "cloth": ["cloth"],
     "hair": ["hair"],
-    "softbody": ["softbody", "soft", "tetrahedral"],
-    "balloon": ["pressure", "balloon"],
-    "grain": ["grain", "grains"],
+    "softbody": ["cloth", "struts"],     # surface stiffness + internal struts = holds shape, bounces
+    "balloon": ["cloth", "pressure"],    # surface + inflation
+    "grain": ["distance"],
 }
 
 
 def run(container_name="vellum_sim", type="cloth", source_shape="auto",
-        ground_collision=True, duration_seconds=4.0):
+        ground_collision=True, collider_path="", duration_seconds=4.0):
     import hou  # type: ignore
 
     obj = hou.node("/obj")
@@ -145,9 +157,10 @@ def run(container_name="vellum_sim", type="cloth", source_shape="auto",
         return {"success": False, "error": f"no source primitive type available ({shape})"}
     src = geo.createNode(src_type, f"source_{shape}")
     if src_type == "grid":
-        # raised, with enough rows/cols to drape
+        # raised HORIZONTAL sheet (orient 'zx' = XZ plane) so it drapes/falls.
+        # orient 0 ('xy') makes a vertical sheet — wrong for a draping cloth.
         _set_parms(src, {"sizex": 4.0, "sizey": 4.0, "size": (4.0, 4.0),
-                         "rows": 40, "cols": 40, "t": (0.0, 3.0, 0.0), "orient": 0})
+                         "rows": 40, "cols": 40, "t": (0.0, 3.0, 0.0), "orient": "zx"})
     elif src_type == "sphere":
         _set_parms(src, {"type": 2, "t": (0.0, 3.0, 0.0)})
     else:
@@ -160,21 +173,22 @@ def run(container_name="vellum_sim", type="cloth", source_shape="auto",
         return {"success": False,
                 "error": "Vellum Constraints ('vellumconstraints') not available in this Houdini build",
                 "created": created}
-    vc = geo.createNode(vc_type, "vellumconstraints1")
-    vc.setInput(0, src)
-    created.append(vc.path())
-    # set constraint type via candidate parm names + tokens
-    applied_type = False
-    for parm in ("constrainttype", "constraint_type", "type"):
-        for token in _TYPE_TOKENS.get(vtype, [vtype]):
-            if _set_parms(vc, {parm: token}):
-                applied_type = True
-                break
-        if applied_type:
-            break
-    if not applied_type:
-        warnings.append(f"could not set vellum constraint type '{vtype}' (version parm differs) — "
-                        f"set the constraint type manually on {vc.name()}")
+    # Build a CHAIN of vellumconstraints nodes (some types need more than one).
+    chain = _TYPE_CHAIN.get(vtype, [vtype])
+    prev = None
+    vc = None
+    for i, token in enumerate(chain):
+        node = geo.createNode(vc_type, f"vellumconstraints{i+1}")
+        if prev is None:
+            node.setInput(0, src)            # first: geometry only
+        else:
+            node.setInput(0, prev, 0)        # chain geometry + constraints through
+            node.setInput(1, prev, 1)
+        if not _set_parms(node, {"constrainttype": token}):
+            warnings.append(f"could not set constraint type '{token}' on {node.name()}")
+        created.append(node.path())
+        prev = node
+        vc = node  # last node feeds the solver
 
     # 4. Vellum Solver
     solver_type = _find_sop_type(["vellumsolver", "vellumsolver::2.0"])
@@ -183,24 +197,32 @@ def run(container_name="vellum_sim", type="cloth", source_shape="auto",
                 "error": "Vellum Solver ('vellumsolver') not available in this Houdini build",
                 "created": created, "warnings": warnings}
     solver = geo.createNode(solver_type, "vellumsolver1")
-    solver.setInput(0, vc)  # constrained geometry stream
+    # vellumconstraints has TWO outputs: 0=Geometry, 1=Constraints. The solver needs
+    # BOTH (input 0=Vellum Geometry, 1=Constraint Geometry) — wiring only output 0
+    # causes "Not enough sources specified" with an empty sim.
+    solver.setInput(0, vc, 0)
+    solver.setInput(1, vc, 1)
     created.append(solver.path())
 
-    # 5. optional ground collider (solver collision input, matched by label)
+    # 5. ground: use the solver's BUILT-IN ground plane (verified parm 'useground').
+    #    No grid node — a grid wired as collision was a vertical wall.
+    _set_parms(solver, {"useground": 1 if ground_collision else 0})
+
+    # 5b. OPTIONAL custom collider wired into the 'Collision Geometry' input.
     ground = None
-    if ground_collision:
-        grid_type = _find_sop_type(["grid"])
-        if grid_type:
-            ground = geo.createNode(grid_type, "ground")
-            _set_parms(ground, {"sizex": 10.0, "sizey": 10.0, "size": (10.0, 10.0), "orient": 0})
-            created.append(ground.path())
-            col_idx = _input_index_by_label(solver, ["collision", "collide", "static"])
+    if collider_path:
+        coll_geo = hou.node(collider_path)
+        if coll_geo is None:
+            warnings.append(f"collider_path '{collider_path}' not found — skipping custom collider")
+        else:
+            col_idx = _input_index_by_label(solver, ["collision", "collide"])
             if col_idx is None:
                 col_idx = 2  # documented collision input index
             try:
-                solver.setInput(col_idx, ground)
+                solver.setInput(col_idx, coll_geo)
+                ground = coll_geo
             except Exception as e:
-                warnings.append(f"could not wire ground to collision input: {e}")
+                warnings.append(f"could not wire custom collider: {e}")
 
     # 6. display + layout + frame range
     try:
