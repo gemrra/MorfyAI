@@ -14,6 +14,7 @@ runtime. Verified against SideFX H21 docs:
 
 SKILL_INFO = {
     "name": "build_vellum_sim",
+    "hidden": True,  # fronted by build_sim (sim_type='vellum')
     "description": (
         "Build a complete Vellum simulation from one call — cloth, hair, softbody, balloon, or grain. "
         "Creates a geo container with: source primitive -> Vellum Constraints (set to the chosen type) -> "

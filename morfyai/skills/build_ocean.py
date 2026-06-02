@@ -12,6 +12,7 @@ names resolved/guarded at runtime. Verified against SideFX H21 docs.
 
 SKILL_INFO = {
     "name": "build_ocean",
+    "hidden": True,  # fronted by build_sim (sim_type='ocean')
     "description": (
         "Build a procedural ocean surface from one call: a grid deformed by an Ocean Spectrum via Ocean "
         "Evaluate. Sets wind/wave parameters, turns on the display flag, and returns the created node paths. "

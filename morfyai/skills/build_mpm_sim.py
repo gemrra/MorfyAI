@@ -15,6 +15,7 @@ version drift. Verified against SideFX H21 docs:
 
 SKILL_INFO = {
     "name": "build_mpm_sim",
+    "hidden": True,  # fronted by build_sim (sim_type='mpm')
     "description": (
         "Build a complete MPM (Material Point Method) simulation from one call — snow, sand, mud, jello, "
         "rubber, concrete, metal, honey, water, etc. Creates a geo container with MPM Source + MPM Container "

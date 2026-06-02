@@ -20,6 +20,7 @@ Presets:
 
 SKILL_INFO = {
     "name": "build_pyro_sim",
+    "hidden": True,  # fronted by build_sim (sim_type='pyro')
     "description": (
         "Build a complete, WORKING Pyro simulation from one call — ONE skill, choose the look via 'preset': "
         "smoke (billowy), fire (continuous flames), or explosion (one-shot fiery burst that dies out). "

@@ -17,6 +17,7 @@ the boundary's 3 outputs. None of this is scriptable from flipsource.
 
 SKILL_INFO = {
     "name": "build_flip_sim",
+    "hidden": True,  # fronted by build_sim (sim_type='flip')
     "description": (
         "Build a complete, WORKING FLIP liquid / water simulation from one call. THREE modes: "
         "(1) one-shot 'drop' that falls and splashes (default), (2) a continuous falling stream, or "
