@@ -41,6 +41,109 @@ _ALIASES = {
     "snow": "mpm", "sand": "mpm", "mud": "mpm", "jello": "mpm",
 }
 
+def _output_sop(result):
+    """Best-effort: find the SOP whose cooked geometry represents the build."""
+    import hou  # type: ignore
+    for k in ("display", "output", "solver"):
+        p = result.get(k)
+        if p and hou.node(p):
+            return hou.node(p)
+    cont = result.get("container")
+    if not cont:
+        for k in ("created_nodes", "created"):
+            lst = result.get(k)
+            if lst:
+                cont = lst[0]
+                break
+    node = hou.node(cont) if cont else None
+    if node is None:
+        return None
+    try:
+        disp = [c for c in node.children() if c.isDisplayFlagSet()]
+        if disp:
+            return disp[0]
+    except Exception:
+        pass
+    return node
+
+
+def _cook_report(node):
+    """Cook a node and return counts/errors at the CURRENT frame (cheap intrinsics)."""
+    import hou  # type: ignore
+    rep = {"node": node.path(), "frame": round(hou.frame(), 1),
+           "points": 0, "prims": 0, "errors": [], "produced": False}
+    try:
+        node.cook(force=True)
+    except Exception:
+        pass
+    try:
+        rep["errors"] = list(node.errors() or [])
+    except Exception:
+        pass
+    try:
+        g = node.geometry()
+        if g is not None:
+            rep["points"] = int(g.intrinsicValue("pointcount"))
+            rep["prims"] = int(g.intrinsicValue("primitivecount"))
+    except Exception as e:
+        if not rep["errors"]:
+            rep["errors"] = [str(e)]
+    rep["produced"] = rep["points"] > 0 or rep["prims"] > 0
+    return rep
+
+
+def _verify_build(result, sim_type):
+    """Cook the built sim by DATA so the AI always sees if it actually worked.
+
+    Pyro is volumetric (judge by prims), particles/FLIP by points. Sims need a
+    few frames to emit, so we check a short way into the range (and retry once
+    deeper if still empty), restoring the current frame afterwards.
+    """
+    import hou  # type: ignore
+    node = _output_sop(result)
+    if node is None:
+        return {"ok": None, "note": "no output node found to verify"}
+    f0 = hou.frame()
+    fr = result.get("frame_range")
+    moved = False
+    try:
+        if sim_type != "ocean" and fr:
+            try:
+                start, end = float(fr[0]), float(fr[1])
+                hou.setFrame(min(end, start + 6)); moved = True
+            except Exception:
+                pass
+        rep = _cook_report(node)
+        if sim_type != "ocean" and not rep["produced"] and not rep["errors"] and fr:
+            try:
+                start, end = float(fr[0]), float(fr[1])
+                hou.setFrame(min(end, start + 18)); moved = True
+                rep = _cook_report(node)
+            except Exception:
+                pass
+    finally:
+        if moved:
+            try:
+                hou.setFrame(f0)
+            except Exception:
+                pass
+
+    ok = rep["produced"] and not rep["errors"]
+    out = {"ok": ok, "node": rep["node"], "points": rep["points"], "prims": rep["prims"],
+           "errors": rep["errors"][:5], "frame_checked": rep["frame"]}
+    hints = []
+    if rep["errors"]:
+        hints.append(f"{len(rep['errors'])} node error(s) — fix wiring/inputs, then re-verify.")
+    if not rep["produced"]:
+        hints.append("EMPTY at the checked frame — the sim produced nothing "
+                     "(check source emits, solver inputs are wired, container present).")
+    if hints:
+        out["hints"] = hints
+    out["verdict"] = ("LOOKS OK — non-empty, no errors. Still sanity-check counts/bbox match intent."
+                      if ok else "NOT OK — fix the issue above and re-verify before claiming success.")
+    return out
+
+
 SKILL_INFO = {
     "name": "build_sim",
     "description": (
@@ -105,6 +208,8 @@ SKILL_INFO = {
         "gravity": {"type": "boolean", "description": "particle only: apply downward gravity."},
         "wind": {"type": "number", "description": "particle only: wind strength pushing particles sideways."},
         "turbulence": {"type": "number", "description": "particle only: chaotic noise added to motion."},
+        "verify": {"type": "boolean", "description": "Auto cook+verify the built sim and attach a "
+                   "'verification' report (default true). Set false only for very heavy sims."},
     },
 }
 
@@ -114,7 +219,7 @@ def run(sim_type=None, variant=None, container_name=None, source_shape=None,
         fountain=None, continuous=None, jet_speed=None, resolution=None,
         initial_velocity=None, fracture=None,
         grid_size=None, wind_speed=None, chop=None, scale=None, wind_dir=None,
-        rate=None, life=None, gravity=None, wind=None, turbulence=None):
+        rate=None, life=None, gravity=None, wind=None, turbulence=None, verify=True):
     import inspect
 
     if not sim_type:
@@ -177,4 +282,15 @@ def run(sim_type=None, variant=None, container_name=None, source_shape=None,
     result["builder"] = builder
     if ignored:
         result["ignored_params"] = ignored
+
+    # auto-verify by DATA so the AI always sees whether the build actually worked
+    if verify and result.get("success"):
+        try:
+            rep = _verify_build(result, st)
+        except Exception as e:
+            rep = {"ok": None, "note": f"verify skipped: {e}"}
+        result["verification"] = rep
+        if rep.get("ok") is False:
+            result["needs_fix"] = True
+
     return result
