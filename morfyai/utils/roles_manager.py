@@ -251,3 +251,82 @@ def is_sim_request(text: str) -> bool:
         return any(k in t for k in _SIM_KEYWORDS)
     except Exception:
         return False
+
+
+# ─────────────────────────────────────────────
+# Procedural Build Competence (the "cookbook")
+# ─────────────────────────────────────────────
+# Distilled, hard-won rules + a build/verify protocol so the model builds ANY
+# procedural setup reliably instead of guessing node/parm names and claiming
+# success blindly. Injected for build requests that are NOT covered by a
+# dedicated builder skill (sim requests use _SIM_POLICY instead).
+
+_PROCEDURAL_COOKBOOK = (
+    "Procedural Build Competence (applies to ANY build/create/model request that has no dedicated "
+    "builder skill — e.g. fences, stairs, buildings, roads, scatter layouts, modeling):\n"
+    "\n"
+    "WORKFLOW — follow in order, never skip:\n"
+    "1. INTROSPECT before guessing. Confirm a node type exists (get_available_node_types) and read the "
+    "REAL parameter names (get_node_parameters) before setting them. If unsure how to build something, "
+    "call skill__find_recipe FIRST — it returns SideFX's own shelf-tool recipe to adapt.\n"
+    "2. BUILD deterministically. For multi-node setups prefer execute_python_code, wrapping all logic in "
+    "ONE function so variables are shared (split globals/locals otherwise break top-level names).\n"
+    "3. COOK + VERIFY BY DATA. Cook the output and prove it is actually right: non-empty (point/prim "
+    "count > 0), bounding box sane (a floor is flat+wide; a dropped object rests ON the ground, lowest "
+    "Y ~0 not negative), and node errors empty. Use skill__verify_geo for a one-call check.\n"
+    "4. FIX and re-verify. Only report success after the data checks pass.\n"
+    "\n"
+    "GOLDEN RULES (each one cost real debugging):\n"
+    "- '0 errors' does NOT mean correct — always sanity-check the geometry, not just the error list.\n"
+    "- A flat ground/floor grid uses orient 'zx' (XZ plane); orient 'xy' makes a VERTICAL wall.\n"
+    "- Native solvers (MPM/RBD/Vellum/FLIP/POP) have a BUILT-IN ground (useground/groundactive) — use it, "
+    "don't add a redundant grid. A real collider must feed the SOLVER's input, not the output/merge.\n"
+    "- H21 'curve' SOP has NO 'coords' parm — build an explicit polyline with a 'python' SOP "
+    "(geo.createPolygon + createPoint + addVertex) or an 'add' SOP.\n"
+    "- POP particle nodes (popsolver/popsource) are DOP nodes, not SOPs — build them inside a 'dopnet' "
+    "and read the result back to SOPs with 'dopimport'.\n"
+    "- vellumconstraints has TWO outputs (geometry, constraints); the solver needs BOTH.\n"
+    "- Set ordinal menu parms by their string token; INT toggles (e.g. popforce 'turb') take 0/1 — the "
+    "strength is a SEPARATE parm (e.g. 'amp').\n"
+    "\n"
+    "COMMON PATTERNS:\n"
+    "- Copies on a surface: scatter -> copytopoints (template on input 0, points on input 1).\n"
+    "- Distribute along a curve: resample (length=spacing) -> copytopoints.\n"
+    "- Bar/tube along a curve: polywire (wirerad) or sweep with a cross-section profile.\n"
+    "- Combine/cut: boolean. Thicken: polyextrude. Round edges: polybevel. Smooth: subdivide.\n"
+    "\n"
+    "Do NOT auto-wrap results into an HDA — leave a tidy subnet unless the user explicitly asks for an HDA."
+)
+
+
+def get_procedural_cookbook_injection() -> str:
+    """Return the procedural build cookbook block (empty on error)."""
+    try:
+        return _PROCEDURAL_COOKBOOK
+    except Exception:
+        return ""
+
+
+# Keywords that indicate a generic BUILD/modeling request (procedural geometry),
+# used to inject the cookbook. Sim requests are handled by _SIM_POLICY instead.
+_BUILD_KEYWORDS = (
+    "build", "create", "make", "generate", "model", "bikin", "buat", "bikinin", "buatin",
+    "procedural", "prosedural", "scatter", "sebar", "susun", "array", "instance",
+    "fence", "pagar", "railing", "wall", "tembok", "stair", "tangga", "road", "jalan",
+    "building", "gedung", "rumah", "house", "city", "kota", "tower", "menara",
+    "bridge", "jembatan", "pillar", "tiang", "column", "kolom", "pipe", "pipa",
+    "curve", "kurva", "extrude", "bevel", "boolean", "voronoi", "pattern", "pola",
+)
+
+
+def is_build_request(text: str) -> bool:
+    """True if the text looks like a generic procedural build request.
+
+    Used to inject the cookbook. Callers should gate with `and not is_sim_request()`
+    so simulations use the dedicated sim policy instead.
+    """
+    try:
+        t = (text or "").lower()
+        return any(k in t for k in _BUILD_KEYWORDS)
+    except Exception:
+        return False

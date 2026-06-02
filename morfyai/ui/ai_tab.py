@@ -707,6 +707,18 @@ class AITab(
         except Exception:
             return ""
 
+    def _get_procedural_cookbook_injection(self) -> str:
+        """Inject the procedural build cookbook (introspect/build/verify protocol +
+        hard-won rules) for generic build requests with no dedicated builder skill.
+
+        Defensive: returns '' on any error so base behavior is unchanged.
+        """
+        try:
+            from ..utils.roles_manager import get_procedural_cookbook_injection
+            return get_procedural_cookbook_injection()
+        except Exception:
+            return ""
+
     def _build_system_prompt(self, with_thinking: bool = True) -> str:
         """buildsystemhint
         
@@ -3693,6 +3705,19 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
                     sim_policy = self._get_sim_policy_injection()
                     if sim_policy:
                         sys_prompt = sys_prompt + "\n\n" + sim_policy
+                else:
+                    # ★ Procedural Build Competence — for generic build/modeling requests
+                    #   with no dedicated builder skill. Mutually exclusive with the sim
+                    #   policy above so we never bloat both into one prompt.
+                    try:
+                        from ..utils.roles_manager import is_build_request
+                        _want_build = is_build_request(_last_user)
+                    except Exception:
+                        _want_build = False
+                    if _want_build:
+                        cookbook = self._get_procedural_cookbook_injection()
+                        if cookbook:
+                            sys_prompt = sys_prompt + "\n\n" + cookbook
 
             # ★ Role injection (HDA Architect / VEX Debugger / Technical Writer / FX Artist).
             #   Defensive: returns '' for the default 'generalist' role or on any error.
