@@ -5152,13 +5152,17 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
             self._open_custom_provider_dialog()
             return
         names = {'openai': 'OpenAI', 'deepseek': 'DeepSeek', 'glm': 'GLM (Zhipu AI)', 'ollama': 'Ollama', 'openrouter': 'OpenRouter'}
-        
-        key, ok = QtWidgets.QInputDialog.getText(
-            self, f"Set {names.get(provider, provider)} API Key",
-            "Enter API Key:",
-            QtWidgets.QLineEdit.Password
-        )
-        
+
+        try:
+            from .cursor_widgets import MorfyInputDialog
+            key, ok = MorfyInputDialog.get_text(
+                self, f"Set {names.get(provider, provider)} API Key",
+                "Enter API Key:", password=True)
+        except Exception:
+            key, ok = QtWidgets.QInputDialog.getText(
+                self, f"Set {names.get(provider, provider)} API Key",
+                "Enter API Key:", QtWidgets.QLineEdit.Password)
+
         if ok and key.strip():
             self.client.set_api_key(key.strip(), persist=True, provider=provider)
             self._update_key_status()

@@ -370,6 +370,7 @@ class HeaderMixin:
 
         menu.addSeparator()
         menu.addAction("Connect to Claude", self._open_claude_connect)
+        menu.addAction("Vision (Eyes) Setup", self._open_vision_setup)
         menu.addSeparator()
         menu.addAction("Debug Console", self._open_debug_console)
         menu.addAction("About MorfyAI", self._open_about_dialog)
@@ -415,9 +416,11 @@ class HeaderMixin:
 
         try:
             dlg = QtWidgets.QDialog(self)
+            dlg.setObjectName("morfyDialog")
             dlg.setWindowTitle("Connect to Claude")
             dlg.resize(660, 560)
             lay = QtWidgets.QVBoxLayout(dlg)
+            lay.setContentsMargins(20, 18, 20, 16)
 
             lbl_server = QtWidgets.QLabel()
             lbl_claude = QtWidgets.QLabel()
@@ -468,6 +471,16 @@ class HeaderMixin:
             btn_row.addStretch()
             btn_row.addWidget(btn_close)
             lay.addLayout(btn_row)
+
+            # consistent MorfyAI dialog styling (matches About + Vision Setup)
+            try:
+                from .cursor_widgets import morfy_dialog_qss, style_primary_button, style_secondary_button
+                style_secondary_button(btn_refresh)
+                style_secondary_button(btn_copy)
+                style_primary_button(btn_close)
+                dlg.setStyleSheet(morfy_dialog_qss("morfyDialog"))
+            except Exception:
+                pass
 
             # auto-refresh the status every 2s while the dialog is open
             timer = QtCore.QTimer(dlg)
@@ -615,6 +628,180 @@ class HeaderMixin:
             save_config('ai', cfg, dcc_type='houdini')
         except Exception as e:
             _dbg(f"[Header] Save custom config failed: {e}")
+
+    def _open_vision_setup(self):
+        """Dialog to set the VISION ('eyes') model key used by skill__visual_check.
+
+        This is separate from the main-model dropdown on purpose: the vision model
+        is only called internally to LOOK at renders (the main model stays the brain).
+        Writes vision_provider / <provider>_api_key / vision_model to the config.
+        Fully defensive — never breaks the panel.
+        """
+        try:
+            from shared.common_utils import load_config, save_config
+        except Exception as e:
+            QtWidgets.QMessageBox.warning(self, "Vision Setup", f"Config module unavailable: {e}")
+            return
+
+        # provider -> (label, config key name, default model, where-to-get URL)
+        provs = [
+            ("gemini", "Gemini (cheapest, recommended)", "gemini_api_key", "gemini-2.5-flash-lite",
+             "aistudio.google.com/apikey"),
+            ("openrouter", "OpenRouter", "openrouter_api_key", "google/gemini-2.0-flash-001",
+             "openrouter.ai/keys"),
+            ("openai", "OpenAI", "openai_api_key", "gpt-4o-mini", "platform.openai.com/api-keys"),
+        ]
+        try:
+            cfg, _ = load_config('ai', dcc_type='houdini')
+            cfg = cfg or {}
+        except Exception:
+            cfg = {}
+
+        # ── Standard dialog, styled to EXACTLY match the About dialog (consistency).
+        dlg = QtWidgets.QDialog(self)
+        dlg.setObjectName("visionDialog")
+        dlg.setWindowTitle("Vision (Eyes) Setup")
+        dlg.setMinimumWidth(460)
+        dlg.setModal(True)
+
+        def _sep():
+            s = QtWidgets.QFrame()
+            s.setFrameShape(QtWidgets.QFrame.HLine)
+            s.setStyleSheet("background: rgba(255,255,255,18); max-height: 1px; border: none;")
+            return s
+
+        root = QtWidgets.QVBoxLayout(dlg)
+        root.setContentsMargins(22, 20, 22, 18)
+        root.setSpacing(10)
+
+        # title (orange, like About's app name)
+        title = QtWidgets.QLabel("Vision (Eyes) Setup")
+        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #ff8c2a;")
+        root.addWidget(title)
+        sub = QtWidgets.QLabel("The assistant's eyes — a cheap vision model looks at renders to catch what "
+                               "the data can't (upside-down, floating, wrong shape). Your main model stays the brain.")
+        sub.setWordWrap(True)
+        sub.setStyleSheet("color: #94a3b8; font-size: 12px;")
+        root.addWidget(sub)
+
+        root.addWidget(_sep())
+
+        # form rows (About-style label colors)
+        form = QtWidgets.QFormLayout()
+        form.setSpacing(8)
+        form.setLabelAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
+
+        def _lbl(t):
+            l = QtWidgets.QLabel(t)
+            l.setStyleSheet("color: #64748b; font-size: 12px;")
+            return l
+
+        combo = QtWidgets.QComboBox()
+        combo.setCursor(QtCore.Qt.PointingHandCursor)
+        for key, label, _k, _m, _u in provs:
+            combo.addItem(label, key)
+        cur_prov = (cfg.get("vision_provider", "") or "gemini").strip().lower()
+        for i, (key, *_rest) in enumerate(provs):
+            if key == cur_prov:
+                combo.setCurrentIndex(i)
+                break
+        form.addRow(_lbl("Provider"), combo)
+
+        key_edit = QtWidgets.QLineEdit()
+        key_edit.setEchoMode(QtWidgets.QLineEdit.Password)
+        key_edit.setPlaceholderText("paste API key here")
+        form.addRow(_lbl("API Key"), key_edit)
+
+        model_edit = QtWidgets.QLineEdit()
+        form.addRow(_lbl("Model"), model_edit)
+
+        geturl = QtWidgets.QLabel()
+        geturl.setOpenExternalLinks(True)
+        geturl.setTextFormat(QtCore.Qt.RichText)
+        form.addRow(_lbl("Get a key"), geturl)
+        root.addLayout(form)
+
+        def _refresh(*_a):
+            key = combo.currentData()
+            for pk, _label, ckey, dmodel, url in provs:
+                if pk == key:
+                    existing = (cfg.get(ckey, "") or "").strip()
+                    key_edit.setText(existing)
+                    model_edit.setPlaceholderText(f"default: {dmodel}")
+                    cur_model = (cfg.get("vision_model", "") or "").strip()
+                    model_edit.setText(cur_model if cur_model else "")
+                    geturl.setText(f'<a href="https://{url}" style="color:#ff8c2a;text-decoration:none;">{url}</a>')
+                    break
+        combo.currentIndexChanged.connect(_refresh)
+        _refresh()
+
+        root.addWidget(_sep())
+        note = QtWidgets.QLabel("Tip: Gemini has a free tier — usually enough for visual checks. "
+                                "Leave Model blank to use the recommended default.")
+        note.setWordWrap(True)
+        note.setStyleSheet("color: #64748b; font-size: 11px; font-style: italic;")
+        root.addWidget(note)
+
+        def _save():
+            try:
+                prov = combo.currentData()
+                ckey = {k: c for k, _l, c, _m, _u in provs}[prov]
+                cfg2, _ = load_config('ai', dcc_type='houdini')
+                cfg2 = cfg2 or {}
+                cfg2['vision_provider'] = prov
+                key_val = key_edit.text().strip()
+                if key_val:
+                    cfg2[ckey] = key_val
+                mv = model_edit.text().strip()
+                if mv:
+                    cfg2['vision_model'] = mv
+                save_config('ai', cfg2, dcc_type='houdini')
+                dlg.accept()
+                QtWidgets.QMessageBox.information(
+                    self, "Vision Setup",
+                    f"Saved ✓  Vision provider: {prov}. The assistant can now SEE renders via visual_check.")
+            except Exception as e:
+                QtWidgets.QMessageBox.warning(self, "Vision Setup", f"Save failed: {e}")
+
+        root.addStretch(1)
+
+        # buttons (Save = orange gradient identical to About's Close button)
+        brow = QtWidgets.QHBoxLayout()
+        brow.addStretch(1)
+        cancel_btn = QtWidgets.QPushButton("Cancel")
+        cancel_btn.setMinimumWidth(80)
+        cancel_btn.setCursor(QtCore.Qt.PointingHandCursor)
+        cancel_btn.setStyleSheet(
+            "QPushButton { background:#1a1b22; color:#cbd5e1; border:1px solid rgba(255,255,255,20);"
+            " border-radius:8px; padding:6px 16px; }"
+            "QPushButton:hover { background:#22232c; }")
+        cancel_btn.clicked.connect(dlg.reject)
+        save_btn = QtWidgets.QPushButton("Save")
+        save_btn.setMinimumWidth(90)
+        save_btn.setCursor(QtCore.Qt.PointingHandCursor)
+        save_btn.setStyleSheet(
+            "QPushButton { background: qlineargradient(x1:0,y1:0,x2:1,y2:0,"
+            " stop:0 #fb7a1a, stop:1 #ea580c); color:#ffffff; border:none; border-radius:8px;"
+            " padding:6px 18px; font-weight:bold; }"
+            "QPushButton:hover { background: qlineargradient(x1:0,y1:0,x2:1,y2:0,"
+            " stop:0 #ff9342, stop:1 #fb7a1a); }")
+        save_btn.clicked.connect(_save)
+        brow.addWidget(cancel_btn)
+        brow.addWidget(save_btn)
+        root.addLayout(brow)
+
+        # dialog background + inputs — match About (#0d0e13, subtle border, 10px radius)
+        dlg.setStyleSheet(
+            "QDialog#visionDialog { background:#0d0e13; border:1px solid rgba(255,255,255,18); border-radius:10px; }"
+            "#visionDialog QLineEdit { background:#15161d; color:#e2e8f0; border:1px solid rgba(255,255,255,20);"
+            " border-radius:6px; padding:6px 8px; }"
+            "#visionDialog QLineEdit:focus { border:1px solid #ff8c2a; }"
+            "#visionDialog QComboBox { background:#15161d; color:#e2e8f0; border:1px solid rgba(255,255,255,20);"
+            " border-radius:6px; padding:5px 8px; }"
+            "#visionDialog QComboBox QAbstractItemView { background:#15161d; color:#e2e8f0;"
+            " selection-background-color:#1c1e36; border:1px solid rgba(255,255,255,20); }")
+
+        dlg.exec_()
 
     def _sync_custom_to_client(self):
         """Sync the Custom configuration over to AIClient."""

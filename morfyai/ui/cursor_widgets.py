@@ -8355,6 +8355,97 @@ class RulesEditorDialog(QtWidgets.QDialog):
 # About Dialog — kredit, lisensi, transparansi
 # ============================================================
 
+# ════════════════════════════════════════════════════════════════════
+# Shared MorfyAI dialog styling (consistent look across ALL dialogs)
+# Matches the About dialog: #0d0e13 bg, subtle border, 10px radius, orange
+# (#ff8c2a / #fb7a1a→#ea580c) accents. Use these so every popup is consistent.
+# ════════════════════════════════════════════════════════════════════
+
+def morfy_dialog_qss(name: str = "morfyDialog") -> str:
+    """Return the About-style QSS for a dialog with the given objectName."""
+    return (
+        f"QDialog#{name} {{ background:#0d0e13; border:1px solid rgba(255,255,255,18); border-radius:10px; }}"
+        f"#{name} QLabel {{ color:#cbd5e1; }}"
+        f"#{name} QLineEdit, #{name} QPlainTextEdit, #{name} QTextEdit {{"
+        " background:#15161d; color:#e2e8f0; border:1px solid rgba(255,255,255,20);"
+        " border-radius:6px; padding:6px 8px; }"
+        f"#{name} QLineEdit:focus, #{name} QPlainTextEdit:focus, #{name} QTextEdit:focus {{ border:1px solid #ff8c2a; }}"
+        f"#{name} QComboBox {{ background:#15161d; color:#e2e8f0; border:1px solid rgba(255,255,255,20);"
+        " border-radius:6px; padding:5px 8px; }"
+        f"#{name} QComboBox QAbstractItemView {{ background:#15161d; color:#e2e8f0;"
+        " selection-background-color:#1c1e36; border:1px solid rgba(255,255,255,20); }"
+    )
+
+
+def style_primary_button(btn) -> None:
+    """Orange gradient button (matches About's Close button)."""
+    btn.setCursor(QtCore.Qt.PointingHandCursor)
+    btn.setStyleSheet(
+        "QPushButton { background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #fb7a1a, stop:1 #ea580c);"
+        " color:#ffffff; border:none; border-radius:8px; padding:6px 18px; font-weight:bold; }"
+        "QPushButton:hover { background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #ff9342, stop:1 #fb7a1a); }")
+
+
+def style_secondary_button(btn) -> None:
+    """Subtle neutral button for secondary actions."""
+    btn.setCursor(QtCore.Qt.PointingHandCursor)
+    btn.setStyleSheet(
+        "QPushButton { background:#1a1b22; color:#cbd5e1; border:1px solid rgba(255,255,255,20);"
+        " border-radius:8px; padding:6px 16px; } QPushButton:hover { background:#22232c; }")
+
+
+class MorfyInputDialog(QtWidgets.QDialog):
+    """Single-line input dialog styled to match the About dialog (replaces QInputDialog)."""
+
+    def __init__(self, parent=None, title="", label="", text="", password=False):
+        super().__init__(parent)
+        self.setObjectName("morfyDialog")
+        self.setWindowTitle(title)
+        self.setMinimumWidth(390)
+        self.setModal(True)
+        root = QtWidgets.QVBoxLayout(self)
+        root.setContentsMargins(20, 18, 20, 16)
+        root.setSpacing(12)
+        if title:
+            t = QtWidgets.QLabel(title)
+            t.setStyleSheet("font-size:15px; font-weight:bold; color:#ff8c2a;")
+            root.addWidget(t)
+        if label:
+            lb = QtWidgets.QLabel(label)
+            lb.setStyleSheet("color:#94a3b8; font-size:12px;")
+            lb.setWordWrap(True)
+            root.addWidget(lb)
+        self._edit = QtWidgets.QLineEdit()
+        self._edit.setText(text or "")
+        if password:
+            self._edit.setEchoMode(QtWidgets.QLineEdit.Password)
+        root.addWidget(self._edit)
+        brow = QtWidgets.QHBoxLayout()
+        brow.addStretch(1)
+        cancel = QtWidgets.QPushButton("Cancel")
+        style_secondary_button(cancel)
+        cancel.clicked.connect(self.reject)
+        ok = QtWidgets.QPushButton("OK")
+        style_primary_button(ok)
+        ok.setDefault(True)
+        ok.clicked.connect(self.accept)
+        brow.addWidget(cancel)
+        brow.addWidget(ok)
+        root.addLayout(brow)
+        self.setStyleSheet(morfy_dialog_qss("morfyDialog"))
+        self._edit.setFocus()
+        self._edit.returnPressed.connect(self.accept)
+
+    def value(self) -> str:
+        return self._edit.text()
+
+    @staticmethod
+    def get_text(parent, title, label, text="", password=False):
+        d = MorfyInputDialog(parent, title, label, text, password)
+        ok = d.exec_() == QtWidgets.QDialog.Accepted
+        return d.value(), ok
+
+
 class AboutDialog(QtWidgets.QDialog):
     """About panel — name, version, license, credits."""
 
