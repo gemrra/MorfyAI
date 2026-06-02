@@ -43,6 +43,13 @@ SKILL_INFO = {
             "description": "Frame to render (for sims). Default = current frame.",
             "default": -1,
         },
+        "show_ground": {
+            "type": "boolean",
+            "description": "Add a flat reference ground grid so the vision model can judge ground contact "
+                           "(rests on / floats / sinks) and orientation. Default true; set false for "
+                           "non-grounded subjects (a cross-section, a floating UI, an abstract shape).",
+            "default": True,
+        },
     },
 }
 
@@ -88,7 +95,7 @@ def _cfg():
             return {}
 
 
-def _render(node_path, frame):
+def _render(node_path, frame, show_ground=True):
     """Render the node/viewport to a temp jpg. Returns (path, info) or (None, error)."""
     import hou  # type: ignore
     viewer = hou.ui.paneTabOfType(hou.paneTabType.SceneViewer)
@@ -122,6 +129,7 @@ def _render(node_path, frame):
     # target — Houdini computes the orientation, so it's always upright, never flipped).
     tmp_cam = None
     tmp_tgt = None
+    tmp_ground = None
     prev_cam = None
     try:
         prev_cam = vp.camera()
@@ -147,6 +155,28 @@ def _render(node_path, frame):
                 if lap is not None:
                     lap.set(tmp_tgt.path())
                 vp.setCamera(tmp_cam)
+
+                # Ground reference plane so the vision model can judge ground contact
+                # (rests on / floats / sinks) and orientation — without it those calls
+                # are pure guesses. Placed at Y=0 when the object sits on/above it; at
+                # the object's base otherwise, so it never slices through the geometry.
+                if show_ground:
+                    try:
+                        base_y = bb.minvec()[1]
+                        ground_y = 0.0 if base_y >= -0.05 * size else float(base_y)
+                        gsize = max(size * 4.0, 4.0)
+                        tmp_ground = op.createNode("geo", "morfyai_vis_ground")
+                        gsop = tmp_ground.createNode("grid", "g")
+                        if gsop.parm("orient"):
+                            gsop.parm("orient").set("zx")  # horizontal floor (XZ plane)
+                        for _pn, _pv in (("sizex", gsize), ("sizey", gsize), ("rows", 24), ("cols", 24)):
+                            if gsop.parm(_pn):
+                                gsop.parm(_pn).set(_pv)
+                        if gsop.parmTuple("t"):
+                            gsop.parmTuple("t").set((c[0], ground_y, c[2]))
+                        gsop.setDisplayFlag(True)
+                    except Exception:
+                        tmp_ground = None
     except Exception:
         tmp_cam = None
     if tmp_cam is None:
@@ -171,7 +201,7 @@ def _render(node_path, frame):
             vp.setCamera(prev_cam)
     except Exception:
         pass
-    for _n in (tmp_cam, tmp_tgt):
+    for _n in (tmp_cam, tmp_tgt, tmp_ground):
         try:
             if _n is not None:
                 _n.destroy()
@@ -189,7 +219,7 @@ def _render(node_path, frame):
     return out, None
 
 
-def run(node_path="", question="", frame=-1, provider="", model=""):
+def run(node_path="", question="", frame=-1, provider="", model="", show_ground=True):
     cfg = _cfg()
     provider = (provider or cfg.get("vision_provider", "") or "").strip().lower()
     # auto-pick the first provider that actually has a key, if none specified
@@ -213,7 +243,7 @@ def run(node_path="", question="", frame=-1, provider="", model=""):
     q = question or SKILL_INFO["parameters"]["question"]["default"]
 
     # 1. render
-    img_path, err = _render(node_path, frame)
+    img_path, err = _render(node_path, frame, show_ground)
     if err:
         return {"success": False, "error": err}
 
@@ -233,7 +263,8 @@ def run(node_path="", question="", frame=-1, provider="", model=""):
                 "do NOT rubber-stamp. Examine spatial relationships carefully before approving:\n"
                 "- Is each part where it belongs? (e.g. table/chair LEGS must be BELOW the top and reach "
                 "down to the ground — legs sticking UP above the surface means it is UPSIDE-DOWN = wrong.)\n"
-                "- Does it rest ON the ground, or float above / sink through it?\n"
+                "- A flat REFERENCE GRID marks the ground/resting surface. Use it: does the object rest ON "
+                "the grid, float ABOVE it, or sink THROUGH it? Judge orientation relative to the grid too.\n"
                 "- Right orientation, proportions, count? Any intersecting/melted/empty parts?\n"
                 "Answer concisely: (1) what it appears to be, (2) does it match the intent, (3) concrete "
                 "defects. A plausible label is NOT enough — verify the geometry is actually arranged "
