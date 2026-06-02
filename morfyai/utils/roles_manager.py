@@ -259,6 +259,58 @@ def is_sim_request(text: str) -> bool:
 
 
 # ─────────────────────────────────────────────
+# Visual Refinement Loop
+# ─────────────────────────────────────────────
+# Fires when the user wants to ADJUST / improve the LOOK of something that
+# already exists ("make it more X", "lebih ...", "too ...", "fix this part").
+# These iterate turns are NOT build requests, so without this they'd get no
+# steering — the model would guess a param blind instead of LOOKING first.
+
+_VISUAL_REFINE_POLICY = (
+    "Visual Refinement Loop (the user wants to ADJUST / improve the LOOK of something that already exists "
+    "— e.g. 'make it more X', 'lebih ...', 'too ...', 'masih ...', 'fix this part'):\n"
+    "- LOOK first, don't guess. If a vision key is set, call skill__visual_check on the relevant output SOP "
+    "with a 'question' naming the EXACT aspect the user mentioned (e.g. 'is the bottom edge rounded or "
+    "square?'), to see the current state and confirm the defect. No vision key -> rely on the user's words "
+    "+ skill__verify_geo data.\n"
+    "- Locate the ONE responsible node/param. The change almost always lives in a single node — use "
+    "skill__document_network (or read the network + get_node_parameters) to find what controls the mentioned "
+    "feature (bottom shape, density, thickness, color...) instead of rebuilding. Make ONE targeted edit.\n"
+    "- Re-LOOK after the edit: call skill__visual_check again (and verify_geo for counts). Iterate up to 3 "
+    "small passes. Only report it's fixed when the render actually shows the requested change — otherwise say "
+    "what is still off.\n"
+    "- Do NOT rebuild the whole asset for a tweak, and never claim it improved without re-checking."
+)
+
+# Refinement / adjustment intent (EN + ID). Curated so it fires on 'tweak the look'
+# turns without hijacking fresh builds (those use the cookbook's own visual step).
+_REFINE_KEYWORDS = (
+    "make it ", "more ", "less ", "too ", "looks ", "look like", "still ", "improve", "better",
+    "smoother", "smooth", "rounder", "round", "sharper", "thicker", "thinner", "bigger", "smaller",
+    "refine", "tweak", "adjust", "fix the", "fix this", "not quite", "realistic",
+    "lebih ", "kurang", "terlalu ", "masih ", "perbaiki", "betulin", "benerin", "ubah", "ganti",
+    "halus", "mulus", "bulat", "tajam", "tebel", "tipis", "jelek", "realistis", "kurangin", "tambahin",
+)
+
+
+def is_refine_request(text: str) -> bool:
+    """True if the text looks like an iterative look/refinement tweak."""
+    try:
+        t = (text or "").lower()
+        return any(k in t for k in _REFINE_KEYWORDS)
+    except Exception:
+        return False
+
+
+def get_visual_refine_policy_injection() -> str:
+    """Return the visual-refinement steering block (empty on error)."""
+    try:
+        return _VISUAL_REFINE_POLICY
+    except Exception:
+        return ""
+
+
+# ─────────────────────────────────────────────
 # Procedural Build Competence (the "cookbook")
 # ─────────────────────────────────────────────
 # Distilled, hard-won rules + a build/verify protocol so the model builds ANY

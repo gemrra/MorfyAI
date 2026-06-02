@@ -719,6 +719,18 @@ class AITab(
         except Exception:
             return ""
 
+    def _get_visual_refine_policy_injection(self) -> str:
+        """Steer the model to LOOK-then-tweak for iterative refinement requests
+        ("make it more X", "lebih ...", "masih siku") instead of guessing a param.
+
+        Defensive: returns '' on any error so base behavior is unchanged.
+        """
+        try:
+            from ..utils.roles_manager import get_visual_refine_policy_injection
+            return get_visual_refine_policy_injection()
+        except Exception:
+            return ""
+
     def _build_system_prompt(self, with_thinking: bool = True) -> str:
         """buildsystemhint
         
@@ -3718,6 +3730,19 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
                         cookbook = self._get_procedural_cookbook_injection()
                         if cookbook:
                             sys_prompt = sys_prompt + "\n\n" + cookbook
+
+                # ★ Visual Refinement Loop — additive (not exclusive): fires when the
+                #   user is tweaking the LOOK of an existing result ("make it more X",
+                #   "lebih ...", "masih siku"), which is neither a fresh sim nor build.
+                try:
+                    from ..utils.roles_manager import is_refine_request
+                    _want_refine = is_refine_request(_last_user)
+                except Exception:
+                    _want_refine = False
+                if _want_refine:
+                    refine_policy = self._get_visual_refine_policy_injection()
+                    if refine_policy:
+                        sys_prompt = sys_prompt + "\n\n" + refine_policy
 
             # ★ Role injection (HDA Architect / VEX Debugger / Technical Writer / FX Artist).
             #   Defensive: returns '' for the default 'generalist' role or on any error.
