@@ -50,7 +50,7 @@ SKILL_INFO = {
 # Gemini exposes an OpenAI-COMPATIBLE endpoint, so it works the same way (no SDK).
 _PROVIDERS = {
     "gemini": ("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-               "gemini_api_key", "gemini-2.5-flash-lite"),
+               "gemini_api_key", "gemini-2.5-flash"),
     "openrouter": ("https://openrouter.ai/api/v1/chat/completions", "openrouter_api_key",
                    "google/gemini-2.0-flash-001"),
     "glm": ("https://open.bigmodel.cn/api/paas/v4/chat/completions", "glm_api_key", "glm-4v-flash"),
@@ -117,20 +117,44 @@ def _render(node_path, frame):
     except Exception:
         pass
     vp = viewer.curViewport()
-    # Frame the object's bbox (always upright; keeps the viewport's perspective angle).
-    framed = False
+
+    # Consistent, clear 3/4 view via a temp camera that LOOKS AT the object (a null
+    # target — Houdini computes the orientation, so it's always upright, never flipped).
+    tmp_cam = None
+    tmp_tgt = None
+    prev_cam = None
+    try:
+        prev_cam = vp.camera()
+    except Exception:
+        prev_cam = None
     try:
         if node_path:
             tnode = hou.node(node_path)
             geo = tnode.geometry() if tnode else None
             if geo is not None and len(geo.points()) > 0:
-                vp.frameBoundingBox(geo.boundingBox())
-                framed = True
+                bb = geo.boundingBox()
+                c = bb.center()
+                size = max(bb.sizevec()) or 1.0
+                d = size * 2.2 + 1.0
+                op = hou.node("/obj")
+                tmp_tgt = op.createNode("null", "morfyai_vis_target")
+                tmp_tgt.parmTuple("t").set((c[0], c[1], c[2]))
+                tmp_cam = op.createNode("cam", "morfyai_vis_cam")
+                tmp_cam.parmTuple("t").set((c[0] + d * 0.8, c[1] + d * 0.85, c[2] + d * 0.8))
+                tmp_cam.parm("resx").set(640)
+                tmp_cam.parm("resy").set(512)
+                lap = tmp_cam.parm("lookatpath")
+                if lap is not None:
+                    lap.set(tmp_tgt.path())
+                vp.setCamera(tmp_cam)
     except Exception:
-        framed = False
-    if not framed:
+        tmp_cam = None
+    if tmp_cam is None:
         try:
-            vp.frameAll()
+            if node_path and hou.node(node_path) and hou.node(node_path).geometry():
+                vp.frameBoundingBox(hou.node(node_path).geometry().boundingBox())
+            else:
+                vp.frameAll()
         except Exception:
             pass
 
@@ -140,6 +164,19 @@ def _render(node_path, frame):
     fs.resolution((640, 512))
     fs.outputToMPlay(False)
     viewer.flipbook(vp, fs)
+
+    # restore viewport camera + clean up temp nodes
+    try:
+        if prev_cam is not None:
+            vp.setCamera(prev_cam)
+    except Exception:
+        pass
+    for _n in (tmp_cam, tmp_tgt):
+        try:
+            if _n is not None:
+                _n.destroy()
+        except Exception:
+            pass
 
     if not os.path.exists(out):
         # find any produced frame
@@ -192,11 +229,15 @@ def run(node_path="", question="", frame=-1, provider="", model=""):
         "model": model,
         "messages": [
             {"role": "system", "content": (
-                "You are a visual QA assistant for 3D/Houdini results. Look at the image and answer "
-                "concisely: (1) what the object/scene appears to be, (2) whether it matches the intent, "
-                "(3) any concrete defects (upside-down, floating above ground, wrong orientation, "
-                "intersecting parts, melted/jelly look, empty/incomplete). End with 'VERDICT: OK' or "
-                "'VERDICT: NEEDS FIX - <reason>'.")},
+                "You are a STRICT visual QA inspector for 3D/Houdini results. Be critical and literal — "
+                "do NOT rubber-stamp. Examine spatial relationships carefully before approving:\n"
+                "- Is each part where it belongs? (e.g. table/chair LEGS must be BELOW the top and reach "
+                "down to the ground — legs sticking UP above the surface means it is UPSIDE-DOWN = wrong.)\n"
+                "- Does it rest ON the ground, or float above / sink through it?\n"
+                "- Right orientation, proportions, count? Any intersecting/melted/empty parts?\n"
+                "Answer concisely: (1) what it appears to be, (2) does it match the intent, (3) concrete "
+                "defects. A plausible label is NOT enough — verify the geometry is actually arranged "
+                "correctly. End with exactly 'VERDICT: OK' or 'VERDICT: NEEDS FIX - <reason>'.")},
             {"role": "user", "content": [
                 {"type": "text", "text": q},
                 {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
