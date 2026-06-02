@@ -244,7 +244,9 @@ def run(node_path="", question="", frame=-1, provider="", model=""):
             ]},
         ],
         "temperature": 0.0,
-        "max_tokens": 400,
+        # gemini-2.5-flash is a THINKING model — it spends tokens reasoning before the
+        # visible answer, so give generous headroom or the verdict gets truncated.
+        "max_tokens": 1500,
     }
     headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
     if provider == "openrouter":
