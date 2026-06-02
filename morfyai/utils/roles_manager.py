@@ -308,6 +308,12 @@ _PROCEDURAL_COOKBOOK = (
     "- Distribute along a curve: resample (length=spacing) -> copytopoints.\n"
     "- Bar/tube along a curve: polywire (wirerad) or sweep with a cross-section profile.\n"
     "- Combine/cut: boolean. Thicken: polyextrude. Round edges: polybevel. Smooth: subdivide.\n"
+    "- Rows/grids of copies (bricks, tiles, fence pickets): make the points with a 'line' or 'grid' "
+    "(+ a wrangle for per-row offset like a running bond) -> copytopoints. Do NOT fight the 'add' SOP's "
+    "point multiparm — line/grid is far simpler and native.\n"
+    "\n"
+    "CLEAN OUTPUT: leave ONE final result node (a merge/null named clearly), and DELETE any scratch / "
+    "test / support geometry you created along the way — stray blocks in the scene are a defect.\n"
     "\n"
     "Do NOT auto-wrap results into an HDA — leave a tidy subnet unless the user explicitly asks for an HDA."
 )
