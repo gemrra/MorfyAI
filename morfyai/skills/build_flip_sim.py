@@ -18,10 +18,11 @@ the boundary's 3 outputs. None of this is scriptable from flipsource.
 SKILL_INFO = {
     "name": "build_flip_sim",
     "description": (
-        "Build a complete, WORKING FLIP liquid simulation from one call: flipcontainer -> flipboundary "
-        "(fluid geometry) -> flipsolver, with a ground plane. One-shot 'drop' by default, or continuous. "
-        "Sets the playback range + display flag. Press Play from frame 1 to simulate. "
-        "Use when the user asks for FLIP / liquid / water / fluid / splash."
+        "Build a complete, WORKING FLIP liquid / water simulation from one call. THREE modes: "
+        "(1) one-shot 'drop' that falls and splashes (default), (2) a continuous falling stream, or "
+        "(3) a FOUNTAIN/JET that shoots water UPWARD ('air mancur', fountain, jet, geyser, water spout) — "
+        "set fountain=True for this. flipcontainer -> flipboundary -> flipsolver, with a ground plane. "
+        "Use when the user asks for FLIP / liquid / water / fluid / splash / fountain / air mancur."
     ),
     "parameters": {
         "container_name": {"type": "string", "description": "Name of the /obj geo container", "default": "flip_sim"},
@@ -29,14 +30,17 @@ SKILL_INFO = {
             "type": "string", "description": "Fluid blob shape",
             "enum": ["sphere", "box", "torus"], "default": "sphere",
         },
-        "continuous": {
-            "type": "boolean",
-            "description": "True = keep emitting (a stream); False (default) = one-shot drop that falls",
-            "default": False,
-        },
         "fountain": {
             "type": "boolean",
-            "description": "True = a fountain/jet: small nozzle near the ground shoots water UP (continuous + upward velocity). Use for 'air mancur', fountain, jet, geyser, spray.",
+            "description": "★ Set True for a FOUNTAIN / JET / GEYSER / 'air mancur' — a nozzle shoots water "
+                           "UPWARD that arcs back down. This is the ONLY way to get upward-shooting water; "
+                           "do NOT use 'continuous' for a fountain (continuous only falls downward).",
+            "default": False,
+        },
+        "continuous": {
+            "type": "boolean",
+            "description": "True = a downward FALLING stream (water poured/emitted that drops). "
+                           "False (default) = one-shot drop. For an upward fountain use 'fountain', NOT this.",
             "default": False,
         },
         "jet_speed": {
