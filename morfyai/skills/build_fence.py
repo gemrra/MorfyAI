@@ -129,13 +129,11 @@ def run(container_name="fence", curve_path="", style="picket", height=1.2,
                 base = om
                 created.append(om.path())
     if base is None:
-        crv = geo.createNode("python", "base_curve")
-        code = ("node=hou.pwd(); g=node.geometry()\n"
-                "pts=[(0,0,0),(3,0,0.3),(6,0,2.5),(9,0,3.2),(12,0,3.0)]\n"
-                "poly=g.createPolygon(); poly.setIsClosed(False)\n"
-                "for p in pts:\n"
-                "    pt=g.createPoint(); pt.setPosition(p); poly.addVertex(pt)\n")
-        _set_parms(crv, {"python": code})
+        # NATIVE default path (no python SOP): a straight line. Users supply
+        # curve_path for bends; the fence follows whatever curve it's given.
+        line_t = _find_sop_type(["line"])
+        crv = geo.createNode(line_t or "line", "base_curve")
+        _set_parms(crv, {"origin": (0, 0, 0), "dir": (1, 0, 0), "dist": 12.0, "points": 2})
         base = crv
         created.append(base.path())
 
