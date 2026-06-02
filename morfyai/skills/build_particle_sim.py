@@ -20,6 +20,7 @@ be wired to the solver (else the sim is empty), and a popforce supplies gravity
 
 SKILL_INFO = {
     "name": "build_particle_sim",
+    "hidden": True,  # fronted by build_sim (sim_type='particle')
     "description": (
         "Build a complete particle (POP) simulation from one call — sparks, dust, debris, rain, swarm. "
         "Creates an emitter, a DOP POP network (popobject + popsolver + popsource + gravity), and a "

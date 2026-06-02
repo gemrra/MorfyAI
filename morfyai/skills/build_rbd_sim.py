@@ -12,6 +12,7 @@ matched by label) so it tolerates version drift.
 
 SKILL_INFO = {
     "name": "build_rbd_sim",
+    "hidden": True,  # fronted by build_sim (sim_type='rbd')
     "description": (
         "Build a complete RBD (rigid body / destruction) simulation from one call. Creates a geo "
         "container with: source primitive -> optional RBD Material Fracture -> RBD Bullet Solver SOP, "

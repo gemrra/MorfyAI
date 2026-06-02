@@ -143,6 +143,11 @@ def _register_skills_to_registry():
         reg = get_tool_registry()
         for name, mod in _registry.items():
             info = getattr(mod, "SKILL_INFO", {})
+            # Hidden skills stay loadable/callable (e.g. via build_sim dispatch or
+            # run_skill) but are NOT exposed to the AI as standalone tools. Used to
+            # consolidate the 7 sim builders behind the single build_sim entry.
+            if info.get("hidden"):
+                continue
             schema = _skill_info_to_openai_schema(info, name)
             run_fn = getattr(mod, "run", None)
 
