@@ -687,6 +687,40 @@ def _setup_fastmcp_tools():
 		}
 
 
+def _route_server_logs_to_debug_console():
+	"""Send uvicorn / fastmcp / starlette logs to MorfyAI's Debug Console instead of
+	letting them spam the native Houdini Console (the 'POST /mcp 200 OK' lines).
+
+	Replaces those loggers' stream handlers with one that forwards to debug_log and
+	stops propagation to the root logger. Safe to call repeatedly (uvicorn re-installs
+	its own handlers at startup, so we re-assert for a few seconds after launch)."""
+	import logging
+	try:
+		from morfyai.utils.debug_log import log as _dbg
+	except Exception:
+		_dbg = None
+
+	class _DebugConsoleHandler(logging.Handler):
+		def emit(self, record):
+			try:
+				if _dbg:
+					_dbg(f"[MCP] {record.getMessage()}")
+			except Exception:
+				pass
+
+	handler = _DebugConsoleHandler()
+	handler.setLevel(logging.INFO)
+	for name in ("uvicorn", "uvicorn.access", "uvicorn.error", "uvicorn.asgi",
+				 "fastmcp", "FastMCP", "mcp", "starlette"):
+		try:
+			lg = logging.getLogger(name)
+			lg.handlers = [handler]
+			lg.propagate = False
+			lg.setLevel(logging.INFO)
+		except Exception:
+			pass
+
+
 def _mcp_thread_runner():
 	if not _fastmcp_available():
 		return
@@ -713,9 +747,16 @@ def _mcp_thread_runner():
 			return
 		_server_start_time = time.time()
 		log.info("MCP server started at http://%s:%s/mcp/", host, port)
+		# Keep uvicorn's access logs out of the Houdini Console — route to MorfyAI's
+		# Debug Console. uvicorn installs its handlers as it boots, so re-assert for ~3s.
+		_route_server_logs_to_debug_console()
 		try:
+			_n = 0
 			while not stop_event.is_set():
 				await asyncio.sleep(0.1)
+				_n += 1
+				if _n <= 30 and _n % 5 == 0:
+					_route_server_logs_to_debug_console()
 		finally:
 			log.info("🛑 Shutdown requested. Cancelling server...")
 			server_task.cancel()
