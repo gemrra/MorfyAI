@@ -467,8 +467,13 @@ class AITab(
 
             # ★ Under fallback mode, cosine similarity is small; scale the score threshold
             _is_semantic = store.embedder.is_semantic
-            _ep_threshold = 0.3 if _is_semantic else 0.05
-            _proc_threshold = 0.25 if _is_semantic else 0.04
+            # The local embedder produces a COMPRESSED score range: a strongly-relevant
+            # match scores ~0.27 while unrelated noise sits ~0.14. A 0.25 cutoff therefore
+            # only recalls near-exact matches — learned techniques that are related but not
+            # identical (~0.18-0.24) never surface. Lowered to 0.18, which stays well above
+            # the noise floor while letting genuinely-relevant strategies/experiences recall.
+            _ep_threshold = 0.22 if _is_semantic else 0.05
+            _proc_threshold = 0.18 if _is_semantic else 0.04
 
             parts = []
 
@@ -506,10 +511,19 @@ class AITab(
                         pass
 
             # ── Procedural: suitusestrategy (top_k=2) ──
+            # Surface enough of the technique to be REUSABLE (name + a fuller
+            # description + applicability conditions). An 80-char snippet recalls
+            # that a strategy exists but not how to apply it.
             strategies = store.search_procedural(query, top_k=2)
             for strat, score in strategies:
                 if score > _proc_threshold:
-                    parts.append(f"[Strategy] {strat.description[:80]}")
+                    _name = (strat.strategy_name or "strategy").strip()
+                    _line = f"[Strategy: {_name}] {strat.description[:240]}"
+                    if strat.conditions:
+                        _conds = [c for c in strat.conditions[:3] if c]
+                        if _conds:
+                            _line += f" (use when: {', '.join(_conds)})"
+                    parts.append(_line)
 
             if not parts:
                 return ""
