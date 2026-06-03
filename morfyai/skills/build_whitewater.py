@@ -99,14 +99,25 @@ def run(flip_path, scale=0.1, duration_seconds=4.0):
         return {"success": False,
                 "error": "Whitewater Source ('whitewatersource') not available in this Houdini build"}
     wsrc = geo.createNode(wsrc_type, "whitewatersource1")
-    try:
-        wsrc.setInput(0, flip)
-    except Exception as e:
-        warnings.append(f"could not wire FLIP into whitewater source input 0: {e} — "
-                        "connect the FLIP surface/vel manually")
+    # The FLIP solver exposes THREE outputs (Fluid Particles, Container, Collisions)
+    # and the Whitewater Source has matching inputs (Liquid Simulation, Container,
+    # Collisions, Extra Sources). Wiring ONLY input 0 leaves the source without the
+    # Container — which carries the velocity/bounds fields whitewater emits from — so
+    # it produces ZERO foam (verified: 0 particles vs non-zero once 1+2 are wired).
+    # So thread all three FLIP outputs into the source's first three inputs.
+    _wired = 0
+    for _i in range(3):
+        try:
+            wsrc.setInput(_i, flip, _i)
+            _wired += 1
+        except Exception:
+            if _i == 0:
+                warnings.append("could not wire FLIP into whitewater source input 0 — "
+                                "connect the FLIP Liquid Simulation/Container/Collisions manually")
     created.append(wsrc.path())
-    warnings.append("Whitewater Source needs the FLIP sim's surface (SDF) + velocity fields. "
-                    "Verify the source inputs are correctly fed from the FLIP output in Houdini.")
+    if _wired < 3:
+        warnings.append(f"only wired {_wired}/3 FLIP outputs into the Whitewater Source — the FLIP node "
+                        "should be the flipsolver (it has Fluid Particles / Container / Collisions outputs).")
 
     # 2. Whitewater Solver (inputs 0/1/2 from the source outputs)
     wsolver_type = _find_sop_type(["whitewatersolver", "whitewatersolver::2.0"])
