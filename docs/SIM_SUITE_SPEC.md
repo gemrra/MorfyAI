@@ -32,6 +32,25 @@ resolve node types at runtime (`_find_sop_type`) → match collision/aux inputs 
 | `build_flip_sim` | source → `flipsolver` (+ground collision input) | OK |
 | `build_rbd_sim` | `rbdmaterialfracture` → `rbdbulletsolver` (+ground) | OK. H21 also has RBD Car Fracture SOP (future). |
 
+### Status update (2026-06): consolidated + verified
+
+All 7 sim builders are now fronted by a **single `skill__build_sim`** skill —
+set `sim_type` (pyro/flip/mpm/rbd/vellum/ocean/particle) + `variant` for the
+sub-look. The 7 `build_*_sim` modules keep their wiring logic but are marked
+`SKILL_INFO["hidden"]=True` (not exposed to the AI; called internally by the
+dispatcher). The router policy in `roles_manager` now points all sims at
+`skill__build_sim`. (Visible skill tools dropped 30+ → 24.)
+
+`build_sim` also **auto-verifies** every build by data: it cooks the result a
+few frames in, reports points/prims/errors as a `verification` block, and sets
+`needs_fix` when the sim produced nothing or errored — so a silently-broken
+build can no longer be reported as success.
+
+Live-verification status: pyro/flip/mpm/rbd/vellum/ocean/particle ✅; whitewater
+✅ after a fix (it had wired only 1 of the FLIP solver's 3 outputs into the
+Whitewater Source → 0 foam; now wires all 3); axiom_pyro ✅, mops_instance ✅;
+paradigm_liquid builds OK but cook needs a Paradigm license.
+
 ### To build (Phase A)
 
 **MPM** — `build_mpm_sim`
