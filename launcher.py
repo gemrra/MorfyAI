@@ -59,7 +59,6 @@ def launch():
     dcc = detect_dcc()
 
     if dcc == "houdini":
-        print("Houdini detected, launching MorfyAI - Houdini Assistant...")
         return launch_morfyai()
     else:
         print("Error: Houdini not detected.")

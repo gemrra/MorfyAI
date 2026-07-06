@@ -178,6 +178,188 @@ class SessionManagerMixin:
         except Exception:
             return None
 
+    # ============================================================
+    # Sessions drawer (slide-out) — a view over the hidden QTabBar
+    # ============================================================
+
+    def _build_session_sidebar(self):
+        """Create the slide-out sessions drawer as an overlay over the panel.
+
+        The underlying _ChromeTabBar (self.session_tabs) stays the source of
+        truth for all session state; this drawer is a pure view that switches /
+        closes / creates via the existing session methods.
+        """
+        # Dim overlay — click anywhere outside the drawer to close it
+        self._session_overlay = QtWidgets.QWidget(self)
+        self._session_overlay.setObjectName("sessionOverlay")
+        self._session_overlay.setStyleSheet("QWidget#sessionOverlay { background: rgba(0,0,0,120); }")
+        self._session_overlay.hide()
+        self._session_overlay.mousePressEvent = lambda ev: self._close_session_sidebar()
+
+        # Drawer panel
+        self._session_drawer = QtWidgets.QFrame(self)
+        self._session_drawer.setObjectName("sessionDrawer")
+        self._session_drawer.hide()
+
+        drawer_lay = QtWidgets.QVBoxLayout(self._session_drawer)
+        drawer_lay.setContentsMargins(0, 0, 0, 0)
+        drawer_lay.setSpacing(0)
+
+        # Header row: title + new-chat
+        head = QtWidgets.QHBoxLayout()
+        head.setContentsMargins(14, 12, 10, 10)
+        head.setSpacing(6)
+        head_lbl = QtWidgets.QLabel("Sessions")
+        head_lbl.setObjectName("drawerHead")
+        head.addWidget(head_lbl)
+        head.addStretch()
+        btn_new = QtWidgets.QPushButton("✎")
+        btn_new.setObjectName("drawerNewBtn")
+        btn_new.setFixedSize(24, 24)
+        btn_new.setCursor(QtCore.Qt.PointingHandCursor)
+        btn_new.setToolTip(tr('session.new'))
+        btn_new.clicked.connect(lambda: (self._close_session_sidebar(), self._new_session()))
+        head.addWidget(btn_new)
+        drawer_lay.addLayout(head)
+
+        # Scrollable list of sessions
+        scroll = QtWidgets.QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setObjectName("drawerScroll")
+        scroll.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        scroll.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self._session_list_container = QtWidgets.QWidget()
+        self._session_list_layout = QtWidgets.QVBoxLayout(self._session_list_container)
+        self._session_list_layout.setContentsMargins(8, 6, 8, 10)
+        self._session_list_layout.setSpacing(2)
+        self._session_list_layout.addStretch()
+        scroll.setWidget(self._session_list_container)
+        drawer_lay.addWidget(scroll, 1)
+
+        self._refresh_session_sidebar()
+
+    def _refresh_session_sidebar(self):
+        """Rebuild the drawer list from the tab bar (the session source of truth)."""
+        if getattr(self, '_web_headless', False):
+            return  # the drawer widgets are never shown under the web panel
+        lay = getattr(self, '_session_list_layout', None)
+        if lay is None:
+            return
+        # Clear existing rows (keep the trailing stretch at the end)
+        while lay.count() > 1:
+            item = lay.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.setParent(None)
+                w.deleteLater()
+
+        prefix = getattr(self, "_TAB_RUNNING_PREFIX", "")
+        current_idx = self.session_tabs.currentIndex()
+
+        for i in range(self.session_tabs.count()):
+            label = self.session_tabs.tabText(i)
+            bare = label[len(prefix):] if prefix and label.startswith(prefix) else label
+            running = bool(prefix and label.startswith(prefix))
+
+            row = QtWidgets.QFrame()
+            row.setObjectName("drawerItem")
+            row.setProperty("active", i == current_idx)
+            row.setCursor(QtCore.Qt.PointingHandCursor)
+            rlay = QtWidgets.QHBoxLayout(row)
+            rlay.setContentsMargins(9, 7, 7, 7)
+            rlay.setSpacing(8)
+
+            dot = QtWidgets.QLabel("●")
+            dot.setObjectName("drawerDot")
+            dot.setVisible(i == current_idx)
+            rlay.addWidget(dot)
+
+            title = QtWidgets.QLabel(("● " if running and i != current_idx else "") + bare)
+            title.setObjectName("drawerItemTitle")
+            title.setProperty("active", i == current_idx)
+            rlay.addWidget(title, 1)
+
+            del_btn = QtWidgets.QPushButton("✕")
+            del_btn.setObjectName("drawerDelBtn")
+            del_btn.setFixedSize(20, 20)
+            del_btn.setCursor(QtCore.Qt.PointingHandCursor)
+            del_btn.setToolTip(tr('session.close'))
+            del_btn.clicked.connect(lambda checked=False, idx=i: self._drawer_delete(idx))
+            rlay.addWidget(del_btn)
+
+            row.mousePressEvent = lambda ev, idx=i: self._drawer_select(idx)
+            lay.insertWidget(lay.count() - 1, row)
+
+        self._update_session_title()
+
+    def _drawer_select(self, tab_index: int):
+        """Drawer row clicked — switch to that session and close the drawer."""
+        if 0 <= tab_index < self.session_tabs.count():
+            self.session_tabs.setCurrentIndex(tab_index)  # fires _switch_session
+        self._close_session_sidebar()
+
+    def _drawer_delete(self, tab_index: int):
+        """Drawer × clicked — close that session, keep the drawer open."""
+        if 0 <= tab_index < self.session_tabs.count():
+            self._close_session_tab(tab_index)
+        self._refresh_session_sidebar()
+
+    def _update_session_title(self):
+        """Sync the header session-title label with the active tab text."""
+        if getattr(self, '_web_headless', False):
+            return  # the header label is never shown under the web panel
+        lbl = getattr(self, 'session_title_label', None)
+        if lbl is None:
+            return
+        idx = self.session_tabs.currentIndex()
+        if idx < 0:
+            return
+        prefix = getattr(self, "_TAB_RUNNING_PREFIX", "")
+        label = self.session_tabs.tabText(idx)
+        bare = label[len(prefix):] if prefix and label.startswith(prefix) else label
+        lbl.setText(bare)
+
+    def _toggle_session_sidebar(self):
+        if getattr(self, '_session_drawer', None) is None:
+            return
+        if self._session_drawer.isVisible():
+            self._close_session_sidebar()
+        else:
+            self._open_session_sidebar()
+
+    def _open_session_sidebar(self):
+        if getattr(self, '_session_drawer', None) is None:
+            return
+        self._refresh_session_sidebar()
+        self._position_session_sidebar()
+        self._session_overlay.show()
+        self._session_overlay.raise_()
+        self._session_drawer.show()
+        self._session_drawer.raise_()
+
+    def _close_session_sidebar(self):
+        if getattr(self, '_session_drawer', None) is None:
+            return
+        self._session_drawer.hide()
+        self._session_overlay.hide()
+
+    def _position_session_sidebar(self):
+        """Keep the overlay full-size and the drawer pinned to the left edge."""
+        if getattr(self, '_session_drawer', None) is None:
+            return
+        r = self.rect()
+        self._session_overlay.setGeometry(r)
+        drawer_w = min(240, max(200, int(r.width() * 0.66)))
+        self._session_drawer.setGeometry(0, 0, drawer_w, r.height())
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        try:
+            if getattr(self, '_session_drawer', None) is not None and self._session_drawer.isVisible():
+                self._position_session_sidebar()
+        except RuntimeError:
+            pass
+
     def _on_tab_context_menu(self, pos):
         """Tab bar right-click menu: Rename / Close / Close others."""
         tab_index = self.session_tabs.tabAt(pos)
@@ -228,6 +410,8 @@ class SessionManagerMixin:
         if prefix and current.startswith(prefix):
             new_name = prefix + new_name
         self.session_tabs.setTabText(tab_index, new_name)
+        self._update_session_title()
+        self._refresh_session_sidebar()
     
     def _create_session_widgets(self) -> tuple:
         """Create a single session's scroll_area / chat_container / chat_layout."""
@@ -380,10 +564,11 @@ class SessionManagerMixin:
         self.session_tabs.setCurrentIndex(tab_index)
         self.session_tabs.blockSignals(False)
         self.session_stack.setCurrentWidget(scroll_area)
-        
+
         self._sync_tabs_backup()
         self._update_context_stats()
-    
+        self._refresh_session_sidebar()
+
     def _switch_session(self, tab_index: int):
         """Switch to the session at the given tab index (allowed even while the agent runs)."""
         new_session_id = self.session_tabs.tabData(tab_index)
@@ -404,7 +589,9 @@ class SessionManagerMixin:
         # Update button state (depends on whether the target session is the running one)
         self._update_run_buttons()
         self._update_context_stats()
-    
+        self._update_session_title()
+        self._refresh_session_sidebar()
+
     def _close_session_tab(self, tab_index: int):
         """Close the specified tab."""
         sid = self.session_tabs.tabData(tab_index)
@@ -447,7 +634,9 @@ class SessionManagerMixin:
         
         self._sync_tabs_backup()
         self._update_context_stats()
-    
+        self._update_session_title()
+        self._refresh_session_sidebar()
+
     def _save_current_session_state(self):
         """Persist the current transient state into the _sessions dict."""
         if self._session_id not in self._sessions:
@@ -502,6 +691,8 @@ class SessionManagerMixin:
                         short += "..."
                     self.session_tabs.setTabText(i, short)
                 break
+        self._update_session_title()
+        self._refresh_session_sidebar()
 
     def _retranslate_session_tabs(self):
         """Refresh session tab bar text after a language change."""

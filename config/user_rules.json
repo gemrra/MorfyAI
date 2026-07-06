@@ -1,1 +1,16 @@
-[]
+[
+  {
+    "id": "4ece52251b5b",
+    "title": "Confirm before destructive changes",
+    "content": "Before deleting, replacing, or overwriting existing nodes/parameters in the scene, briefly state what will be affected and proceed only if the user already asked for that change explicitly. Never silently discard existing work.",
+    "enabled": true,
+    "created_at": 1783308112.2165217
+  },
+  {
+    "id": "73bf0b53a539",
+    "title": "Descriptive node naming",
+    "content": "Name new nodes descriptively based on what they do (e.g. group_floor, remesh_hires, vex_scatter_pts) instead of leaving default auto-generated names like geo1 or wrangle3.",
+    "enabled": true,
+    "created_at": 1783308112.2165217
+  }
+]

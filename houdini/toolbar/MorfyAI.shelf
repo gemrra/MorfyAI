@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<shelfDocument>
+  <!-- MorfyAI shelf tool definition. Auto-scanned from toolbar/ via HOUDINI_PATH.
+       The tool is available for manual shelf assignment (Edit Shelves -> drag to shelf).
+       For the top menu bar entry, see MainMenuCommon.xml instead. -->
+  <tool name="morfyai_launch" label="MorfyAI" icon="$MORFYAI/morfyai/assets/morfyfx-logomain.svg">
+    <script scriptType="python"><![CDATA[import launcher
+launcher.show_tool()
+]]></script>
+  </tool>
+</shelfDocument>

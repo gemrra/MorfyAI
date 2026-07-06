@@ -7,7 +7,7 @@ Styling is driven by the global style_template.qss via objectName selectors.
 """
 
 from morfyai.qt_compat import QtWidgets, QtCore
-from .i18n import tr, get_language
+from .i18n import tr
 
 # Route diagnostic prints to in-app Debug Console
 try:
@@ -106,7 +106,15 @@ class InputAreaMixin:
         self.btn_attach_menu.setToolTip("Attach / Actions")
         self.btn_attach_menu.clicked.connect(self._show_attach_menu)
         toolbar.addWidget(self.btn_attach_menu)
-        
+
+        # Read Selection — promoted out of the + menu to a standalone icon button
+        self.btn_selection_toolbar = QtWidgets.QPushButton("▦")
+        self.btn_selection_toolbar.setObjectName("btnSelectionToolbar")
+        self.btn_selection_toolbar.setFixedSize(18, 18)
+        self.btn_selection_toolbar.setCursor(QtCore.Qt.PointingHandCursor)
+        self.btn_selection_toolbar.setToolTip("Read Selection")
+        toolbar.addWidget(self.btn_selection_toolbar)
+
         # Agent/Ask/Plan mode
         self.mode_combo = QtWidgets.QComboBox()
         self.mode_combo.setObjectName("modeCombo")
@@ -137,21 +145,26 @@ class InputAreaMixin:
         toolbar.addLayout(self._plugin_button_container)
         
         toolbar.addStretch()
-        
+
+        # Model selector — moved here from the header (matches the mockup, where
+        # model selection lives in the composer toolbar). The widget itself is
+        # created in _build_header so all provider/model wiring stays intact.
+        if hasattr(self, 'model_combo') and self.model_combo is not None:
+            self.model_combo.setObjectName("modelComboComposer")
+            toolbar.addWidget(self.model_combo)
+
         # Token stats
         self.token_stats_btn = QtWidgets.QPushButton("0")
         self.token_stats_btn.setObjectName("tokenStats")
         self.token_stats_btn.setToolTip(tr('header.token_stats.tooltip'))
         self.token_stats_btn.clicked.connect(self._show_token_stats_dialog)
         toolbar.addWidget(self.token_stats_btn)
-        
+
         # Context usage stats
         self.context_label = QtWidgets.QLabel("0K / 64K")
         self.context_label.setObjectName("contextLabel")
         toolbar.addWidget(self.context_label)
-        
-        layout.addLayout(toolbar)
-        
+
         # -------- Input row: text area + Send/Stop --------
         input_row = QtWidgets.QHBoxLayout()
         input_row.setSpacing(6)
@@ -180,18 +193,23 @@ class InputAreaMixin:
         btn_col.addStretch()
         
         self.btn_stop = StopButton()
-        self.btn_stop.setFixedHeight(26)
+        self.btn_stop.setFixedSize(28, 28)
+        self.btn_stop.setCursor(QtCore.Qt.PointingHandCursor)
         self.btn_stop.setVisible(False)
         btn_col.addWidget(self.btn_stop)
-        
+
         self.btn_send = SendButton()
-        self.btn_send.setFixedHeight(26)
+        self.btn_send.setFixedSize(28, 28)
+        self.btn_send.setCursor(QtCore.Qt.PointingHandCursor)
         btn_col.addWidget(self.btn_send)
         
         input_row.addLayout(btn_col)
         
         layout.addLayout(input_row)
-        
+
+        # Toolbar sits BELOW the input (matches the mockup composer layout)
+        layout.addLayout(toolbar)
+
         # -------- Hidden buttons (preserved as self.btn_xxx for _wire_events compatibility) --------
         self.btn_attach_image = QtWidgets.QPushButton("Img")
         self.btn_attach_image.setVisible(False)
@@ -201,7 +219,8 @@ class InputAreaMixin:
         
         self.btn_selection = QtWidgets.QPushButton("Read Selection")
         self.btn_selection.setVisible(False)
-        
+        self.btn_selection_toolbar.clicked.connect(self.btn_selection.click)
+
         self.btn_export_train = QtWidgets.QPushButton("Train")
         self.btn_export_train.setVisible(False)
         
@@ -287,8 +306,7 @@ class InputAreaMixin:
     def _on_slash_triggered(self, prefix: str, cursor_rect):
         """User typed / in the input — show the command list."""
         try:
-            lang = get_language()
-            self._slash_completer.show_filtered(prefix, self.input_edit, cursor_rect, lang)
+            self._slash_completer.show_filtered(prefix, self.input_edit, cursor_rect)
         except Exception:
             self._slash_completer.setVisible(False)
 
@@ -306,6 +324,8 @@ class InputAreaMixin:
 
     def _on_show_tool_status(self, tool_name: str):
         """Show the currently running tool in the input-area status bar."""
+        if getattr(self, '_web_headless', False):
+            return  # forwarded to the web bridge separately
         if not getattr(self, '_is_running', False):
             return  # Agent has stopped — ignore late signals
         try:
@@ -315,6 +335,8 @@ class InputAreaMixin:
 
     def _on_hide_tool_status(self):
         """Hide the tool status."""
+        if getattr(self, '_web_headless', False):
+            return
         if not getattr(self, '_is_running', False):
             return  # Agent has stopped — ignore late signals
         try:
@@ -324,6 +346,8 @@ class InputAreaMixin:
 
     def _on_show_generating(self):
         """Show the "Generating..." state (waiting for an API request)."""
+        if getattr(self, '_web_headless', False):
+            return
         if not getattr(self, '_is_running', False):
             return  # Agent has stopped — ignore late signals
         try:
@@ -333,6 +357,8 @@ class InputAreaMixin:
 
     def _on_show_planning(self, progress: str):
         """Show "Planning..." progress (Plan mode is generating a plan)."""
+        if getattr(self, '_web_headless', False):
+            return
         if not getattr(self, '_is_running', False):
             return  # Agent has stopped — ignore late signals
         try:

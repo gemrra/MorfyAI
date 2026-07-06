@@ -37,6 +37,13 @@ try:
 except Exception:
     _dbg = lambda *a, **kw: None
 
+try:
+    from morfyai.utils.reasoning_capabilities import get_reasoning_capability, BUDGET_TOKENS_BY_LEVEL
+except Exception:
+    def get_reasoning_capability(model, provider=""):
+        return {"kind": "none", "options": []}
+    BUDGET_TOKENS_BY_LEVEL = {"low": 2000, "medium": 6000, "high": 10000}
+
 
 # ============================================================
 # Web search
@@ -59,7 +66,7 @@ class WebSearcher:
             'Chrome/120.0.0.0 Safari/537.36'
         ),
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Accept-Language': 'en-US,en;q=0.9',
         'Accept-Encoding': 'gzip, deflate',
     }
 
@@ -1397,11 +1404,37 @@ class AIClient:
         re.compile(r'</?redacted_reasoning[^>]*>'),
     ]
 
-    # Custom provider runtime config
+    # Custom provider runtime config — the original single-slot fields stay
+    # exactly as-is for provider id 'custom' (used by the old Qt panel's
+    # Custom Provider dialog, untouched). Any additional custom endpoints
+    # ("Add Provider" in the web Settings) live in _extra_custom_providers,
+    # keyed by their own id (e.g. 'custom_2'). _custom_cfg()/_is_custom_provider()
+    # is the single place that reads either one, so every other call site
+    # below only ever goes through those two helpers.
     _CUSTOM_API_URL: str = ''
     _CUSTOM_SUPPORTS_FC: bool = True
 
+    def _is_custom_provider(self, provider: str) -> bool:
+        return provider == 'custom' or provider in self._extra_custom_providers
+
+    def _custom_cfg(self, provider: str) -> Dict[str, Any]:
+        if provider == 'custom':
+            return {'api_url': self._CUSTOM_API_URL, 'supports_fc': self._CUSTOM_SUPPORTS_FC}
+        return self._extra_custom_providers.get(provider, {'api_url': '', 'supports_fc': True})
+
+    def add_custom_provider(self, provider_id: str, api_url: str = '', api_key: str = '', supports_fc: bool = True):
+        """Register (or update) an additional custom OpenAI-compatible endpoint
+        beyond the original single 'custom' slot — see the class comment above."""
+        self._extra_custom_providers[provider_id] = {'api_url': (api_url or '').strip(), 'supports_fc': supports_fc}
+        if api_key:
+            self._api_keys[provider_id] = api_key.strip()
+
+    def remove_custom_provider(self, provider_id: str):
+        self._extra_custom_providers.pop(provider_id, None)
+        self._api_keys.pop(provider_id, None)
+
     def __init__(self, api_key: Optional[str] = None):
+        self._extra_custom_providers: Dict[str, Dict[str, Any]] = {}
         self._api_keys: Dict[str, Optional[str]] = {
             'openai': api_key or self._read_api_key('openai'),
             'deepseek': self._read_api_key('deepseek'),
@@ -2323,8 +2356,8 @@ class AIClient:
         if provider == 'ollama':
             return True
         # Custom: available as long as URL is configured (key optional)
-        if provider == 'custom':
-            return bool(self._CUSTOM_API_URL)
+        if self._is_custom_provider(provider):
+            return bool(self._custom_cfg(provider).get('api_url'))
         return bool(self._api_keys.get(provider))
 
     def _get_api_key(self, provider: str) -> Optional[str]:
@@ -2352,9 +2385,9 @@ class AIClient:
         if provider == 'ollama':
             return 'Local'
         # Custom: show abbreviated URL
-        if provider == 'custom':
-            if self._CUSTOM_API_URL:
-                url = self._CUSTOM_API_URL
+        if self._is_custom_provider(provider):
+            url = self._custom_cfg(provider).get('api_url')
+            if url:
                 # Pull out the hostname for display
                 try:
                     from urllib.parse import urlparse
@@ -2389,8 +2422,19 @@ class AIClient:
             return self.DUOJIE_API_URL
         elif provider == 'openrouter':
             return self.OPENROUTER_API_URL
-        elif provider == 'custom':
-            return self._CUSTOM_API_URL or self.OPENAI_API_URL
+        elif self._is_custom_provider(provider):
+            url = (self._custom_cfg(provider).get('api_url') or '').strip()
+            if not url:
+                return self.OPENAI_API_URL
+            # Accept either the full chat endpoint OR just the base URL
+            # (e.g. "https://opencode.ai/zen/go/v1") — many providers'
+            # own docs give you the base and expect the client to know to
+            # append /chat/completions; without this, a base-only URL gets
+            # POSTed to directly and 404s (often against an unrelated
+            # marketing site route, not even the API subdomain's own 404).
+            if not re.search(r'/(chat/)?completions/?$', url):
+                url = url.rstrip('/') + '/chat/completions'
+            return url
         return self.OPENAI_API_URL
 
     def _get_vendor_name(self, provider: str) -> str:
@@ -2414,6 +2458,141 @@ class AIClient:
         self._CUSTOM_SUPPORTS_FC = supports_fc
         if api_key:
             self._api_keys['custom'] = api_key.strip()
+
+    # Curated per-family capability table (context tokens, vision, reasoning/
+    # thinking, function-calling), checked in order — first substring match
+    # wins, so put more specific patterns before their broader family.
+    # Values are best-effort public knowledge (mirrors what models.dev
+    # curates), not queried live — the /v1/models endpoint itself never
+    # returns this metadata, so a name-pattern table is what LobeHub/OpenCode
+    # fall back to as well for anything outside their built-in catalog.
+    # (pattern, context, vision, reasoning, fc, input_$/M, output_$/M).
+    # Pricing mirrors token_optimizer.MODEL_PRICING where a model overlaps;
+    # same caveat as context/vision/reasoning — /v1/models never returns
+    # pricing either, models.dev-style clients curate it by hand too.
+    _FAMILY_CAPS = [
+        ('claude-opus', 1000000, True, True, True, 15.00, 75.00),
+        ('claude-sonnet', 1000000, True, True, True, 3.00, 15.00),
+        ('claude-haiku', 200000, True, True, True, 0.80, 4.00),
+        ('claude', 200000, True, True, True, 3.00, 15.00),
+        ('gemini', 1048576, True, True, True, 1.25, 10.00),
+        ('gpt-5', 400000, True, True, True, 2.50, 10.00),
+        ('gpt-4o', 128000, True, False, True, 2.50, 10.00),
+        ('gpt-4', 128000, True, False, True, 2.50, 10.00),
+        ('o1', 200000, False, True, True, 15.00, 60.00),
+        ('o3', 200000, False, True, True, 10.00, 40.00),
+        ('o4', 200000, True, True, True, 1.10, 4.40),
+        ('deepseek-v4-flash', 128000, False, True, True, 0.27, 1.10),
+        ('deepseek-v4-pro', 128000, False, True, True, 0.55, 2.19),
+        ('deepseek-v4', 128000, False, True, True, 0.27, 1.10),
+        ('deepseek-r1', 64000, False, True, True, 0.55, 2.19),
+        ('deepseek-reasoner', 64000, False, True, True, 0.55, 2.19),
+        ('deepseek', 128000, False, False, True, 0.27, 1.10),
+        ('glm-5', 200000, False, True, True, 0.50, 0.50),
+        ('glm-4', 128000, False, True, True, 0.50, 0.50),
+        ('glm', 128000, False, False, True, 0.50, 0.50),
+        ('minimax-m', 512000, True, True, True, 1.00, 4.00),
+        ('minimax', 256000, True, False, True, 1.00, 4.00),
+        ('mimo', 1048576, True, True, True, 0.14, 0.28),
+        ('kimi-k2', 262144, True, True, True, 2.00, 8.00),
+        ('kimi', 200000, True, False, True, 2.00, 8.00),
+        ('qwen3', 1048576, True, True, True, 0.80, 2.00),
+        ('qwen2.5-vl', 128000, True, False, True, 0.80, 2.00),
+        ('qwen', 131072, False, False, True, 0.80, 2.00),
+        ('grok', 2000000, True, True, True, 5.00, 15.00),
+        ('llama-4', 1048576, True, False, True, 0.20, 0.20),
+        ('llama', 128000, False, False, True, 0.20, 0.20),
+        ('mistral', 128000, False, False, True, 0.20, 0.60),
+        ('pixtral', 128000, True, False, True, 0.20, 0.60),
+        ('llava', 32000, True, False, False, 0.0, 0.0),
+        ('internvl', 32000, True, False, False, 0.0, 0.0),
+    ]
+
+    @staticmethod
+    def guess_model_capabilities(model_id: str) -> Dict[str, Any]:
+        """Best-effort capability guess for a model discovered via /v1/models.
+
+        The OpenAI-compatible /v1/models endpoint only ever returns
+        {id, created, owned_by} — no context length, vision, reasoning,
+        pricing, or function-calling metadata. Context/vision/reasoning are
+        architectural properties of the model itself, so a name-pattern
+        table transfers reasonably well regardless of which endpoint serves
+        it (mirrors how models.dev curates a static catalog).
+
+        Price is NOT guessed from that table, though — a reseller/aggregator
+        endpoint (OpenRouter, "Open Agentic", OpenCode Zen, etc.) sets its
+        own price for a model, often free or discounted vs. the vendor's
+        published rate, so copying the vendor's real price here would
+        actively show a WRONG, confidently-formatted number. Price is left
+        unknown unless the id itself says otherwise (an explicit ":free" /
+        "-free" tag, or an Ollama-style "name:tag" / GGUF-quant id that's
+        almost always self-hosted).
+        """
+        m = (model_id or '').lower()
+        is_free_tagged = bool(re.search(r'(^|[:\-_( ])free([)\-_ ]|$)', m))
+        is_local = (
+            ':' in m or any(k in m for k in ('gguf', 'ggml', '-q4', '-q5', '-q8', 'awq', 'exl2'))
+        )
+        price = {"inputPrice": None, "outputPrice": None, "priceEstimated": False}
+        if is_free_tagged or is_local:
+            price = {"inputPrice": 0.0, "outputPrice": 0.0, "priceEstimated": False}
+
+        for pattern, context, vision, reasoning, fc, price_in, price_out in AIClient._FAMILY_CAPS:
+            if pattern in m:
+                row_price = price if (is_free_tagged or is_local) else {
+                    # The vendor's real published price for this model family —
+                    # shown as an ESTIMATE, not a fact, since a reseller can
+                    # (and often does) charge something different.
+                    "inputPrice": price_in, "outputPrice": price_out, "priceEstimated": True,
+                }
+                return {
+                    "id": model_id, "contextLimit": context,
+                    "supportsVision": vision, "supportsReasoning": reasoning, "supportsFc": fc,
+                    **row_price,
+                }
+        small = bool(re.search(r'\b(1|2|3|4|7|8|9)b\b', m)) and not re.search(r'\b(70|72|90|235|405)b\b', m)
+        return {
+            "id": model_id,
+            "contextLimit": 32000 if small else 128000,
+            "supportsVision": False,
+            "supportsReasoning": False,
+            "supportsFc": not any(k in m for k in ('base', 'completion', 'instruct-raw', 'embed')),
+            **price,
+        }
+
+    def get_custom_models(self, api_url: str = '', api_key: str = '', provider: str = 'custom') -> List[Dict[str, Any]]:
+        """Auto-discover models on a Custom (OpenAI-compatible) endpoint via
+        GET {base}/models — the standard OpenAI-compatible discovery route,
+        same one LM Studio/vLLM/text-generation-webui expose. Mirrors
+        get_ollama_models(); falls back to an empty list on any failure.
+        Each result also carries a guessed capability set (see
+        guess_model_capabilities) so the caller never needs manual input."""
+        if not HAS_REQUESTS:
+            return []
+        base = (api_url or self._custom_cfg(provider).get('api_url') or '').strip()
+        if not base:
+            return []
+        for suffix in ('/chat/completions', '/completions'):
+            if base.endswith(suffix):
+                base = base[: -len(suffix)]
+                break
+        url = base.rstrip('/') + '/models'
+        key = api_key or self._api_keys.get(provider, '')
+        headers = {'Authorization': f'Bearer {key}'} if key else {}
+        try:
+            response = self._http_session.get(
+                url, headers=headers, timeout=10,
+                proxies={'http': None, 'https': None},
+            )
+            if response.status_code == 200:
+                data = response.json()
+                items = data.get('data', data) if isinstance(data, dict) else data
+                if isinstance(items, list):
+                    ids = [m.get('id') for m in items if isinstance(m, dict) and m.get('id')]
+                    return [self.guess_model_capabilities(i) for i in ids]
+        except Exception:
+            pass
+        return []
 
     def set_ollama_url(self, base_url: str):
         """Set the Ollama service base URL."""
@@ -2459,7 +2638,7 @@ class AIClient:
 
         api_key = self._get_api_key(provider)
         # Custom provider allows no API key (e.g. local services)
-        if not api_key and provider != 'custom':
+        if not api_key and not self._is_custom_provider(provider):
             return {'ok': False, 'error': 'Missing API key'}
         
         try:
@@ -2777,6 +2956,7 @@ class AIClient:
                                 tools: Optional[List[dict]] = None,
                                 tool_choice: str = 'auto',
                                 enable_thinking: bool = True,
+                                reasoning_effort: Optional[str] = None,
                                 api_key: str = '') -> Generator[Dict[str, Any], None, None]:
         """Streaming Chat over the Anthropic Messages protocol.
 
@@ -2802,9 +2982,10 @@ class AIClient:
         if system_text:
             payload['system'] = system_text
 
-        # Thinking mode
+        # Thinking mode — budget_tokens scales with the requested reasoning effort
         if enable_thinking:
-            payload['thinking'] = {'type': 'enabled', 'budget_tokens': min(max_tokens or 16384, 10000)}
+            budget = BUDGET_TOKENS_BY_LEVEL.get((reasoning_effort or 'medium').lower(), 6000)
+            payload['thinking'] = {'type': 'enabled', 'budget_tokens': min(max_tokens or 16384, budget)}
 
         # Tools
         if tools:
@@ -3160,6 +3341,7 @@ class AIClient:
                     tools: Optional[List[dict]] = None,
                     tool_choice: str = 'auto',
                     enable_thinking: bool = True,
+                    reasoning_effort: Optional[str] = None,
                     response_format: Optional[dict] = None) -> Generator[Dict[str, Any], None, None]:
         """Streaming Chat API.
 
@@ -3178,7 +3360,7 @@ class AIClient:
         api_key = self._get_api_key(provider)
 
         # Ollama / Custom (no key) don't require API key validation
-        if provider not in ('ollama', 'custom') and not api_key:
+        if provider != 'ollama' and not self._is_custom_provider(provider) and not api_key:
             yield {"type": "error", "error": f"Missing {self._get_vendor_name(provider)} API key"}
             return
 
@@ -3188,7 +3370,8 @@ class AIClient:
                 messages=messages, model=model, provider=provider,
                 temperature=temperature, max_tokens=max_tokens,
                 tools=tools, tool_choice=tool_choice,
-                enable_thinking=enable_thinking, api_key=api_key,
+                enable_thinking=enable_thinking, reasoning_effort=reasoning_effort,
+                api_key=api_key,
             )
             return
 
@@ -3219,7 +3402,11 @@ class AIClient:
         if provider == 'deepseek' and enable_thinking and 'deepseek-v4' in model.lower():
             payload['thinking'] = {'type': 'enabled'}
             if 'v4-pro' in model.lower():
-                payload['reasoning_effort'] = 'high'
+                payload['reasoning_effort'] = (reasoning_effort or 'high')
+
+        # OpenAI o-series / gpt-5.x reasoning models: real low/medium/high effort control
+        if enable_thinking and reasoning_effort and get_reasoning_capability(model, provider)['kind'] == 'effort':
+            payload['reasoning_effort'] = reasoning_effort
 
         # Duojie proxy: thinking mode is implemented via <think> tags in the system prompt
         # Testing showed thinking/reasoningEffort params have no effect on Duojie API (reasoning_tokens always 0)
@@ -3597,7 +3784,7 @@ class AIClient:
 
         provider = (provider or 'openai').lower()
         api_key = self._get_api_key(provider)
-        if not api_key and provider not in ('ollama', 'custom'):
+        if not api_key and provider != 'ollama' and not self._is_custom_provider(provider):
             return {'ok': False, 'error': 'Missing API key'}
 
         payload = {
@@ -3692,6 +3879,7 @@ class AIClient:
                           temperature: float = 0.17,
                           max_tokens: Optional[int] = None,
                           enable_thinking: bool = True,
+                          reasoning_effort: Optional[str] = None,
                           supports_vision: bool = True,
                           tools_override: Optional[List[dict]] = None,
                           on_content: Optional[Callable[[str], None]] = None,
@@ -3847,7 +4035,8 @@ class AIClient:
                 max_tokens=max_tokens,
                 tools=effective_tools,
                 tool_choice='auto',
-                enable_thinking=enable_thinking
+                enable_thinking=enable_thinking,
+                reasoning_effort=reasoning_effort
             ):
                 # checkstoprequest
                 if self._stop_event.is_set():
@@ -4578,8 +4767,8 @@ class AIClient:
         if provider == 'ollama':
             return False
         # Custom provider based onuserconfigdecidefixed
-        if provider == 'custom':
-            return self._CUSTOM_SUPPORTS_FC
+        if self._is_custom_provider(provider):
+            return self._custom_cfg(provider).get('supports_fc', True)
         # Other cloud models all support it
         return True
     
@@ -4719,6 +4908,7 @@ createnode (notresolverelease, directlyexecute) :
                               temperature: float = 0.17,
                               max_tokens: Optional[int] = None,
                               enable_thinking: bool = True,
+                              reasoning_effort: Optional[str] = None,
                               supports_vision: bool = True,
                               tools_override: Optional[List[dict]] = None,
                               on_content: Optional[Callable[[str], None]] = None,

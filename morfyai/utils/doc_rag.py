@@ -309,12 +309,11 @@ class HoudiniDocIndex:
             if current_title and current_lines:
                 content = '\n'.join(current_lines).strip()
                 if len(content) > 30:  # skip very short paragraphs
-                    # extractkeyword: English identifier + inChinese phrase
+                    # extract keywords: English identifiers
                     keywords_en = [w.lower() for w in
                                    re.findall(r'[a-zA-Z_@][a-zA-Z0-9_@.]*', current_title + ' ' + content)
                                    if len(w) >= 2]
-                    keywords_cn = re.findall(r'[\u4e00-\u9fff]{2,}', current_title)
-                    all_kw = list(set(keywords_en + keywords_cn))
+                    all_kw = list(set(keywords_en))
                     chunks.append(KnowledgeChunk(
                         title=current_title,
                         content=content[:2000],
@@ -345,9 +344,8 @@ class HoudiniDocIndex:
             return []
 
         ql = query.lower()
-        # extractqueryin keyword
+        # extract keywords from the query
         query_words = set(re.findall(r'[a-zA-Z_@][a-zA-Z0-9_@.]*', ql))
-        query_cn = set(re.findall(r'[\u4e00-\u9fff]{2,}', query))
 
         scored: List[tuple] = []
         for chunk in self.knowledge_chunks:
@@ -356,11 +354,7 @@ class HoudiniDocIndex:
             chunk_kw_set = set(chunk.keywords)
             matched = query_words & chunk_kw_set
             score += len(matched) * 0.3
-            # intextkeywordmatch
-            for cn in query_cn:
-                if cn in chunk.title or cn in chunk.content[:200]:
-                    score += 0.5
-            # exact substringmatch (title) 
+            # exact substringmatch (title)
             for w in query_words:
                 if len(w) >= 3 and w in chunk.title.lower():
                     score += 0.8
@@ -902,16 +896,7 @@ class HoudiniDocIndex:
             if ndoc:
                 _add(self._fmt_node(ndoc), ndoc.node_type)
 
-        # 3) intextkeyword → matchnodetitle
-        for kw in re.findall(r"[\u4e00-\u9fff]{2,}", user_message)[:3]:
-            for ntype, ndoc in self.node_index.items():
-                if "/" in ntype:
-                    continue
-                if kw in ndoc.title or kw in ndoc.description:
-                    _add(self._fmt_node(ndoc), ndoc.node_type)
-                    break
-
-        # 4) Knowledge-base match — inject when the query involves a covered topic
+        # 3) Knowledge-base match — inject when the query involves a covered topic
         if self.knowledge_chunks:
             _KB_HINTS = {
                 # VEX / Wrangle

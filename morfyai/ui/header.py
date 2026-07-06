@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Header UI — top settings bar (model selection, provider, Web/Think toggles, etc.).
+Header UI — top settings bar (provider/model selection, MCP status, settings entry point).
 
 Extracted from ai_tab.py as a Mixin. All methods access AITab instance state via self.
 Styling is driven by the global style_template.qss via objectName selectors.
@@ -8,7 +8,7 @@ Styling is driven by the global style_template.qss via objectName selectors.
 
 from pathlib import Path
 from morfyai.qt_compat import QtWidgets, QtCore, QtGui
-from .i18n import tr, get_language, set_language, language_changed
+from .i18n import tr
 
 # Route diagnostic prints to in-app Debug Console
 try:
@@ -21,7 +21,12 @@ class HeaderMixin:
     """Build logic and interactions for the top settings bar."""
 
     def _build_header(self) -> QtWidgets.QWidget:
-        """Top settings bar — single row: Provider + Model + keyStatus + Web + Think + ⋯ overflow menu."""
+        """Top settings bar — single row: Provider + Model + MCP status chip + ⚙ settings.
+
+        Web/Think toggles and the API-key status label are still created (for
+        preference-saving code elsewhere) but no longer shown here — they'll
+        surface in the Providers settings page instead.
+        """
         header = QtWidgets.QFrame()
         header.setObjectName("headerFrame")
         
@@ -29,37 +34,28 @@ class HeaderMixin:
         outer.setContentsMargins(8, 2, 8, 2)
         outer.setSpacing(0)
         
-        # -------- Single row: Logo + Provider + Model + keyStatus + Web + Think + ⋯ --------
+        # -------- Single top bar: ☰ | session title | — | ● MCP | ⚙ | new-chat --------
         row = QtWidgets.QHBoxLayout()
-        row.setSpacing(4)
+        row.setSpacing(6)
 
-        # ── MorfyFX logo (top-left corner) ──
-        try:
-            assets_dir = Path(__file__).resolve().parent.parent / "assets"
-            # Prefer pre-rasterized PNG (Qt's SVG renderer doesn't fully support clipPath
-            # which makes the original SVG render as a yellow square)
-            logo_candidates = [
-                assets_dir / "morfyfx-logodarkbg.png",
-                assets_dir / "morfyfx-logodarkbg.svg",
-                assets_dir / "morfyfx-logomain.svg",
-            ]
-            logo_path = next((p for p in logo_candidates if p.exists()), None)
-            if logo_path is not None:
-                logo_h = 59  # ~150% of previous 39px
-                pix = self._load_logo_pixmap_header(str(logo_path), target_h=logo_h)
-                if pix is not None and not pix.isNull():
-                    logo_lbl = QtWidgets.QLabel()
-                    logo_lbl.setObjectName("morfyLogoHeader")
-                    logo_lbl.setPixmap(pix)
-                    logo_lbl.setFixedSize(pix.width(), logo_h)
-                    logo_lbl.setToolTip("MorfyFX")
-                    logo_lbl.setAlignment(QtCore.Qt.AlignCenter)
-                    row.addWidget(logo_lbl)
-                    row.addSpacing(4)
-        except Exception:
-            pass
+        # ── Hamburger — opens the sessions drawer ──
+        self.btn_hamburger = QtWidgets.QPushButton("☰")
+        self.btn_hamburger.setObjectName("btnHamburger")
+        self.btn_hamburger.setFixedSize(28, 28)
+        self.btn_hamburger.setCursor(QtCore.Qt.PointingHandCursor)
+        self.btn_hamburger.setToolTip("Sessions")
+        self.btn_hamburger.clicked.connect(self._toggle_session_sidebar)
+        row.addWidget(self.btn_hamburger)
 
-        # Provider
+        # ── Active session title (click opens the sessions drawer) ──
+        self.session_title_label = QtWidgets.QLabel("Chat 1")
+        self.session_title_label.setObjectName("sessionTitleLabel")
+        self.session_title_label.setCursor(QtCore.Qt.PointingHandCursor)
+        self.session_title_label.mousePressEvent = lambda ev: self._toggle_session_sidebar()
+        row.addWidget(self.session_title_label)
+
+        # Provider — created here (all wiring kept) but shown in Settings > Providers,
+        # not in the top bar. Kept as a live widget so provider-change logic still works.
         self.provider_combo = QtWidgets.QComboBox()
         self.provider_combo.setObjectName("providerCombo")
         self.provider_combo.addItem("Ollama", 'ollama')
@@ -71,9 +67,9 @@ class HeaderMixin:
         self.provider_combo.addItem("Custom", 'custom')
         self.provider_combo.setMinimumWidth(70)
         self.provider_combo.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed)
-        row.addWidget(self.provider_combo)
-        
-        # Custom config button (only visible for the Custom provider)
+        self.provider_combo.setVisible(False)
+
+        # Custom config button (only used for the Custom provider; kept, hidden)
         self.btn_custom_config = QtWidgets.QPushButton("⚙")
         self.btn_custom_config.setObjectName("btnCustomConfig")
         self.btn_custom_config.setFixedSize(22, 22)
@@ -81,8 +77,7 @@ class HeaderMixin:
         self.btn_custom_config.setToolTip("Configure Custom Model URL, API key, and model names")
         self.btn_custom_config.setVisible(False)
         self.btn_custom_config.clicked.connect(self._open_custom_provider_dialog)
-        row.addWidget(self.btn_custom_config)
-        
+
         # Model
         self.model_combo = QtWidgets.QComboBox()
         self.model_combo.setObjectName("modelCombo")
@@ -227,40 +222,86 @@ class HeaderMixin:
         }
         self._refresh_models('ollama')
         self.model_combo.setMinimumWidth(100)
-        self.model_combo.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+        self.model_combo.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed)
         self.model_combo.setEditable(False)  # not editable by default; switched to editable in Custom mode
-        row.addWidget(self.model_combo, 1)
-        
-        # API Key status — compact inline indicator (width-limited, ellipsised)
+        # Model combo lives in the composer toolbar (added there in _build_input_area),
+        # matching the mockup. Created here so all provider/model wiring stays intact.
+
+        # API Key status — moved into Settings > Providers; kept alive (unparented)
+        # so existing code that sets its text doesn't break, but no longer shown here.
         self.key_status = QtWidgets.QLabel()
         self.key_status.setObjectName("keyStatus")
         self.key_status.setMaximumWidth(90)
         self.key_status.setMinimumWidth(0)
         from morfyai.qt_compat import QtCore as _qc
         self.key_status.setTextInteractionFlags(_qc.Qt.NoTextInteraction)
-        row.addWidget(self.key_status)
-        
-        # Web / Think toggles
+        self.key_status.setVisible(False)
+
+        # Web / Think toggles — moved into Settings > Providers (per-model config);
+        # kept alive so _wire_events / preference-saving connections still work.
         self.web_check = QtWidgets.QCheckBox("Web")
         self.web_check.setObjectName("chkWeb")
         self.web_check.setChecked(True)
-        row.addWidget(self.web_check)
-        
+        self.web_check.setVisible(False)
+
         self.think_check = QtWidgets.QCheckBox("Think")
         self.think_check.setObjectName("chkThink")
         self.think_check.setChecked(True)
         self.think_check.setToolTip(tr('header.think.tooltip'))
-        row.addWidget(self.think_check)
-        
-        # ⋯ overflow menu button
-        self.btn_overflow = QtWidgets.QPushButton("···")
+        self.think_check.setVisible(False)
+
+        row.addStretch()
+
+        # MCP connection status chip
+        self.mcp_status_chip = QtWidgets.QPushButton("● MCP")
+        self.mcp_status_chip.setObjectName("mcpStatusChip")
+        self.mcp_status_chip.setCursor(QtCore.Qt.PointingHandCursor)
+        self.mcp_status_chip.setProperty("connected", False)
+        self.mcp_status_chip.setToolTip("MCP disconnected — click to open Connect to Claude")
+        self.mcp_status_chip.clicked.connect(self._open_claude_connect)
+        row.addWidget(self.mcp_status_chip)
+
+        # ⚙ settings entry point (opens the consolidated Settings dialog)
+        self.btn_overflow = QtWidgets.QPushButton("⚙")
         self.btn_overflow.setObjectName("btnOverflow")
-        self.btn_overflow.setFixedSize(24, 22)
+        self.btn_overflow.setFixedSize(26, 26)
         self.btn_overflow.setCursor(QtCore.Qt.PointingHandCursor)
-        self.btn_overflow.clicked.connect(self._show_overflow_menu)
+        self.btn_overflow.setToolTip("Settings")
+        self.btn_overflow.clicked.connect(self._open_settings_dialog)
         row.addWidget(self.btn_overflow)
-        
+
+        # ✎ new-chat button
+        self.btn_new_chat_header = QtWidgets.QPushButton("✎")
+        self.btn_new_chat_header.setObjectName("btnNewChatHeader")
+        self.btn_new_chat_header.setFixedSize(26, 26)
+        self.btn_new_chat_header.setCursor(QtCore.Qt.PointingHandCursor)
+        self.btn_new_chat_header.setToolTip("New chat")
+        self.btn_new_chat_header.clicked.connect(self._new_session)
+        row.addWidget(self.btn_new_chat_header)
+
         outer.addLayout(row)
+
+        # Hidden stash — keeps functional-but-not-shown widgets parented so they
+        # don't become stray top-level windows. The model combo is re-parented
+        # into the composer toolbar later (in _build_input_area).
+        self._header_stash = QtWidgets.QWidget()
+        self._header_stash.setObjectName("headerStash")
+        self._header_stash.setVisible(False)
+        stash_lay = QtWidgets.QVBoxLayout(self._header_stash)
+        stash_lay.setContentsMargins(0, 0, 0, 0)
+        stash_lay.setSpacing(0)
+        for _w in (self.provider_combo, self.btn_custom_config, self.key_status,
+                   self.web_check, self.think_check, self.model_combo):
+            stash_lay.addWidget(_w)
+        outer.addWidget(self._header_stash)
+
+        # Poll MCP connection state so the chip reflects live status without
+        # requiring the user to open the Connect dialog.
+        self._mcp_status_timer = QtCore.QTimer(self)
+        self._mcp_status_timer.setInterval(3000)
+        self._mcp_status_timer.timeout.connect(self._refresh_mcp_status_chip)
+        self._mcp_status_timer.start()
+        self._refresh_mcp_status_chip()
         
         # -------- Hidden buttons (preserved as self.btn_xxx for _wire_events compatibility) --------
         # These buttons are not added to any layout; they exist only for signal connections.
@@ -289,13 +330,6 @@ class HeaderMixin:
         self.btn_font_scale = QtWidgets.QPushButton("Aa")
         self.btn_font_scale.setObjectName("btnFontScale")
         self.btn_font_scale.setVisible(False)
-
-        # Hidden language combo (no UI exposure, kept so existing tr() listeners still work)
-        self.lang_combo = QtWidgets.QComboBox()
-        self.lang_combo.setObjectName("langCombo")
-        self.lang_combo.addItem("EN", "en")
-        self.lang_combo.setCurrentIndex(0)
-        self.lang_combo.setVisible(False)
 
         return header
 
@@ -346,6 +380,45 @@ class HeaderMixin:
             return None
         except Exception:
             return None
+
+    def _open_settings_dialog(self):
+        """Open the consolidated Settings window (grouped sidebar nav)."""
+        try:
+            from .settings_dialog import SettingsDialog
+            dlg = SettingsDialog(self, parent=self)
+            # Apply the same rendered QSS so the dialog matches the panel theme
+            try:
+                dlg.setStyleSheet(self._theme.render())
+            except Exception:
+                pass
+            dlg.exec_()
+        except Exception as e:
+            _dbg(f"[Settings] failed to open, falling back to menu: {e}")
+            self._show_overflow_menu()
+
+    def _refresh_mcp_status_chip(self):
+        """Reflect the real MCP server/client state on the header chip."""
+        try:
+            from ..utils import claude_connect as cc
+            report = cc.connection_report()
+            running = bool(report.get("server_running"))
+            connected = bool(report.get("claude_connected"))
+        except Exception:
+            running = False
+            connected = False
+
+        chip = getattr(self, 'mcp_status_chip', None)
+        if chip is None:
+            return
+        chip.setProperty("connected", running)
+        chip.style().unpolish(chip)
+        chip.style().polish(chip)
+        if connected:
+            chip.setToolTip("MCP connected — a client is attached")
+        elif running:
+            chip.setToolTip("MCP server running — waiting for a client")
+        else:
+            chip.setToolTip("MCP disconnected — click to start the server")
 
     def _show_overflow_menu(self):
         """Show the overflow menu — collects low-frequency features."""
@@ -552,23 +625,6 @@ class HeaderMixin:
         except Exception as e:
             _dbg(f"[Header] Memory toggle failed: {e}")
 
-    def _set_lang_from_menu(self, lang: str):
-        """Switch language from the overflow menu (no-op now: English only)."""
-        if lang != get_language():
-            set_language(lang)
-            # Sync the hidden lang_combo to keep state consistent
-            expected_idx = 0 if lang == 'zh' else 1
-            if self.lang_combo.currentIndex() != expected_idx:
-                self.lang_combo.blockSignals(True)
-                self.lang_combo.setCurrentIndex(expected_idx)
-                self.lang_combo.blockSignals(False)
-
-    def _on_language_changed(self, index: int):
-        """Handle a change in the language combo box."""
-        lang = self.lang_combo.itemData(index)
-        if lang and lang != get_language():
-            set_language(lang)
-
     def _retranslate_header(self):
         """Refresh all translated text in the header after a language change."""
         self.think_check.setToolTip(tr('header.think.tooltip'))
@@ -576,13 +632,6 @@ class HeaderMixin:
         self.btn_optimize.setToolTip(tr('header.optimize.tooltip'))
         self.btn_update.setToolTip(tr('header.update.tooltip'))
         self.btn_font_scale.setToolTip(tr('header.font.tooltip'))
-        # Sync the combo selection (in case set_language was called externally)
-        lang = get_language()
-        expected_idx = 0 if lang == 'zh' else 1
-        if self.lang_combo.currentIndex() != expected_idx:
-            self.lang_combo.blockSignals(True)
-            self.lang_combo.setCurrentIndex(expected_idx)
-            self.lang_combo.blockSignals(False)
 
     # ============================================================
     # Custom Provider configuration
@@ -828,7 +877,14 @@ class HeaderMixin:
         self.btn_custom_config.setVisible(is_custom)
         # In Custom mode, allow direct model-name entry in model_combo
         self.model_combo.setEditable(is_custom)
-        if is_custom and not self._custom_provider_config.get('api_url'):
+        # Only auto-open the legacy Qt config dialog for the OLD Qt panel.
+        # In the web panel (_web_headless), provider switches are driven by
+        # bridge.setProvider() from JS — this dialog is QDialog.exec_()
+        # (modal), which blocks the whole Qt event loop mid-call, hanging
+        # the bridge call and desyncing the web UI (surprise popup +
+        # composer model list going stale). The web Settings page has its
+        # own inline Custom-provider config instead.
+        if is_custom and not self._custom_provider_config.get('api_url') and not getattr(self, '_web_headless', False):
             # First time selecting Custom and not yet configured — open the config dialog
             QtCore.QTimer.singleShot(100, self._open_custom_provider_dialog)
 

@@ -741,7 +741,11 @@ def _mcp_thread_runner():
 		port = s.port or 9000
 		transport = s.transport or "streamable-http"
 		try:
-			server_task = asyncio.create_task(mcp.run_async(transport=transport, host=host, port=port))
+			# show_banner=False: FastMCP's ASCII banner is printed straight to
+			# stdout via rich.Console (not through logging), so
+			# _route_server_logs_to_debug_console() below never catches it —
+			# it always leaked into the native Houdini Console regardless.
+			server_task = asyncio.create_task(mcp.run_async(transport=transport, host=host, port=port, show_banner=False))
 		except Exception as e:
 			log.exception("Failed to start MCP server: %s", e)
 			return

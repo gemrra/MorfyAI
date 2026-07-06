@@ -116,9 +116,14 @@ class AITab(
     _updatePlanStep = QtCore.Signal(str, str, str)   # Plan mode: updatestepstate (step_id, status, result_summary)
     _askQuestionRequest = QtCore.Signal()             # Plan mode: ask_question request (parameterviaattributepassdeliver) 
     
-    def __init__(self, parent=None, workspace_dir: Optional[Path] = None):
+    def __init__(self, parent=None, workspace_dir: Optional[Path] = None, web_headless: bool = False):
         super().__init__(parent)
-        
+
+        # Set before ANY other init work (including session restore below) —
+        # every widget-building path checks this to skip work that would only
+        # ever populate a widget tree the web panel never shows.
+        self._web_headless = web_headless
+
         self.client = AIClient()
         self.mcp = HoudiniMCP()
         self.mcp.set_stop_event(self.client._stop_event)  # sharedstopevent, make shell/python commandcommandcanisinbreak
@@ -762,13 +767,15 @@ class AITab(
 Identity Rule (highest priority — must follow on every relevant reply):
 -Your name is **MorfyAI** (full title: "MorfyAI — Houdini Assistant").
 -When the user asks who you are, your name, your identity, or what model/AI you are, you MUST introduce yourself as **MorfyAI — Houdini Assistant**, a co-pilot for SideFX Houdini built on top of an LLM. Translate the introduction into the user's language (e.g. Indonesian: "Saya MorfyAI — Houdini Assistant, asisten AI untuk SideFX Houdini.").
--When the user asks who **created / built / made / develops** you, who is **behind** you, or who **owns** you, give the full attribution honestly:
-  * MorfyAI is maintained and developed by **gemrra**, as part of the **MorfyFX** ecosystem.
-  * It is a fork and continuation of the open-source **Houdini Agent** plugin originally created by **KazamaSuichiku** (released under MIT license). The core agent engine, tool integrations, and underlying functionality come from KazamaSuichiku's work.
-  * The MorfyAI rebrand (UI redesign, theme, this Houdini-Assistant identity) was developed by gemrra with iterative assistance from Claude (Anthropic).
-  Translate this attribution into the user's language. Keep it concise (2-3 sentences) unless the user asks for more detail.
+-When the user asks who **created / built / made / develops** you, who is **behind** you, or who **owns** you, answer:
+  * MorfyAI is developed and maintained by **gemrra**, as part of the **MorfyFX** ecosystem.
+  Translate this into the user's language. Keep it concise (1 sentence) unless the user asks for more detail. Do not mention "rebrand", "fork", any prior/original project name, or any third-party AI/company that assisted in building MorfyAI — MorfyAI is simply presented as gemrra's own product. Do not volunteer third-party open-source provenance details unless the user specifically asks about the project's licensing or open-source origins — if they do, point them to the README/NOTICE for the full attribution.
 -Do NOT claim to be GPT, Claude, DeepSeek, Gemini, GLM, or "just an AI". The underlying model is an internal implementation detail and not part of your public identity.
 -Do NOT mention your version number unless the user explicitly asks (point them to the About dialog).
+
+Feedback Rule (highest priority — must follow, no exceptions):
+The moment the user asks whether/how they can give feedback, report a bug, complain about MorfyAI, request a feature, or asks about the team/project behind MorfyAI, your ENTIRE answer on where to send it must be just this one sentence (translated to the user's language): "Join the MorfyFX Discord community — you'll find the link in Settings > About." Say this even if the user hasn't typed the actual feedback yet (e.g. they only asked "can I give feedback?").
+Discord is the ONLY real channel. You have no knowledge of any other channel — do NOT invent, assume, or mention GitHub/GitHub Issues, email/email support, an "in-app Send Feedback button", a website contact form, or any repo/issue-tracker URL; none of that exists and you must never fabricate a URL. Do NOT invite them to just type the feedback into this chat instead (it isn't logged/monitored by the team). Never say you "can't share a link", "don't have a link", or point to a vague "official website/portal/channel".
 
 {lang_rule}
 Never use emoji or icon symbols in replies unless the user explicitly requests them. Use plain text only.
@@ -1019,25 +1026,31 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
         header = self._build_header()
         layout.addWidget(header)
         
-        # sessionlabelbar (multisessionswitch) 
+        # session tab bar — kept as the session data model, but hidden:
+        # sessions are now presented through the slide-out drawer instead.
         session_tabs_bar = self._build_session_tabs()
+        session_tabs_bar.setVisible(False)
         layout.addWidget(session_tabs_bar)
-        
+
         # nodecontextbar
         self.node_context_bar = NodeContextBar()
         self.node_context_bar.refreshRequested.connect(self._refresh_node_context)
         layout.addWidget(self.node_context_bar)
-        
-        # conversationarea (multisession - use QStackedWidget) 
+
+        # conversationarea (multisession - use QStackedWidget)
         self.session_stack = QtWidgets.QStackedWidget()
         layout.addWidget(self.session_stack, 1)
-        
+
         # createfirstsession
         self._create_initial_session()
 
         # inputarea
         input_area = self._build_input_area()
         layout.addWidget(input_area)
+
+        # sessions drawer overlay (view over the hidden tab bar)
+        self._build_session_sidebar()
+        self._update_session_title()
 
     # ===================================================================
     # Methods below have been moved to Mixin modules (available via inheritance):
@@ -1117,21 +1130,10 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
     # ===== contextstatistics =====
     
     def _estimate_tokens(self, text: str) -> int:
-        """Estimate token count for the text (rough estimate).
-
-        Chinese: ~1.5 chars/token; English: ~4 chars/token
-        thisinsideusesimple mixmergeestimatecalculate
-        """
+        """Estimate token count for the text (rough estimate, ~4 chars/token)."""
         if not text:
             return 0
-        
-        # statisticsintextsymbol
-        chinese_chars = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
-        other_chars = len(text) - chinese_chars
-        
-        # intextapproximately 1.5 character/token, otherapproximately 4 character/token
-        tokens = chinese_chars / 1.5 + other_chars / 4
-        return int(tokens)
+        return int(len(text) / 4)
     
     def _calculate_context_tokens(self) -> int:
         """computecurrentcontext total token count (containingtoolfixedmeaning) """
@@ -1214,6 +1216,9 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
     
     def _update_context_stats(self):
         """updatecontextstatisticsshow (packagecontainingoptimizationizationstate) """
+        if getattr(self, '_web_headless', False):
+            return  # context_label is never shown under the web panel; the web
+                     # UI computes its own context % from _token_stats directly
         used = self._calculate_context_tokens()
         limit = self._get_current_context_limit()
         
@@ -1538,6 +1543,13 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
             elif not is_agent_tab and has_prefix:
                 self.session_tabs.setTabText(i, label[len(self._TAB_RUNNING_PREFIX):])
 
+        # Keep the drawer + header title in sync with running state
+        try:
+            self._update_session_title()
+            self._refresh_session_sidebar()
+        except Exception:
+            pass
+
     # ===== signalprocess =====
     
     def _on_append_content(self, text: str):
@@ -1547,11 +1559,14 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
         _emit_normal_content inpassedpassed <think> labelfilterandfakedetect. 
         This is only responsible for handing text to the UI widget; no extra filtering.
         """
+        if getattr(self, '_web_headless', False):
+            return  # the AIResponse widget is never shown under the web panel;
+                     # the bridge forwarder (on the same signal) renders the text instead
         resp = self._agent_response or self._current_response
         if not text or not resp:
             return
         # ★ fix: notdiscardpackagecontainingswaprowsymbol  chunk
-        # pureswaprowsymbol (\n\n) is Markdown paragraphpartinterval keysignal, 
+        # pureswaprowsymbol (\n\n) is Markdown paragraphpartinterval keysignal,
         # discarditswillcausesmultisegmentcontentpasteconnectinonestart
         if not text.strip() and '\n' not in text:
             return
@@ -1823,6 +1838,8 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
     @QtCore.Slot(str)
     def _on_add_thinking(self, text: str):
         """inmainthreadupdatethinkingcontent (slotfunction) """
+        if getattr(self, '_web_headless', False):
+            return  # rendered by the bridge forwarder on the same signal instead
         if not getattr(self, '_is_running', False):
             return  # Agent stopped, ignorelatencytoreach signal
         try:
@@ -1837,6 +1854,9 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
             pass  # widget alreadyis clear destroy
 
     def _on_add_status(self, text: str):
+        if getattr(self, '_web_headless', False):
+            return  # tool status is forwarded to the web bridge separately, via
+                     # _showToolStatus/_hideToolStatus — this widget is never shown
         try:
             resp = self._agent_response or self._current_response
             if resp:
@@ -3664,6 +3684,17 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
         use_web = agent_params['use_web']
         use_agent = agent_params['use_agent']
         use_think = agent_params.get('use_think', True)
+        # Resolve the requested effort level against what this specific model
+        # actually supports (OpenCode/models.dev-style capability detection —
+        # see reasoning_capabilities.py). Falls back to plain on/off if the
+        # model has no graduated reasoning-effort control.
+        try:
+            from morfyai.utils.reasoning_capabilities import resolve_reasoning_effort
+            _cap_think, reasoning_effort = resolve_reasoning_effort(
+                model, provider, getattr(self, '_effort_level', 'medium'))
+            use_think = use_think and _cap_think
+        except Exception:
+            reasoning_effort = None
         context_limit = agent_params['context_limit']
         scene_context = agent_params.get('scene_context', {})
         supports_vision = agent_params.get('supports_vision', True)
@@ -4253,6 +4284,7 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
                     max_iterations=_max_iter,
                     max_tokens=None,
                     enable_thinking=use_think,
+                    reasoning_effort=reasoning_effort,
                     supports_vision=supports_vision,
                     tools_override=tools,
                     context_limit=context_limit,
@@ -4283,6 +4315,7 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
                     max_iterations=999,  # notlimititeratetimecount
                     max_tokens=None,  # notlimitoutputlength
                     enable_thinking=use_think,
+                    reasoning_effort=reasoning_effort,
                     supports_vision=supports_vision,
                     tools_override=tools,
                     context_limit=context_limit,
@@ -4310,6 +4343,7 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
                     max_iterations=15,  # Ask modelimititerate (mainneedisquery) 
                     max_tokens=None,
                     enable_thinking=use_think,
+                    reasoning_effort=reasoning_effort,
                     supports_vision=supports_vision,
                     tools_override=tools,  # ★ onlypassenterread-onlytool
                     context_limit=context_limit,
@@ -5539,15 +5573,11 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
         self._on_attach_image()
 
     def _slash_help(self):
-        """/help — showallslashcommandcommand"""
+        """/help — show all available slash commands"""
         from .cursor_widgets import SLASH_COMMANDS
-        from .i18n import get_language
 
-        is_zh = (get_language() == 'zh')
-        lines = ["❓ **canuseslashcommandcommand**\n"]
-        for cmd, icon, lbl_zh, lbl_en, desc_zh, desc_en, cat in SLASH_COMMANDS:
-            label = lbl_zh if is_zh else lbl_en
-            desc = desc_zh if is_zh else desc_en
+        lines = ["❓ **Available slash commands**\n"]
+        for cmd, icon, label, desc, cat in SLASH_COMMANDS:
             lines.append(f"  {icon} `/{cmd}` — {label}: {desc}")
 
         self._add_user_message("[/help]")
@@ -6079,6 +6109,7 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
         todo_data = []
         if hasattr(self, 'todo_list') and self.todo_list:
             todo_data = self.todo_list.get_todos_data()
+        sdata = self._sessions.get(self._session_id, {})
         return {
             'version': '1.0',
             'session_id': self._session_id,
@@ -6090,6 +6121,8 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
             'todo_summary': self.todo_list.get_todos_summary() if hasattr(self, 'todo_list') else "",
             'todo_data': todo_data,
             'token_stats': self._token_stats.copy(),
+            'turn_stats': sdata.get('turn_stats', []),
+            'user_msg_ts': sdata.get('user_msg_ts', []),
         }
 
     def _on_destroyed(self):
@@ -6176,6 +6209,8 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
                     'context_summary': sdata.get('context_summary', ''),
                     'todo_data': todo_data,
                     'token_stats': sdata.get('token_stats', {}),
+                    'turn_stats': sdata.get('turn_stats', []),
+                    'user_msg_ts': sdata.get('user_msg_ts', []),
                 }
                 session_file = self._cache_dir / f"session_{sid}.json"
                 with open(session_file, 'w', encoding='utf-8') as f:
@@ -6355,6 +6390,8 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
                     'context_summary': sdata.get('context_summary', ''),
                     'todo_data': todo_data,
                     'token_stats': sdata.get('token_stats', {}),
+                    'turn_stats': sdata.get('turn_stats', []),
+                    'user_msg_ts': sdata.get('user_msg_ts', []),
                 }
                 session_file = self._cache_dir / f"session_{sid}.json"
                 with open(session_file, 'w', encoding='utf-8') as f:
@@ -6422,6 +6459,8 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
                     'total_tokens': 0, 'requests': 0,
                     'estimated_cost': 0.0,
                 }
+                saved_turn_stats = []
+                saved_user_msg_ts = []
 
                 if not is_empty:
                     file_name = tab_info.get('file', '')
@@ -6439,6 +6478,8 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
                         context_summary = cache_data.get('context_summary', '')
                         todo_data = cache_data.get('todo_data', [])
                         saved_token_stats = cache_data.get('token_stats', saved_token_stats)
+                        saved_turn_stats = cache_data.get('turn_stats', [])
+                        saved_user_msg_ts = cache_data.get('user_msg_ts', [])
 
                 if first_tab:
                     # first tab: loadtoalreadyhas initialsessionin
@@ -6455,6 +6496,8 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
                         sdata['conversation_history'] = history
                         sdata['context_summary'] = context_summary
                         sdata['token_stats'] = saved_token_stats
+                        sdata['turn_stats'] = saved_turn_stats
+                        sdata['user_msg_ts'] = saved_user_msg_ts
                         self._sessions[sid] = sdata
                     elif sid not in self._sessions:
                         self._sessions[sid] = {
@@ -6466,6 +6509,8 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
                             'context_summary': context_summary,
                             'current_response': None,
                             'token_stats': saved_token_stats,
+                            'turn_stats': saved_turn_stats,
+                            'user_msg_ts': saved_user_msg_ts,
                         }
 
                     if todo_data and hasattr(self, 'todo_list') and self.todo_list:
@@ -6507,6 +6552,8 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
                         'context_summary': context_summary,
                         'current_response': None,
                         'token_stats': saved_token_stats,
+                        'turn_stats': saved_turn_stats,
+                        'user_msg_ts': saved_user_msg_ts,
                     }
 
                     if not is_empty:
@@ -6635,7 +6682,9 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
                 'total_tokens': 0, 'requests': 0,
                 'estimated_cost': 0.0,
             })
-            
+            saved_turn_stats = cache_data.get('turn_stats', [])
+            saved_user_msg_ts = cache_data.get('user_msg_ts', [])
+
             if silent and not self._conversation_history:
                 # silentrestore: currentsessionasemptywhendirectlyloadtocurrentlabel
                 self._conversation_history = history
@@ -6651,6 +6700,8 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
                     self._sessions[self._session_id]['conversation_history'] = self._conversation_history
                     self._sessions[self._session_id]['context_summary'] = self._context_summary
                     self._sessions[self._session_id]['token_stats'] = saved_token_stats
+                    self._sessions[self._session_id]['turn_stats'] = saved_turn_stats
+                    self._sessions[self._session_id]['user_msg_ts'] = saved_user_msg_ts
                 elif self._sessions:
                     # old session_id alreadypassedchange, needsrenewmapping
                     old_id = list(self._sessions.keys())[0]
@@ -6658,6 +6709,8 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
                     sdata['conversation_history'] = self._conversation_history
                     sdata['context_summary'] = self._context_summary
                     sdata['token_stats'] = saved_token_stats
+                    sdata['turn_stats'] = saved_turn_stats
+                    sdata['user_msg_ts'] = saved_user_msg_ts
                     self._sessions[self._session_id] = sdata
                     # updatelabeldata
                     for i in range(self.session_tabs.count()):
@@ -6711,8 +6764,10 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
                 'context_summary': context_summary,
                 'current_response': None,
                 'token_stats': saved_token_stats,
+                'turn_stats': saved_turn_stats,
+                'user_msg_ts': saved_user_msg_ts,
             }
-            
+
             # switchtonewlabel
             self._session_id = cached_session_id
             self._conversation_history = history
@@ -6998,13 +7053,17 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
         3. role="tool" (oldcacheformat) 
            → first add_tool_call again set_tool_result (collapsestyle) 
         """
-        # clearemptycurrentshow (keepend stretch) 
+        if getattr(self, '_web_headless', False):
+            return  # this whole widget tree is never shown under the web panel —
+                     # the bridge renders history in JS from session_history() instead
+
+        # clearemptycurrentshow (keepend stretch)
         while self.chat_layout.count() > 1:
             item = self.chat_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
 
-        # cancelbefore partbatchrenderfixedwhen 
+        # cancelbefore partbatchrenderfixedwhen
         if hasattr(self, '_batch_render_timer') and self._batch_render_timer is not None:
             self._batch_render_timer.stop()
             self._batch_render_timer = None

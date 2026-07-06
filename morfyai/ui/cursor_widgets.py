@@ -5590,32 +5590,32 @@ class NodeCompleterPopup(QtWidgets.QListWidget):
 # ── slashcommandcommandregistertable ──
 # each: (command, icon, label_zh, label_en, description_zh, description_en, category)
 SLASH_COMMANDS = [
-    # ── sessionmanage ──
-    ("clear",     "🗑",  "clearemptyconversation",     "Clear Chat",      "clearemptycurrentconversationhistory",           "Clear current conversation",   "session"),
-    ("new",       "✨",  "createsession",     "New Chat",         "createonenewconversation",           "Create a new conversation",    "session"),
-    # ── memorysystem ──
-    ("memory",    "🧠",  "memorystate",     "Memory Status",    "viewlong-termmemorystatisticsandcorememory", "View memory stats & core memories", "memory"),
-    ("remember",  "📌",  "rememberpreference",     "Remember",         "willcontentwritecorememory",         "Save content to core memory",  "memory"),
-    ("forget",    "🧹",  "clearremovememory",     "Forget",           "searchanddeletespecifiedmemory",         "Search and delete a memory",   "memory"),
-    ("search_mem","🔍",  "searchmemory",     "Search Memory",    "inlong-termmemoryinsearch",           "Search long-term memory",      "memory"),
-    ("memories",  "📚",  "memorylibrary",       "Memory Library",   "openmemory managementwindow",         "Open memory manager (full CRUD)", "memory"),
+    # ── session management ──
+    ("clear",     "🗑",  "Clear Chat",       "Clear current conversation",           "session"),
+    ("new",       "✨",  "New Chat",         "Create a new conversation",            "session"),
+    # ── memory system ──
+    ("memory",    "🧠",  "Memory Status",    "View memory stats & core memories",    "memory"),
+    ("remember",  "📌",  "Remember",         "Save content to core memory",          "memory"),
+    ("forget",    "🧹",  "Forget",           "Search and delete a memory",           "memory"),
+    ("search_mem","🔍",  "Search Memory",    "Search long-term memory",              "memory"),
+    ("memories",  "📚",  "Memory Library",   "Open memory manager (full CRUD)",      "memory"),
     # ── Houdini scene ──
-    ("network",   "🌐",  "readnetwork",     "Read Network",     "readcurrentnetworkstructure",           "Read current network structure","scene"),
-    ("selection", "👆",  "readselected",     "Read Selection",   "readcurrentselectednodeinfo",       "Read selected node info",      "scene"),
-    ("skills",    "⚡",  "skillcanlist",     "List Skills",      "columnoutallcanuse Skill",         "List all available skills",    "scene"),
-    # ── tool ──
-    ("status",    "📊",  "systemstate",     "System Status",    "viewmemory/growth/contextstatistics",   "View memory/growth/context stats", "tool"),
-    ("export",    "💾",  "importouttraining",     "Export Training",  "importoutconversationastrainingdata",         "Export conversation as training data", "tool"),
-    ("image",     "🖼",  "attachimage",     "Attach Image",     "fromfileselectimageattachtomessage",   "Select image to attach",       "tool"),
-    ("help",      "❓",  "help",         "Help",             "showallcanuseslashcommandcommand",       "Show all available commands",   "tool"),
+    ("network",   "🌐",  "Read Network",     "Read current network structure",       "scene"),
+    ("selection", "👆",  "Read Selection",   "Read selected node info",              "scene"),
+    ("skills",    "⚡",  "List Skills",      "List all available skills",            "scene"),
+    # ── tools ──
+    ("status",    "📊",  "System Status",    "View memory/growth/context stats",     "tool"),
+    ("export",    "💾",  "Export Training",  "Export conversation as training data", "tool"),
+    ("image",     "🖼",  "Attach Image",     "Select image to attach",               "tool"),
+    ("help",      "❓",  "Help",             "Show all available commands",          "tool"),
 ]
 
-# bypartclassgroup title
+# by category group title
 _SLASH_CATEGORY_LABELS = {
-    "session": ("── session ──", "── Session ──"),
-    "memory":  ("── memory ──", "── Memory ──"),
-    "scene":   ("── scene ──", "── Scene ──"),
-    "tool":    ("── tool ──", "── Tools ──"),
+    "session": "── Session ──",
+    "memory":  "── Memory ──",
+    "scene":   "── Scene ──",
+    "tool":    "── Tools ──",
 }
 
 
@@ -5633,32 +5633,28 @@ class SlashCommandPopup(QtWidgets.QListWidget):
         self.itemActivated.connect(self._on_item_activated)
         self.setVisible(False)
 
-    def show_filtered(self, prefix: str, anchor_widget: QtWidgets.QWidget,
-                      cursor_rect, lang: str = 'zh'):
-        """based onprefixfilterandshowcommandcommandlist"""
+    def show_filtered(self, prefix: str, anchor_widget: QtWidgets.QWidget, cursor_rect):
+        """Filter and show the command list based on the typed prefix."""
         if not self._flags_applied:
             self._flags_applied = True
             self.setWindowFlags(QtCore.Qt.ToolTip | QtCore.Qt.FramelessWindowHint)
 
         self.clear()
         lower_prefix = prefix.lower()
-        is_zh = (lang == 'zh')
 
-        # bypartclassgroup
+        # group by category
         last_cat = None
         match_count = 0
-        for cmd, icon, lbl_zh, lbl_en, desc_zh, desc_en, cat in SLASH_COMMANDS:
-            label = lbl_zh if is_zh else lbl_en
-            desc = desc_zh if is_zh else desc_en
-            # matchcommandcommandname, label, description
+        for cmd, icon, label, desc, cat in SLASH_COMMANDS:
+            # match command name, label, description
             if lower_prefix and not any(lower_prefix in s.lower() for s in (cmd, label, desc)):
                 continue
-            # partclasstitle
+            # category header
             if cat != last_cat:
                 last_cat = cat
-                cat_label = _SLASH_CATEGORY_LABELS.get(cat, ("──", "──"))
-                header_item = QtWidgets.QListWidgetItem(cat_label[0] if is_zh else cat_label[1])
-                header_item.setFlags(QtCore.Qt.NoItemFlags)  # notoptional
+                cat_label = _SLASH_CATEGORY_LABELS.get(cat, "──")
+                header_item = QtWidgets.QListWidgetItem(cat_label)
+                header_item.setFlags(QtCore.Qt.NoItemFlags)  # not selectable
                 font = header_item.font()
                 font.setPointSize(max(7, font.pointSize() - 1))
                 header_item.setFont(font)
@@ -6271,10 +6267,11 @@ class ChatInput(QtWidgets.QPlainTextEdit):
 
 class StopButton(QtWidgets.QPushButton):
     """stopbutton"""
-    
+
     def __init__(self, parent=None):
-        super().__init__("Stop", parent)
+        super().__init__("■", parent)
         self.setObjectName("btnStop")
+        self.setToolTip("Stop")
 
 
 # ============================================================
@@ -6283,10 +6280,11 @@ class StopButton(QtWidgets.QPushButton):
 
 class SendButton(QtWidgets.QPushButton):
     """sendbutton"""
-    
+
     def __init__(self, parent=None):
-        super().__init__("Send", parent)
+        super().__init__("↑", parent)
         self.setObjectName("btnSend")
+        self.setToolTip("Send")
 
 
 # ============================================================
@@ -8453,10 +8451,6 @@ class AboutDialog(QtWidgets.QDialog):
     APP_TAGLINE = "Houdini Assistant"
     APP_SUBTAGLINE = "Part of the MorfyFX ecosystem"
     AUTHOR = "gemrra"
-    ORIGINAL_AUTHOR = "KazamaSuichiku"
-    ORIGINAL_PROJECT = "Houdini Agent"
-    ORIGINAL_BASE_VERSION = "1.5.5"   # last upstream Houdini Agent version this fork branched from
-    AI_COLLABORATOR = "Claude (Anthropic)"
     LICENSE = "MIT License"
 
     def __init__(self, parent=None):
@@ -8555,17 +8549,8 @@ class AboutDialog(QtWidgets.QDialog):
         root.addWidget(credits_title)
 
         credits_text = QtWidgets.QLabel(
-            f"<b>{self.APP_NAME}</b> is maintained by <b>{self.AUTHOR}</b> "
-            f"as part of the <b>MorfyFX</b> ecosystem. This plugin is a continuation "
-            f"of the open-source <b>{self.ORIGINAL_PROJECT}</b> "
-            f"(v{self.ORIGINAL_BASE_VERSION}), originally created by "
-            f"<b>{self.ORIGINAL_AUTHOR}</b>. Full credit for the core agent engine, "
-            f"tool integrations, multi-session management, and all underlying "
-            f"functionality goes to them and the original "
-            f"{self.ORIGINAL_PROJECT} contributors.<br><br>"
-
-            f"MorfyAI is developed by <b>{self.AUTHOR}</b> with iterative "
-            f"assistance from <b>{self.AI_COLLABORATOR}</b>.<br><br>"
+            f"<b>{self.APP_NAME}</b> is developed and maintained by <b>{self.AUTHOR}</b> "
+            f"as part of the <b>MorfyFX</b> ecosystem.<br><br>"
 
             f"Released under the <b>{self.LICENSE}</b> — the original copyright "
             f"notice and license are preserved in this distribution."

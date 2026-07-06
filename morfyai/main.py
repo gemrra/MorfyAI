@@ -43,6 +43,7 @@ def _reload_modules():
         'morfyai.core.agent_runner',
         'morfyai.core.session_manager',
         'morfyai.ui.ai_tab',
+        'morfyai.ui.web_panel',
         'morfyai.core.main_window',
     ]
     for mod_name in modules_to_reload:

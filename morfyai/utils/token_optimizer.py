@@ -69,14 +69,10 @@ def count_tokens(text: str, model: str = '') -> int:
             pass
     # ---- Improved heuristic estimate ----
     # JSON / code blocks contain many single-token symbols like { } " , :
-    # CJK character ranges (Han, full-width punct, half-width punct) — kept in
-    # \u escape form so this source file stays Chinese-character-free.
-    chinese_chars = len(re.findall(
-        '[\\u4e00-\\u9fff\\u3000-\\u303f\\uff00-\\uffef]', text))
     # Code / JSON characteristic characters (each is one token)
     code_chars = len(re.findall(r'[{}\[\]:,;()=<>+\-*/|&^~!@#$%]', text))
-    other_chars = len(text) - chinese_chars - code_chars
-    tokens = chinese_chars / 1.5 + code_chars + other_chars / 3.8
+    other_chars = len(text) - code_chars
+    tokens = code_chars + other_chars / 3.8
     return max(1, int(tokens))
 
 

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pythonPanelDocument>
+  <!-- MorfyAI dockable Python panel. Auto-scanned from python_panels/ because
+       MorfyAI.json puts $MORFYAI on HOUDINI_PATH. The interface appears in the
+       pane tab menu under "MorfyAI" (Windows menu -> New Pane Tab Type -> MorfyAI).
+       launcher.py auto-injects lib/ into sys.path at call time. -->
+  <interface name="morfyai_panel" label="MorfyAI" icon="$MORFYAI/morfyai/assets/morfyfx-logomain.svg" showNetworkNavigationBar="false">
+    <script><![CDATA[import importlib
+import sys
+
+_g_interface = None
+
+def onCreateInterface():
+    global g_interface
+    try:
+        if "launcher" in sys.modules:
+            importlib.reload(sys.modules["launcher"])
+        else:
+            import launcher
+        g_interface = launcher.show_tool()
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        g_interface = None
+    return g_interface
+]]></script>
+    <includeInToolbarMenu menu_position="0" create_separator="true"/>
+    <help><![CDATA[]]></help>
+  </interface>
+</pythonPanelDocument>

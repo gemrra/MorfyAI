@@ -10,7 +10,7 @@ import atexit
 import hou
 from pathlib import Path
 from morfyai.qt_compat import QtWidgets, QtGui, QtCore
-from morfyai.ui.ai_tab import AITab
+from morfyai.ui.web_panel import MorfyWebPanel
 
 # Route diagnostic prints to in-app Debug Console
 try:
@@ -75,8 +75,10 @@ class MainWindow(QtWidgets.QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         
-        self.ai_tab = AITab(workspace_dir=self._workspace_dir)
-        layout.addWidget(self.ai_tab)
+        self.web_panel = MorfyWebPanel(parent=central_widget, workspace_dir=self._workspace_dir)
+        layout.addWidget(self.web_panel)
+        # Workspace save/restore below drives the real engine underneath the web view.
+        self.ai_tab = self.web_panel.engine
 
     def force_quit_application(self):
         """Force the application to quit."""

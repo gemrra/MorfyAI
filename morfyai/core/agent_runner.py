@@ -11,7 +11,7 @@ Extracted from ai_tab.py as a Mixin. Responsibilities:
 import threading
 import queue
 from morfyai.qt_compat import QtWidgets, QtCore
-from ..ui.i18n import tr, get_language
+from ..ui.i18n import tr
 from ..ui.cursor_widgets import VEXPreviewInline
 
 # Route diagnostic prints to in-app Debug Console
@@ -197,9 +197,8 @@ class AgentRunnerMixin:
         """Call the LLM to generate a conversation title (≤10 characters)."""
         # Use the first 200 characters as context
         ctx = tr('title_gen.ctx', user_msg[:200], assistant_msg[:200])
-        sys_key = 'title_gen.system_zh' if get_language() == 'zh' else 'title_gen.system_en'
         messages = [
-            {'role': 'system', 'content': tr(sys_key)},
+            {'role': 'system', 'content': tr('title_gen.system_en')},
             {'role': 'user', 'content': ctx}
         ]
         try:

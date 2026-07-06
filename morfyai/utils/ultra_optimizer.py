@@ -83,10 +83,8 @@ class UltraOptimizer:
         if not content:
             return ""
 
-        # Estimate tokens (Chinese ~1.5 chars/token, English ~4 chars/token)
-        chinese_chars = len(re.findall(r'[\u4e00-\u9fff]', content))
-        other_chars = len(content) - chinese_chars
-        estimated_tokens = int(chinese_chars / 1.5 + other_chars / 4)
+        # Estimate tokens (~4 chars/token)
+        estimated_tokens = int(len(content) / 4)
 
         if estimated_tokens <= max_tokens:
             return content

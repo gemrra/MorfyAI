@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<menuDocument>
+    <menu>
+        <subMenu id="panetype_morfyai">
+            <label>MorfyAI</label>
+            <actionItem id="pythonpanel::morfyai_panel">
+                <label>MorfyAI</label>
+            </actionItem>
+        </subMenu>
+    </menu>
+</menuDocument>
