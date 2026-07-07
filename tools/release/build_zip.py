@@ -56,7 +56,7 @@ def _package_json():
     return {
         "enable": True,
         "env": [
-            {"MORFYAI": "$HOUDINI_PACKAGE_DIR/MorfyAI"},
+            {"MORFYAI": "$HOUDINI_PACKAGE_PATH/MorfyAI"},
             {"HOUDINI_PATH": {"value": ["$MORFYAI/houdini"], "method": "prepend"}},
             {"PYTHONPATH": {"value": ["$MORFYAI"], "method": "prepend"}},
         ],

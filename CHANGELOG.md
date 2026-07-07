@@ -65,6 +65,9 @@ with a lot more surfaced.
   (dropped a confusing second "Dockable Panel" option and "About"), and
   fixed its position — it now sits next to qLib/Redshift instead of at
   the far left of the menu bar.
+- Fixed the drop-in release package pointing at an invalid Houdini
+  variable (`$HOUDINI_PACKAGE_DIR`), which left the plugin path empty so
+  nothing loaded — now uses `$HOUDINI_PACKAGE_PATH` like other packages.
 
 ## 1.0 — 2026-05-28
 
