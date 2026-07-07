@@ -1045,6 +1045,7 @@
   const liveBar = document.getElementById('liveBar');
   const liveText = document.getElementById('liveText');
   let bridge = null, mode = 'auto', ctxPct = 4, cur = null, busy = false;
+  let _planAccepted = false;  // true while an accepted plan is executing
 
   // ---- error console ----
   const errBadge=document.getElementById('errBadge'), errPanel=document.getElementById('errPanel'), errLog=document.getElementById('errLog');
@@ -1735,10 +1736,14 @@
     cur=null; busy=false; setBusyUI(false); refreshSend();
     refreshHip();
     refreshUsage();
+    // A Plan was a one-shot: once its execution finishes, return to Auto so
+    // the next message is a normal turn instead of forcing another plan cycle.
+    if(_planAccepted){ _planAccepted=false; resetModeToAuto(); }
   }
   function onError(t){
     if(cur){ hideLive(); cur.summary.classList.add('show'); cur.summary.innerHTML='<span style="color:#f87171">⚠ '+esc(t)+'</span>'; }
     cur=null; busy=false; setBusyUI(false); refreshSend();
+    if(_planAccepted){ _planAccepted=false; resetModeToAuto(); }
   }
 
   // ---- collapse toggles / edit ----
@@ -1906,6 +1911,9 @@
       }
       if(act==='accept-confirm' || act==='accept-auto'){
         card.querySelector('.plancard-actions').innerHTML='<span class="plancard-status">Starting…</span>';
+        // Mark that a plan is executing — the confirm-mode checkbox must stay
+        // set through the run, so mode only resets to Auto in onDone (not now).
+        _planAccepted = true;
         if(bridge){ startNewTurnForPlan(); bridge.acceptPlan(act==='accept-confirm'); }
         return;
       }
@@ -1970,6 +1978,18 @@
     b.classList.toggle('mode-auto',mode==='auto');
     b.classList.toggle('mode-plan',mode==='plan');
     b.classList.toggle('mode-confirm',mode==='confirm');
+  }
+  function resetModeToAuto(){
+    applyModeUI('Auto');
+    // sync the mode popup's selected item + dot
+    document.querySelectorAll('#modePop .item').forEach(it=>{
+      const isAuto = it.dataset.val==='Auto';
+      it.classList.toggle('sel', isAuto);
+      let dot = it.querySelector('.dot');
+      if(isAuto && !dot){ dot=document.createElement('span'); dot.className='dot'; dot.textContent='●'; it.appendChild(dot); }
+      else if(!isAuto && dot){ dot.remove(); }
+    });
+    if(bridge){ bridge.setMode('auto'); bridge.setConfirmMode(false); }
   }
   wirePop('modeBtn','modePop', val=>{
     applyModeUI(val);
