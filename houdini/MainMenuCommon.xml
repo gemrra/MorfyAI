@@ -4,6 +4,7 @@
 <mainMenu>
   <menuBar>
     <subMenu id="morfyai_menu">
+      <modifyItem><insertBefore>help_menu</insertBefore></modifyItem>
       <label>MorfyAI</label>
 
       <scriptItem id="morfyai_open_floating">
