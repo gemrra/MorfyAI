@@ -57,7 +57,7 @@ def _package_json():
         "enable": True,
         "env": [
             {"MORFYAI": "$HOUDINI_PACKAGE_DIR/MorfyAI"},
-            {"HOUDINI_PATH": {"value": ["$MORFYAI/houdini"], "method": "append"}},
+            {"HOUDINI_PATH": {"value": ["$MORFYAI/houdini"], "method": "prepend"}},
             {"PYTHONPATH": {"value": ["$MORFYAI"], "method": "prepend"}},
         ],
     }

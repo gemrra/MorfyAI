@@ -73,7 +73,7 @@ def install(repo_path=None):
         "enable": True,
         "env": [
             {"MORFYAI": repo_root_fwd},
-            {"HOUDINI_PATH": {"value": ["$MORFYAI/houdini"], "method": "append"}},
+            {"HOUDINI_PATH": {"value": ["$MORFYAI/houdini"], "method": "prepend"}},
             {"PYTHONPATH": {"value": ["$MORFYAI"], "method": "prepend"}},
         ],
     }
