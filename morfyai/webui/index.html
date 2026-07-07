@@ -1446,7 +1446,7 @@
         '<button class="set-btn primary" id="setupGuideBtn">Open Provider Settings</button>';
       w.insertBefore(card, w.querySelector('.chiprow'));
       const btn = document.getElementById('setupGuideBtn');
-      if(btn) btn.addEventListener('click', ()=>{ openSettings(); selectSettingsPage('providers'); });
+      if(btn) btn.addEventListener('click', ()=> triggerSettings('providers'));
     });
   }
 
