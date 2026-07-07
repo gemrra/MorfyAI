@@ -404,6 +404,30 @@ class Bridge(QtCore.QObject):
         except Exception as e:
             self._err("openExternalUrl failed", e)
 
+    @QtCore.Slot(result=str)
+    def checkForUpdate(self):
+        try:
+            return json.dumps(self.owner.check_for_update())
+        except Exception as e:
+            self._err("checkForUpdate failed", e)
+            return json.dumps({"ok": False, "message": str(e)})
+
+    @QtCore.Slot(str, str, result=str)
+    def downloadUpdate(self, download_url, expected_sha256):
+        try:
+            return json.dumps(self.owner.download_update(download_url, expected_sha256))
+        except Exception as e:
+            self._err("downloadUpdate failed", e)
+            return json.dumps({"ok": False, "message": str(e)})
+
+    @QtCore.Slot(str, result=str)
+    def installUpdate(self, zip_path):
+        try:
+            return json.dumps(self.owner.install_update(zip_path))
+        except Exception as e:
+            self._err("installUpdate failed", e)
+            return json.dumps({"ok": False, "message": str(e)})
+
     @QtCore.Slot(str, str, result=str)
     def renameSession(self, sid, new_title):
         try:
@@ -2192,6 +2216,158 @@ class MorfyWebPanel(QtWidgets.QWidget):
             "changelogUrl": "https://morfyfx.com/morfyai/changelog",
             "websiteUrl": "",
         }
+
+    # ---------- Update check / download / install ----------
+    _UPDATE_REPO = "gemrra/MorfyAI"
+
+    @staticmethod
+    def _repo_root():
+        import pathlib
+        return pathlib.Path(__file__).resolve().parent.parent.parent
+
+    @classmethod
+    def _current_version(cls):
+        try:
+            f = cls._repo_root() / "VERSION"
+            return f.read_text(encoding="utf-8").strip() if f.exists() else "0"
+        except Exception:
+            return "0"
+
+    @staticmethod
+    def _version_tuple(v):
+        v = (v or "0").lstrip("vV").strip()
+        parts = []
+        for p in v.split("."):
+            digits = "".join(ch for ch in p if ch.isdigit())
+            parts.append(int(digits) if digits else 0)
+        return tuple(parts) or (0,)
+
+    def check_for_update(self):
+        """Hit the GitHub Releases API (public repo, no auth/token needed) and
+        compare the latest tag against the local VERSION file."""
+        import urllib.request
+        import json as _json
+
+        current = self._current_version()
+        req = urllib.request.Request(
+            "https://api.github.com/repos/%s/releases/latest" % self._UPDATE_REPO,
+            headers={"Accept": "application/vnd.github+json", "User-Agent": "MorfyAI-UpdateCheck"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                data = _json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as ex:
+            if ex.code == 404:
+                return {"ok": True, "available": False, "currentVersion": current,
+                        "latestVersion": current, "notes": "", "downloadUrl": "", "sha256Url": ""}
+            return {"ok": False, "message": "Could not check for updates: %s" % ex}
+        except Exception as ex:
+            return {"ok": False, "message": "Could not check for updates: %s" % ex}
+
+        tag = (data.get("tag_name") or "").strip()
+        latest = tag.lstrip("vV")
+        notes = data.get("body") or ""
+
+        download_url = ""
+        sha256_url = ""
+        for asset in data.get("assets") or []:
+            name = asset.get("name") or ""
+            if name.endswith(".zip"):
+                download_url = asset.get("browser_download_url") or ""
+            elif name.endswith(".sha256"):
+                sha256_url = asset.get("browser_download_url") or ""
+
+        available = self._version_tuple(latest) > self._version_tuple(current)
+        return {
+            "ok": True,
+            "available": available,
+            "currentVersion": current,
+            "latestVersion": latest or current,
+            "notes": notes,
+            "downloadUrl": download_url,
+            "sha256Url": sha256_url,
+        }
+
+    def download_update(self, download_url, sha256_url):
+        """Stream the release zip to cache/updates/ and verify it against the
+        published sha256 sidecar before handing it back to install_update()."""
+        import urllib.request
+        import hashlib
+
+        download_url = (download_url or "").strip()
+        if not download_url.startswith("https://"):
+            return {"ok": False, "message": "Invalid download URL."}
+
+        updates_dir = self._repo_root() / "cache" / "updates"
+        updates_dir.mkdir(parents=True, exist_ok=True)
+        zip_name = download_url.rstrip("/").split("/")[-1] or "update.zip"
+        zip_path = updates_dir / zip_name
+
+        try:
+            req = urllib.request.Request(download_url, headers={"User-Agent": "MorfyAI-Updater"})
+            with urllib.request.urlopen(req, timeout=60) as resp, open(zip_path, "wb") as f:
+                sha256 = hashlib.sha256()
+                while True:
+                    chunk = resp.read(1 << 20)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+                    sha256.update(chunk)
+            digest = sha256.hexdigest()
+        except Exception as ex:
+            return {"ok": False, "message": "Download failed: %s" % ex}
+
+        expected = ""
+        sha256_url = (sha256_url or "").strip()
+        if sha256_url.startswith("https://"):
+            try:
+                req = urllib.request.Request(sha256_url, headers={"User-Agent": "MorfyAI-Updater"})
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    line = resp.read().decode("utf-8", "ignore").strip()
+                expected = line.split()[0] if line else ""
+            except Exception:
+                expected = ""
+
+        if expected and expected.lower() != digest.lower():
+            try:
+                zip_path.unlink()
+            except Exception:
+                pass
+            return {"ok": False, "message": "Downloaded file failed integrity check (sha256 mismatch)."}
+
+        return {"ok": True, "message": "Downloaded.", "path": str(zip_path)}
+
+    def install_update(self, zip_path):
+        """Extract the release zip's MorfyAI/ folder over the live install
+        directory. Files are just Python/HTML source, not locked DLLs, so
+        overwriting while Houdini is open is safe — Houdini just needs a
+        restart afterward to pick up the new code."""
+        import zipfile
+        import shutil
+        import tempfile
+
+        zip_path = (zip_path or "").strip()
+        if not zip_path or not os.path.isfile(zip_path):
+            return {"ok": False, "message": "Update file not found — download it again."}
+
+        repo_root = self._repo_root()
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                with zipfile.ZipFile(zip_path) as zf:
+                    zf.extractall(tmp)
+                staged = os.path.join(tmp, "MorfyAI")
+                if not os.path.isdir(staged) or not os.path.isfile(os.path.join(staged, "VERSION")):
+                    return {"ok": False, "message": "Update archive looks corrupted (missing MorfyAI/ contents)."}
+                shutil.copytree(staged, str(repo_root), dirs_exist_ok=True)
+        except Exception as ex:
+            return {"ok": False, "message": "Install failed: %s" % ex}
+
+        try:
+            os.remove(zip_path)
+        except Exception:
+            pass
+
+        return {"ok": True, "message": "Update installed. Please restart Houdini to finish."}
 
     # ---------- Debug console (inline) ----------
     def get_debug_log(self):

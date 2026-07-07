@@ -618,6 +618,13 @@
   .about-features li{font-size:12.5px;color:var(--text-dim);display:flex;align-items:flex-start;gap:8px;}
   .about-features li::before{content:'✓';color:#3ecf8e;font-weight:700;flex:none;}
   .about-actions{display:flex;gap:8px;flex-wrap:wrap;}
+  .update-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;}
+  .update-cur-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-faint);margin-bottom:4px;}
+  .update-cur-version{font-size:20px;font-weight:750;color:var(--text);}
+  .update-check-btn{display:inline-flex;align-items:center;gap:7px;border-radius:8px;background:var(--green);border-color:var(--green);color:#0b1f16;font-weight:650;padding:8px 16px;}
+  .update-check-btn:hover{background:#33b87c;}
+  .update-check-btn svg{flex:none;}
+  .update-notes{margin-top:14px;padding-top:12px;border-top:1px solid var(--border);white-space:pre-wrap;max-height:160px;overflow-y:auto;font-size:12.5px;}
 </style>
 </head>
 <body>
@@ -779,6 +786,7 @@
           <div class="set-nav-group">Connections</div>
           <div class="set-nav-item" data-page="mcp"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"></path></svg>MCP Server</div>
           <div class="set-nav-group">Help</div>
+          <div class="set-nav-item" data-page="updates"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"></path></svg>Updates</div>
           <div class="set-nav-item" data-page="debug"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M8 9h8M8 13h5"></path></svg>Debug Console</div>
           <div class="set-nav-item" data-page="about"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4M12 8h.01"></path></svg>About</div>
         </div>
@@ -966,6 +974,19 @@
             </div>
 
             <div class="set-hint" id="mcpSecurityNote" style="margin-top:4px;"></div>
+          </div>
+
+          <div class="set-page" id="page-updates">
+            <div class="update-header">
+              <div>
+                <div class="update-cur-label">Current version</div>
+                <div class="update-cur-version" id="updateCurVersion">—</div>
+              </div>
+              <button class="set-btn primary update-check-btn" id="updateCheckBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"></path></svg>Check for updates</button>
+            </div>
+            <div id="updateStatus" class="set-hint" style="margin-top:14px;">Checking for updates…</div>
+            <button class="set-btn primary" id="updateBtn" style="display:none;margin-top:12px;"></button>
+            <div id="updateNotes" class="set-hint update-notes" style="display:none;"></div>
           </div>
 
           <div class="set-page" id="page-debug">
@@ -2971,6 +2992,70 @@
     });
   }
 
+  // ---- update check / download / install ----
+  let _pendingUpdate = null; // {downloadUrl, sha256Url, latestVersion} while an update is available
+  let _downloadedZipPath = null;
+  function setUpdateBtn(label, onClick){
+    const btn = document.getElementById('updateBtn');
+    btn.textContent = label;
+    btn.style.display = label ? '' : 'none';
+    btn.onclick = onClick;
+  }
+  function loadUpdatesPage(){
+    const curEl = document.getElementById('updateCurVersion');
+    if(bridge && bridge.aboutInfo) bridge.aboutInfo(function(js){
+      const a = safeJSON(js) || {};
+      curEl.textContent = a.version ? ('v'+a.version) : '—';
+    });
+    checkForUpdate();
+  }
+  document.getElementById('updateCheckBtn').addEventListener('click', checkForUpdate);
+  function checkForUpdate(){
+    const statusEl = document.getElementById('updateStatus');
+    const notesEl = document.getElementById('updateNotes');
+    statusEl.textContent = 'Checking for updates…';
+    setUpdateBtn('', null);
+    notesEl.style.display = 'none';
+    if(!bridge || !bridge.checkForUpdate) return;
+    bridge.checkForUpdate(function(js){
+      const r = safeJSON(js) || {};
+      if(!r.ok){ statusEl.textContent = r.message || 'Could not check for updates.'; return; }
+      if(!r.available){
+        statusEl.textContent = "You're up to date (v"+esc(r.currentVersion)+")";
+        return;
+      }
+      _pendingUpdate = { downloadUrl: r.downloadUrl, sha256Url: r.sha256Url, latestVersion: r.latestVersion };
+      statusEl.textContent = 'Update available: v'+esc(r.latestVersion)+' (current v'+esc(r.currentVersion)+')';
+      if(r.notes){ notesEl.textContent = r.notes; notesEl.style.display = ''; }
+      setUpdateBtn('Update', doDownloadUpdate);
+    });
+  }
+  function doDownloadUpdate(){
+    if(!bridge || !_pendingUpdate || !_pendingUpdate.downloadUrl) return;
+    const statusEl = document.getElementById('updateStatus');
+    statusEl.textContent = 'Downloading v'+esc(_pendingUpdate.latestVersion)+'…';
+    setUpdateBtn('Downloading…', null);
+    bridge.downloadUpdate(_pendingUpdate.downloadUrl, _pendingUpdate.sha256Url || '', function(js){
+      const r = safeJSON(js) || {};
+      if(!r.ok){ statusEl.textContent = r.message || 'Download failed.'; setUpdateBtn('Retry', doDownloadUpdate); return; }
+      _downloadedZipPath = r.path;
+      statusEl.textContent = 'Downloaded v'+esc(_pendingUpdate.latestVersion)+' — ready to install.';
+      setUpdateBtn('Install & Restart Houdini', doInstallUpdate);
+    });
+  }
+  function doInstallUpdate(){
+    if(!bridge || !_downloadedZipPath) return;
+    const statusEl = document.getElementById('updateStatus');
+    statusEl.textContent = 'Installing…';
+    setUpdateBtn('Installing…', null);
+    bridge.installUpdate(_downloadedZipPath, function(js){
+      const r = safeJSON(js) || {};
+      statusEl.textContent = r.message || (r.ok ? 'Update installed. Please restart Houdini.' : 'Install failed.');
+      setUpdateBtn('', null);
+      if(r.ok){ _pendingUpdate = null; _downloadedZipPath = null; }
+    });
+  }
+
   // ---- lazy-load each page's data the first time it's opened ----
   const PAGE_LOADERS = {
     rules: loadRules,
@@ -2981,6 +3066,7 @@
     },
     memory: ()=>{ loadMemoryEnabled(); loadMemory(currentMemTier); },
     debug: loadDebugLog, about: loadAbout, providers: loadProvidersPage, mcp: loadMcpPage,
+    updates: loadUpdatesPage,
   };
   document.getElementById('setArchiveCache').addEventListener('click', ()=>{ if(bridge) bridge.openDialog('archive-cache'); });
   document.getElementById('setLoadCache').addEventListener('click', ()=>{ if(bridge) bridge.openDialog('load-cache'); });

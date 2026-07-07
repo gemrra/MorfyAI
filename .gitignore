@@ -18,6 +18,9 @@ trainData/
 
 # Config files contain API keys & user preferences — never push
 config/houdini_ai.ini
+
+# Local release build output (tools/release/build_zip.py)
+/release/
 config/plugins.json
 config/user_rules.json
 
