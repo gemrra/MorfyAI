@@ -876,11 +876,6 @@
               <div class="set-hint" id="setModelsHint">—</div>
               <div class="models-list" id="providerModelsList"></div>
             </div>
-            <div class="set-section-title">Vision</div>
-            <div class="set-card">
-              <div class="set-hint">Configure a lightweight vision model used for viewport/image analysis.</div>
-              <div class="set-row"><button class="set-btn" id="setOpenVision">Vision (eyes) setup…</button></div>
-            </div>
           </div>
 
           <div class="set-page" id="page-rules">
@@ -2730,7 +2725,6 @@
     if(bridge && bridge.newChat) bridge.newChat(function(js){ renderSessions(safeJSON(js)); });
     setTitle('New chat'); showWelcome(); closeSettings(); showToast('Chat cleared');
   });
-  document.getElementById('setOpenVision').addEventListener('click', ()=>{ if(bridge) bridge.openDialog('vision'); });
 
   // ---- Rules (inline) ----
   function renderRules(rules){

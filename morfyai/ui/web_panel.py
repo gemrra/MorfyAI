@@ -2238,7 +2238,6 @@ class MorfyWebPanel(QtWidgets.QWidget):
         openers = {
             "rules": e._open_rules_editor,
             "plugins": e._open_plugin_manager,
-            "vision": e._open_vision_setup,
             "debug": e._open_debug_console,
             "about": e._open_about_dialog,
             "memory": e._slash_memories,
