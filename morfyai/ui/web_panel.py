@@ -1812,14 +1812,32 @@ class MorfyWebPanel(QtWidgets.QWidget):
             out.append({"id": sid, "title": bare, "active": i == e.session_tabs.currentIndex()})
         return out
 
+    def _persist_session_structure(self):
+        """Flush active state + rewrite sessions_manifest.json so a
+        create/delete/rename/switch is durable immediately. Without this the
+        manifest only got rewritten on the next message or on Houdini close,
+        so reopening the panel in between restored a STALE session list —
+        deleted chats reappeared and freshly-made ones vanished."""
+        e = self.engine
+        try:
+            e._save_current_session_state()
+        except Exception:
+            pass
+        try:
+            e._update_manifest()
+        except Exception:
+            pass
+
     def new_session(self):
         self.engine._new_session()
+        self._persist_session_structure()
 
     def switch_session(self, sid):
         e = self.engine
         for i in range(e.session_tabs.count()):
             if e.session_tabs.tabData(i) == sid:
                 e.session_tabs.setCurrentIndex(i)  # fires _switch_session
+                self._persist_session_structure()
                 return
 
     def delete_session(self, sid):
@@ -1827,6 +1845,7 @@ class MorfyWebPanel(QtWidgets.QWidget):
         for i in range(e.session_tabs.count()):
             if e.session_tabs.tabData(i) == sid:
                 e._close_session_tab(i)
+                self._persist_session_structure()
                 return
 
     def rename_session(self, sid, new_title):
@@ -1836,6 +1855,7 @@ class MorfyWebPanel(QtWidgets.QWidget):
             if e.session_tabs.tabData(i) == target:
                 e.session_tabs.setTabText(i, (new_title or "New chat").strip()[:60])
                 e._sync_tabs_backup()
+                self._persist_session_structure()
                 return
 
     @staticmethod
