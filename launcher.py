@@ -6,15 +6,46 @@ import sys
 import os
 
 # ============================================================
-# Force-use the local lib/ directory for dependencies
+# Force-use the local lib/ directory for dependencies, and make sure
+# MorfyAI's own top-level modules win over any other Houdini package that
+# happens to ship a module with the same bare name.
+#
+# The upstream "Houdini Agent" product (a separate install) also ships a
+# top-level `shared` module on PYTHONPATH. Because it loads at Houdini
+# startup, its `shared` lands in sys.modules first — so a later
+# `import shared` from MorfyAI returns THAT cached copy regardless of
+# sys.path order, and MorfyAI's config dir resolves into the other
+# product's folder under C:\Program Files (Access denied). We fix this by
+# (1) putting MorfyAI's own dirs at the front of sys.path and (2) evicting
+# any cached top-level modules that collide by name but live outside this
+# install, so MorfyAI re-imports its own.
 # ============================================================
 _ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+_MORFYAI_DIR = os.path.join(_ROOT_DIR, 'morfyai')
 _LIB_DIR = os.path.join(_ROOT_DIR, 'lib')
 
-if os.path.exists(_LIB_DIR):
-    if _LIB_DIR in sys.path:
-        sys.path.remove(_LIB_DIR)
-    sys.path.insert(0, _LIB_DIR)
+for _p in (_LIB_DIR, _MORFYAI_DIR, _ROOT_DIR):
+    if os.path.exists(_p):
+        if _p in sys.path:
+            sys.path.remove(_p)
+        sys.path.insert(0, _p)
+
+def _purge_foreign_modules(names):
+    """Drop cached top-level modules (and submodules) whose file lives
+    outside this MorfyAI install, so our own copies get imported fresh."""
+    root = os.path.abspath(_ROOT_DIR)
+    for k in list(sys.modules.keys()):
+        if k.split('.')[0] not in names:
+            continue
+        mod = sys.modules.get(k)
+        f = getattr(mod, '__file__', None)
+        if not f or not os.path.abspath(f).startswith(root):
+            try:
+                del sys.modules[k]
+            except KeyError:
+                pass
+
+_purge_foreign_modules({'shared', 'main'})
 
 # ============================================================
 
