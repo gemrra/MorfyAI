@@ -58,6 +58,13 @@ with a lot more surfaced.
 **Housekeeping**
 - Removed dead EN/ZH language-switcher remnants and CJK-specific token
   estimation — MorfyAI is English-only by design.
+- Vendored numpy 1.26.4 — the memory system imported it unconditionally
+  with no fallback, so a clean Houdini install without numpy already
+  present would crash on first use.
+- Simplified the Houdini top menu bar to a single "Open MorfyAI" entry
+  (dropped a confusing second "Dockable Panel" option and "About"), and
+  fixed its position — it now sits next to qLib/Redshift instead of at
+  the far left of the menu bar.
 
 ## 1.0 — 2026-05-28
 
