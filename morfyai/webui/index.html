@@ -2416,7 +2416,14 @@
       });
       return;
     }
-    if(bridge) bridge.saveApiKey(p, k, function(st){ renderKeyStatus(st); setApiKeyMasked(st!=='none'); showToast('API key saved'); });
+    if(status) status.textContent='Saving…';
+    if(bridge) bridge.saveApiKey(p, k, function(st){
+      renderKeyStatus(st); setApiKeyMasked(st!=='none'); showToast('API key saved');
+      if(status) status.textContent='';
+      // A built-in provider auto-fetches its model list once a key is set —
+      // re-render the page so the models appear without re-selecting it.
+      loadProvidersPage();
+    });
   });
 
   document.getElementById('setDeleteProvider').addEventListener('click', function(){

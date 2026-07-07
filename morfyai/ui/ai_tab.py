@@ -1351,7 +1351,7 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
 
     def _refresh_models(self, provider: str):
         self.model_combo.clear()
-        
+
         if provider == 'ollama':
             # trymovestateget Ollama modellist
             try:
@@ -1361,9 +1361,45 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
                     return
             except Exception:
                 pass
-        
+
+        # New built-in providers auto-fetch their model list live (once,
+        # cached for the session) instead of shipping a hardcoded list.
+        self._ensure_builtin_models(provider)
+
         # usepre-set modellist
         self.model_combo.addItems(self._model_map.get(provider, []))
+
+    def _ensure_builtin_models(self, provider: str):
+        """Lazily fetch + cache the model list for an auto-fetch built-in
+        provider (Gemini, Groq, Anthropic, ...). Populates _model_map plus the
+        context/vision/pricing metadata dicts. No-op if already cached, no key
+        set, or the provider isn't auto-fetch. Does NOT touch model_combo, so
+        it's safe to call for a provider that isn't the active one."""
+        if (provider not in getattr(self, '_AUTO_FETCH_PROVIDERS', ())
+                or self._model_map.get(provider)
+                or not self.client.has_api_key(provider)):
+            return
+        try:
+            for m in (self.client.get_builtin_models(provider) or []):
+                mid = m.get('id')
+                if not mid:
+                    continue
+                self._model_map.setdefault(provider, []).append(mid)
+                if m.get('contextLimit'):
+                    self._model_context_limits[mid] = m['contextLimit']
+                self._model_features[mid] = {
+                    'supports_prompt_caching': True,
+                    'supports_vision': bool(m.get('supportsVision')),
+                }
+                if m.get('inputPrice') is not None:
+                    from ..utils.token_optimizer import MODEL_PRICING
+                    MODEL_PRICING[mid.lower()] = {
+                        'input': float(m['inputPrice']),
+                        'input_cache': float(m['inputPrice']) * 0.25,
+                        'output': float(m.get('outputPrice') or 0.0),
+                    }
+        except Exception:
+            pass
 
     def _update_key_status(self):
         provider = self._current_provider()

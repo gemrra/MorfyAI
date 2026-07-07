@@ -62,6 +62,15 @@ class HeaderMixin:
         self.provider_combo.addItem("DeepSeek", 'deepseek')
         self.provider_combo.addItem("GLM", 'glm')
         self.provider_combo.addItem("OpenAI", 'openai')
+        self.provider_combo.addItem("Anthropic", 'anthropic')
+        self.provider_combo.addItem("Google Gemini", 'gemini')
+        self.provider_combo.addItem("xAI (Grok)", 'xai')
+        self.provider_combo.addItem("Groq", 'groq')
+        self.provider_combo.addItem("Mistral", 'mistral')
+        self.provider_combo.addItem("Moonshot (Kimi)", 'moonshot')
+        self.provider_combo.addItem("Together AI", 'together')
+        self.provider_combo.addItem("Perplexity", 'perplexity')
+        self.provider_combo.addItem("OpenCode Zen", 'opencode')
         self.provider_combo.addItem("Duojie", 'duojie')
         self.provider_combo.addItem("OpenRouter", 'openrouter')
         self.provider_combo.addItem("Custom", 'custom')
@@ -118,7 +127,24 @@ class HeaderMixin:
                 'qwen/qwen3-235b-a22b',
                 'mistralai/mistral-large-2512',
             ],
+            # New built-in providers: model lists are auto-fetched live from
+            # each provider's /models endpoint on first select (see
+            # _refresh_models), so no hardcoded lists to go stale.
+            'anthropic': [],
+            'gemini': [],
+            'xai': [],
+            'groq': [],
+            'mistral': [],
+            'moonshot': [],
+            'together': [],
+            'perplexity': [],
+            'opencode': [],
             'custom': [],  # populated dynamically by the user via the config dialog
+        }
+        # Providers whose model lists are fetched live (empty above until then).
+        self._AUTO_FETCH_PROVIDERS = {
+            'anthropic', 'gemini', 'xai', 'groq', 'mistral',
+            'moonshot', 'together', 'perplexity', 'opencode',
         }
         # Runtime configuration for the Custom provider (loaded from persisted config)
         self._custom_provider_config = {

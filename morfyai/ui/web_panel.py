@@ -2007,8 +2007,18 @@ class MorfyWebPanel(QtWidgets.QWidget):
     def save_api_key(self, provider, key):
         key = (key or "").strip()
         if key:
-            self.engine.client.set_api_key(key, persist=True, provider=provider)
-            self.engine._update_key_status()
+            e = self.engine
+            e.client.set_api_key(key, persist=True, provider=provider)
+            e._update_key_status()
+            # For an auto-fetch built-in provider, pull its live model list now
+            # that a key exists (clear any empty cache first) and let every
+            # open window's model picker update.
+            if provider in getattr(e, '_AUTO_FETCH_PROVIDERS', ()):
+                e._model_map[provider] = []
+                e._ensure_builtin_models(provider)
+                if e._current_provider() == provider:
+                    e._refresh_models(provider)
+                self._broadcast_models_changed()
         return self.key_status(provider)
 
     def key_status(self, provider):

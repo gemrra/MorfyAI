@@ -1392,6 +1392,24 @@ class AIClient:
     DUOJIE_ANTHROPIC_API_URL = "https://api.duojie.games/v1/messages"  # Duojie proxy (Anthropic protocol)
     OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"  # OpenRouter (OpenAI-compatible)
 
+    # Additional built-in providers. All are OpenAI-compatible (Bearer key,
+    # /chat/completions, standard GET /models discovery), so adding one here
+    # automatically wires its URL, display name, API-key handling, and live
+    # model auto-fetch — no hardcoded model lists. 'anthropic' is handled
+    # separately below because it speaks the native Anthropic Messages protocol.
+    _EXTRA_PROVIDERS = {
+        'gemini':     {'name': 'Google Gemini',  'url': 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions'},
+        'xai':        {'name': 'xAI (Grok)',      'url': 'https://api.x.ai/v1/chat/completions'},
+        'groq':       {'name': 'Groq',            'url': 'https://api.groq.com/openai/v1/chat/completions'},
+        'mistral':    {'name': 'Mistral',         'url': 'https://api.mistral.ai/v1/chat/completions'},
+        'moonshot':   {'name': 'Moonshot (Kimi)', 'url': 'https://api.moonshot.ai/v1/chat/completions'},
+        'together':   {'name': 'Together AI',     'url': 'https://api.together.xyz/v1/chat/completions'},
+        'perplexity': {'name': 'Perplexity',      'url': 'https://api.perplexity.ai/chat/completions'},
+        'opencode':   {'name': 'OpenCode Zen',    'url': 'https://opencode.ai/zen/v1/chat/completions'},
+    }
+    ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
+    ANTHROPIC_MODELS_URL = "https://api.anthropic.com/v1/models"
+
     # Duojie models that use the Anthropic protocol (GLM series, etc.)
     _DUOJIE_ANTHROPIC_MODELS = frozenset({'glm-4.7', 'glm-5', 'glm-5-turbo', 'glm-5.1'})
 
@@ -1442,8 +1460,13 @@ class AIClient:
             'ollama': 'ollama',  # Ollama doesn't need a real API key, just a non-empty value
             'duojie': self._read_api_key('duojie'),
             'openrouter': self._read_api_key('openrouter'),
+            'anthropic': self._read_api_key('anthropic'),
             'custom': self._read_api_key('custom'),
         }
+        # Extra built-in providers (Gemini, Groq, xAI, Mistral, ...): load any
+        # stored/env key the same way, keyed by their own id.
+        for _pid in self._EXTRA_PROVIDERS:
+            self._api_keys[_pid] = self._read_api_key(_pid)
         self._ssl_context = self._create_ssl_context()
         self._web_searcher = WebSearcher()
         self._tool_executor: Optional[Callable[[str, dict], dict]] = None
@@ -2335,7 +2358,11 @@ class AIClient:
             'openrouter': ['OPENROUTER_API_KEY', 'DCC_AI_OPENROUTER_API_KEY'],
             'custom': ['CUSTOM_API_KEY', 'DCC_AI_CUSTOM_API_KEY'],
         }
-        for env_var in env_map.get(provider, []):
+        # Any provider without an explicit entry (the extra built-ins) falls
+        # back to the conventional <PROVIDER>_API_KEY env var.
+        env_vars = env_map.get(provider) or [
+            '%s_API_KEY' % provider.upper(), 'DCC_AI_%s_API_KEY' % provider.upper()]
+        for env_var in env_vars:
             key = os.environ.get(env_var)
             if key:
                 return key
@@ -2347,7 +2374,7 @@ class AIClient:
                 'openrouter': 'openrouter_api_key',
                 'custom': 'custom_api_key',
             }
-            return cfg.get(key_map.get(provider, '')) or None
+            return cfg.get(key_map.get(provider, '%s_api_key' % provider)) or None
         return None
 
     def has_api_key(self, provider: str = 'openai') -> bool:
@@ -2373,7 +2400,7 @@ class AIClient:
             cfg, _ = load_config('ai', dcc_type='houdini')
             cfg = cfg or {}
             key_map = {'openai': 'openai_api_key', 'deepseek': 'deepseek_api_key', 'glm': 'glm_api_key',
-                       'openrouter': 'openrouter_api_key', 'custom': 'custom_api_key'}
+                       'duojie': 'duojie_api_key', 'openrouter': 'openrouter_api_key', 'custom': 'custom_api_key'}
             cfg[key_map.get(provider, f'{provider}_api_key')] = key
             ok, _ = save_config('ai', cfg, dcc_type='houdini')
             return ok
@@ -2406,6 +2433,8 @@ class AIClient:
 
     def _is_anthropic_protocol(self, provider: str, model: str) -> bool:
         """Return whether to use the Anthropic Messages protocol (vs. OpenAI protocol)."""
+        if provider == 'anthropic':
+            return True
         return provider == 'duojie' and model.lower() in self._DUOJIE_ANTHROPIC_MODELS
 
     def _get_api_url(self, provider: str, model: str = '') -> str:
@@ -2422,6 +2451,10 @@ class AIClient:
             return self.DUOJIE_API_URL
         elif provider == 'openrouter':
             return self.OPENROUTER_API_URL
+        elif provider == 'anthropic':
+            return self.ANTHROPIC_API_URL
+        elif provider in self._EXTRA_PROVIDERS:
+            return self._EXTRA_PROVIDERS[provider]['url']
         elif self._is_custom_provider(provider):
             url = (self._custom_cfg(provider).get('api_url') or '').strip()
             if not url:
@@ -2442,9 +2475,13 @@ class AIClient:
             'openai': 'OpenAI', 'deepseek': 'DeepSeek',
             'glm': 'GLM (Zhipu AI)', 'ollama': 'Ollama',
             'duojie': 'Duojie', 'openrouter': 'OpenRouter',
-            'custom': 'Custom',
+            'anthropic': 'Anthropic', 'custom': 'Custom',
         }
-        return names.get(provider, provider)
+        if provider in names:
+            return names[provider]
+        if provider in self._EXTRA_PROVIDERS:
+            return self._EXTRA_PROVIDERS[provider]['name']
+        return provider
 
     def set_custom_provider(self, api_url: str, api_key: str = '', supports_fc: bool = True):
         """Set runtime config for the Custom provider.
@@ -2582,6 +2619,45 @@ class AIClient:
         try:
             response = self._http_session.get(
                 url, headers=headers, timeout=10,
+                proxies={'http': None, 'https': None},
+            )
+            if response.status_code == 200:
+                data = response.json()
+                items = data.get('data', data) if isinstance(data, dict) else data
+                if isinstance(items, list):
+                    ids = [m.get('id') for m in items if isinstance(m, dict) and m.get('id')]
+                    return [self.guess_model_capabilities(i) for i in ids]
+        except Exception:
+            pass
+        return []
+
+    def get_builtin_models(self, provider: str) -> List[Dict[str, Any]]:
+        """Live model list (with guessed capabilities) for an auto-fetch
+        built-in provider. OpenAI-compatible ones reuse the standard
+        GET /models discovery; Anthropic uses its own /v1/models. Returns []
+        when the provider isn't fetchable or no key is set."""
+        provider = (provider or '').lower()
+        if provider == 'anthropic':
+            return self._get_anthropic_models()
+        if provider in self._EXTRA_PROVIDERS:
+            key = self._get_api_key(provider)
+            if not key:
+                return []
+            return self.get_custom_models(self._EXTRA_PROVIDERS[provider]['url'], key, provider)
+        return []
+
+    def _get_anthropic_models(self) -> List[Dict[str, Any]]:
+        """Discover Claude models via Anthropic's native /v1/models
+        (x-api-key + anthropic-version headers, not Bearer)."""
+        if not HAS_REQUESTS:
+            return []
+        key = self._get_api_key('anthropic')
+        if not key:
+            return []
+        headers = {'x-api-key': key, 'anthropic-version': '2023-06-01'}
+        try:
+            response = self._http_session.get(
+                self.ANTHROPIC_MODELS_URL, headers=headers, timeout=10,
                 proxies={'http': None, 'https': None},
             )
             if response.status_code == 200:
