@@ -5,7 +5,7 @@
   <menuBar>
     <subMenu id="morfyai_menu">
       <label>MorfyAI</label>
-      <insertBefore>help_menu</insertBefore>
+      <insertAfter>windows_menu</insertAfter>
 
       <scriptItem id="morfyai_open_floating">
         <label>Open MorfyAI</label>
