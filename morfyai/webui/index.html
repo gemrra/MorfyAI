@@ -135,6 +135,10 @@
   .msg.user .bubble{background:rgba(255,193,7,.1);border:1px solid rgba(255,193,7,.22);border-bottom-right-radius:4px;font-size:13px;}
   .msg-images{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;}
   .msg-images img{width:96px;height:96px;object-fit:cover;border-radius:9px;border:1px solid var(--border);}
+  .msg-attachments{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;justify-content:flex-end;}
+  .msg-attach-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:8px;background:var(--bg-input);border:1px solid var(--border);font-size:11.5px;color:var(--text-dim);max-width:200px;}
+  .msg-attach-chip svg{width:14px;height:14px;flex:none;stroke:var(--text-dim);}
+  .msg-attach-chip span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .msg.ai .bubble{background:none;border:none;padding:0;color:#d3d5dc;width:100%;}
 
   .ai-identity{display:flex;align-items:center;gap:6px;margin-bottom:8px;}
@@ -1072,6 +1076,7 @@
   const TOOLS_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 00-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 005.4-5.4l-2.8 2.8-2-2z"></path></svg>';
   const REWIND_SVG = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"></path><path d="M4 9h10.5a5.5 5.5 0 015.5 5.5v0a5.5 5.5 0 01-5.5 5.5H11"></path></svg>';
   const EDIT_SVG = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>';
+  const ATTACH_CHIP_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"></path></svg>';
 
   function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
@@ -1491,7 +1496,7 @@
   }
   setInterval(refreshMsgTimes, 30000);
 
-  function addUserMsg(text, historyIndex, ts, images){
+  function addUserMsg(text, historyIndex, ts, images, attachments){
     const div = document.createElement('div');
     div.className='msg user';
     div.dataset.text=text;
@@ -1500,7 +1505,13 @@
     const imagesHtml = (images && images.length)
       ? '<div class="bubblerow"><div class="msg-images">'+images.map(img=>'<img src="'+img.dataUrl+'">').join('')+'</div></div>'
       : '';
-    div.innerHTML=imagesHtml+
+    // Staged context (Read Selection / Analyze Scene / Read Viewport) shows as
+    // a chip above the bubble, mirroring how attached images render.
+    const attachHtml = (attachments && attachments.length)
+      ? '<div class="bubblerow"><div class="msg-attachments">'+attachments.map(a=>
+          '<span class="msg-attach-chip">'+ATTACH_CHIP_SVG+'<span>'+esc(a.label||'context')+'</span></span>').join('')+'</div></div>'
+      : '';
+    div.innerHTML=imagesHtml+attachHtml+
       '<div class="bubblerow">'+
         '<div class="bubble"><span class="bubble-text"></span></div>'+
       '</div>'+
@@ -1659,7 +1670,8 @@
       // real, persisted timestamp is now recorded server-side inside
       // MorfyWebPanel.send() itself, so it's captured no matter which code
       // path triggers a send (composer, plan revision, etc.).
-      addUserMsg(typed || '(context attached)', idx, Date.now(), currentPendingImages);
+      addUserMsg(typed || '(context attached)', idx, Date.now(), currentPendingImages,
+                 stagedContexts.map(c=>({label: c.label})));
       cur = buildAiCard();
       setLive('Thinking...'); forceScrollBottom();
       bridge.send(text);
