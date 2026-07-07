@@ -147,6 +147,10 @@
   .welcome-head{display:flex;flex-direction:column;gap:5px;}
   .welcome-title{font-size:16px;font-weight:650;color:var(--text);}
   .welcome-sub{font-size:11.5px;color:var(--text-faint);}
+  .setup-guide{display:flex;flex-direction:column;align-items:center;gap:8px;background:var(--bg-panel);border:1px solid rgba(255,193,7,.35);border-radius:12px;padding:16px 20px;max-width:340px;text-align:center;}
+  .setup-guide-title{font-size:13.5px;font-weight:650;color:var(--brand);}
+  .setup-guide-sub{font-size:11.5px;color:var(--text-dim);line-height:1.5;}
+  .setup-guide .set-btn{margin-top:2px;}
   .chiprow{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:300px;}
   .chip{display:flex;align-items:center;gap:6px;background:var(--bg-panel);border:1px solid var(--border);border-radius:20px;padding:7px 13px;font-size:11.5px;color:var(--text-dim);cursor:pointer;}
   .chip:hover{color:var(--text);background:var(--bg-pill);}
@@ -1422,6 +1426,22 @@
           '<div class="chip">{ } Write VEX</div>' +
         '</div>' +
       '</div>';
+    // If no provider/model is configured yet, guide the user to Settings.
+    if(bridge && bridge.setupReady) bridge.setupReady(function(js){
+      const r = safeJSON(js) || {};
+      if(r.ready) return;
+      const w = chatBody.querySelector('.welcome');
+      if(!w) return;
+      const card = document.createElement('div');
+      card.className = 'setup-guide';
+      card.innerHTML =
+        '<div class="setup-guide-title">No AI provider set up yet</div>' +
+        '<div class="setup-guide-sub">Enable a provider and add your API key in Settings to start chatting.</div>' +
+        '<button class="set-btn primary" id="setupGuideBtn">Open Provider Settings</button>';
+      w.insertBefore(card, w.querySelector('.chiprow'));
+      const btn = document.getElementById('setupGuideBtn');
+      if(btn) btn.addEventListener('click', ()=>{ openSettings(); selectSettingsPage('providers'); });
+    });
   }
 
   function renderHistory(history, truncated){

@@ -131,6 +131,14 @@ class Bridge(QtCore.QObject):
             self._err("enabledModels failed", e)
             return json.dumps([])
 
+    @QtCore.Slot(result=str)
+    def setupReady(self):
+        try:
+            return json.dumps(self.owner.setup_ready())
+        except Exception as e:
+            self._err("setupReady failed", e)
+            return json.dumps({"ready": True})
+
     @QtCore.Slot(str, str, bool)
     def setModelEnabled(self, provider, model, enabled):
         try:
@@ -899,7 +907,9 @@ class MorfyWebPanel(QtWidgets.QWidget):
         self.engine.hide()
         self._wire_engine_signals()
 
-        self._disabled_providers = self._load_disabled_providers()
+        # Providers are opt-in: none are active until the user enables them,
+        # so a fresh install starts empty instead of exposing every provider.
+        self._enabled_providers = self._load_enabled_providers()
         # Per-model opt-in for built-in providers: {provider_id: set(model_ids)}.
         # Models default OFF — the composer only shows models the user has
         # explicitly enabled, so a provider's whole catalog doesn't flood the
@@ -1129,7 +1139,7 @@ class MorfyWebPanel(QtWidgets.QWidget):
         result = []
         for i in range(e.provider_combo.count()):
             pid = e.provider_combo.itemData(i)
-            if pid in self._disabled_providers:
+            if pid not in self._enabled_providers:
                 continue
             pname = e.provider_combo.itemText(i)
             if self._is_custom_provider_id(pid):
@@ -1151,6 +1161,17 @@ class MorfyWebPanel(QtWidgets.QWidget):
         except Exception:
             pass
         return {}
+
+    def setup_ready(self):
+        """Whether the app is usable yet: at least one enabled provider with a
+        usable model AND a key (ollama/custom need no key). Drives the
+        'set up a provider' guidance shown on the welcome screen."""
+        e = self.engine
+        for m in self.list_enabled_models():
+            pid = m["providerId"]
+            if pid == 'ollama' or self._is_custom_provider_id(pid) or e.client.has_api_key(pid):
+                return {"ready": True}
+        return {"ready": False}
 
     def _save_enabled_models(self):
         try:
@@ -1187,35 +1208,35 @@ class MorfyWebPanel(QtWidgets.QWidget):
     def list_providers(self):
         e = self.engine
         return [{"id": e.provider_combo.itemData(i), "name": e.provider_combo.itemText(i),
-                  "enabled": e.provider_combo.itemData(i) not in self._disabled_providers}
+                  "enabled": e.provider_combo.itemData(i) in self._enabled_providers}
                 for i in range(e.provider_combo.count())]
 
-    def _load_disabled_providers(self):
+    def _load_enabled_providers(self):
         try:
             from shared.common_utils import load_config
             cfg, _ = load_config('ai', dcc_type='houdini')
-            if cfg and cfg.get('disabled_providers'):
-                return set(json.loads(cfg['disabled_providers']))
+            if cfg and cfg.get('enabled_providers'):
+                return set(json.loads(cfg['enabled_providers']))
         except Exception:
             pass
         return set()
 
-    def _save_disabled_providers(self):
+    def _save_enabled_providers(self):
         try:
             from shared.common_utils import load_config, save_config
             cfg, _ = load_config('ai', dcc_type='houdini')
             cfg = cfg or {}
-            cfg['disabled_providers'] = json.dumps(sorted(self._disabled_providers))
+            cfg['enabled_providers'] = json.dumps(sorted(self._enabled_providers))
             save_config('ai', cfg, dcc_type='houdini')
         except Exception:
             pass
 
     def set_provider_enabled(self, provider_id, enabled):
         if enabled:
-            self._disabled_providers.discard(provider_id)
+            self._enabled_providers.add(provider_id)
         else:
-            self._disabled_providers.add(provider_id)
-        self._save_disabled_providers()
+            self._enabled_providers.discard(provider_id)
+        self._save_enabled_providers()
         self._broadcast_models_changed()
 
     def current_provider(self):
