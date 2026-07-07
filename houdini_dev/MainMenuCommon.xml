@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- MorfyAI Dev-mode top-level menu. Registered ONLY by MorfyAI-Dev.json
+     (never shipped in a release package), so a "MorfyAI Dev" entry appears
+     alongside the normal "MorfyAI" menu. Uses launcher_dev (a unique module
+     name) so it doesn't collide with the release's launcher. -->
+<mainMenu>
+  <menuBar>
+    <subMenu id="morfyai_dev_menu">
+      <modifyItem><insertBefore>help_menu</insertBefore></modifyItem>
+      <label>MorfyAI Dev</label>
+
+      <scriptItem id="morfyai_dev_open">
+        <label>Open MorfyAI Dev</label>
+        <scriptCode><![CDATA[import launcher_dev
+launcher_dev.show_tool()]]></scriptCode>
+      </scriptItem>
+    </subMenu>
+  </menuBar>
+</mainMenu>

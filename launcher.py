@@ -45,7 +45,7 @@ def _purge_foreign_modules(names):
             except KeyError:
                 pass
 
-_purge_foreign_modules({'shared', 'main'})
+_purge_foreign_modules({'shared', 'main', 'morfyai'})
 
 # ============================================================
 

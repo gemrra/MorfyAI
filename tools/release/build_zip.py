@@ -28,7 +28,8 @@ import zipfile
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Tracked files/dirs that are dev-only and shouldn't ship in the release zip.
-_EXCLUDE = {".mcp.json", ".gitignore", "Doc", "docs"}
+_EXCLUDE = {".mcp.json", ".gitignore", "Doc", "docs",
+            "launcher_dev.py", "houdini_dev", "tools"}
 
 
 def _read_version():

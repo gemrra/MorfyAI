@@ -1,0 +1,8 @@
+{
+  "enable": true,
+  "env": [
+    { "MORFYAI_DEV": "E:/AILocal/MorfyAI" },
+    { "HOUDINI_PATH": { "value": ["$MORFYAI_DEV/houdini_dev"], "method": "prepend" } },
+    { "PYTHONPATH": { "value": ["$MORFYAI_DEV"], "method": "prepend" } }
+  ]
+}
