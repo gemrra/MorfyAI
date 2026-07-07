@@ -73,7 +73,10 @@ class HeaderMixin:
         self.provider_combo.addItem("OpenCode Zen", 'opencode')
         self.provider_combo.addItem("Duojie", 'duojie')
         self.provider_combo.addItem("OpenRouter", 'openrouter')
-        self.provider_combo.addItem("Custom", 'custom')
+        # No always-present "Custom" entry: custom endpoints only appear once
+        # the user adds one via "+ Add Provider" (registered as custom_N). The
+        # old single 'custom' slot below still exists in the backend (dormant)
+        # for backward compat with any previously-saved custom config.
         self.provider_combo.setMinimumWidth(70)
         self.provider_combo.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed)
         self.provider_combo.setVisible(False)
