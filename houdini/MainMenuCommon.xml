@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- MorfyAI top-level menu. Auto-scanned from HOUDINI_PATH.
-     Adds a "MorfyAI" menu to the main menu bar (alongside File, Edit, Render, etc.),
-     with two options: floating window and dockable panel. -->
+     Adds a "MorfyAI" menu to the main menu bar (alongside File, Edit, Render, etc.). -->
 <mainMenu>
   <menuBar>
     <subMenu id="morfyai_menu">
@@ -9,35 +8,9 @@
       <insertBefore>help_menu</insertBefore>
 
       <scriptItem id="morfyai_open_floating">
-        <label>Open MorfyAI (Floating Window)</label>
+        <label>Open MorfyAI</label>
         <scriptCode><![CDATA[import launcher
 launcher.show_tool()]]></scriptCode>
-      </scriptItem>
-
-      <scriptItem id="morfyai_open_dockable">
-        <label>Open MorfyAI (Dockable Panel)</label>
-        <scriptCode><![CDATA[import hou
-desktop = hou.ui.curDesktop()
-pane = desktop.paneTabOfType(hou.paneTabType.PythonPanel)
-if pane is None:
-    pane = desktop.createFloatingPaneTab(hou.paneTabType.PythonPanel)
-iface = hou.pypanel.interfaceByName("morfyai_panel")
-if iface is not None:
-    pane.setActiveInterface(iface)
-    pane.setShowNetworkNavigationBar(False)]]></scriptCode>
-      </scriptItem>
-
-      <separatorItem />
-
-      <scriptItem id="morfyai_about">
-        <label>About MorfyAI</label>
-        <scriptCode><![CDATA[import hou
-hou.ui.displayMessage(
-    "MorfyAI - Houdini Assistant\n"
-    "AI co-pilot for SideFX Houdini\n\n"
-    "Part of the MorfyFX ecosystem",
-    title="About MorfyAI"
-)]]></scriptCode>
       </scriptItem>
     </subMenu>
   </menuBar>
