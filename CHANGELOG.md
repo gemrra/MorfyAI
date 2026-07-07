@@ -68,6 +68,10 @@ with a lot more surfaced.
 - Fixed the drop-in release package pointing at an invalid Houdini
   variable (`$HOUDINI_PACKAGE_DIR`), which left the plugin path empty so
   nothing loaded — now uses `$HOUDINI_PACKAGE_PATH` like other packages.
+- Fixed an "Access denied" crash on machines that also have the separate
+  Houdini Agent product installed — its top-level `shared` module was
+  shadowing MorfyAI's, redirecting the config folder into Program Files.
+  MorfyAI now isolates its own modules at startup.
 
 ## 1.0 — 2026-05-28
 
