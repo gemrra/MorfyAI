@@ -4,6 +4,21 @@ All notable changes to MorfyAI are documented here. One entry per release —
 this is also what gets pasted into the GitHub Release notes and the public
 changelog page at morfyfx.com/morfyai/changelog.
 
+## 2.2 — 2026-07-07
+
+**Token usage analytics, redesigned**
+- The "Usage & cost stats" view is rebuilt as a proper dashboard and now
+  opens in its own window (like Settings) instead of a cramped in-panel box.
+- One summary widget up top: estimated cost, requests, total tokens, cache
+  hit rate, plus a full token-mix bar (cached vs fresh input, output,
+  reasoning) with how many tokens were reused via cache.
+- A cost-per-request chart with the priciest call highlighted, and a new
+  **By model** breakdown — per-model requests, tokens, cache rate, and cost
+  share, so you can see which model is spending your budget.
+- Call details table with a per-row usage bar; app-styled scrollbars.
+- Currency toggle is back — switch between USD and IDR with a live exchange
+  rate (falls back to USD if the rate can't be fetched).
+
 ## 2.1 — 2026-07-07
 
 **Providers**

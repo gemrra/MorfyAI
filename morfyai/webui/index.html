@@ -459,6 +459,107 @@
   .errlog{flex:1;overflow-y:auto;padding:8px 12px;font-family:var(--font-mono);font-size:10.5px;color:var(--text-dim);white-space:pre-wrap;word-break:break-word;}
   .errlog .erow{padding:3px 0;border-bottom:1px solid rgba(255,255,255,.04);}
 
+  /* ---- token analytics modal ---- */
+  .tok-overlay{position:absolute;inset:0;background:rgba(0,0,0,.55);display:none;z-index:60;align-items:flex-start;justify-content:center;overflow-y:auto;padding:24px 16px;}
+  .tok-overlay.show{display:flex;}
+  .tok-modal{width:100%;max-width:940px;background:var(--bg);border:1px solid rgba(255,255,255,.14);border-radius:14px;overflow:hidden;box-shadow:0 30px 80px -30px rgba(0,0,0,.8);}
+  .tok-bar{display:flex;align-items:center;gap:11px;padding:14px 18px;border-bottom:1px solid var(--border);}
+  .tok-bar .mk{width:22px;height:22px;flex:none;background:url('../assets/morfyai-logo.png') center/contain no-repeat;}
+  .tok-bar h2{font-size:14px;font-weight:650;margin:0;}
+  .tok-bar .sub{font-size:11px;color:var(--text-faint);}
+  .tok-bar .x{margin-left:auto;width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;color:var(--text-dim);cursor:pointer;font-size:15px;}
+  .tok-bar .x:hover{background:var(--bg-panel);color:var(--text);}
+  .tok-body{padding:16px 18px 18px;display:flex;flex-direction:column;gap:12px;}
+  .tok-card{background:var(--bg-panel);border:1px solid var(--border);border-radius:12px;padding:15px 16px;}
+  .tok-chead{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;}
+  .tok-chead h3{font-size:12.5px;font-weight:650;margin:0;}
+  .tok-lab{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-faint);}
+
+  .tok-sum{display:flex;flex-direction:column;gap:15px;background:linear-gradient(165deg,#1c1d22,#161719);}
+  .tok-stats{display:grid;grid-template-columns:auto 1px repeat(3,1fr);gap:18px;align-items:center;}
+  .tok-cost{display:flex;flex-direction:column;gap:5px;}
+  .tok-cost .tok-lab{color:#d9a441;}
+  .tok-cost .big{font-size:31px;font-weight:750;letter-spacing:-.02em;color:var(--brand);font-variant-numeric:tabular-nums;line-height:1;}
+  .tok-cost .meta{font-size:11px;color:var(--text-dim);font-variant-numeric:tabular-nums;}
+  .tok-vdiv{width:1px;align-self:stretch;background:var(--border);}
+  .tok-s{display:flex;flex-direction:column;gap:5px;}
+  .tok-s .v{font-size:22px;font-weight:750;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1;}
+  .tok-s .m{font-size:10.5px;color:var(--text-dim);font-variant-numeric:tabular-nums;}
+  .tok-up{color:#3ecf8e;}
+
+  .tok-mix{border-top:1px solid var(--border);padding-top:14px;display:flex;flex-direction:column;gap:10px;}
+  .tok-mixhead{display:flex;align-items:baseline;justify-content:space-between;}
+  .tok-mixbar{display:flex;height:11px;border-radius:6px;overflow:hidden;gap:2px;}
+  .tok-mixbar span{height:100%;}
+  .tok-mixleg{display:flex;flex-wrap:wrap;align-items:center;gap:18px;}
+  .tok-mixleg .k{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-dim);}
+  .tok-mixleg .dot{width:9px;height:9px;border-radius:3px;flex:none;}
+  .tok-mixleg .k b{color:var(--text);font-variant-numeric:tabular-nums;font-weight:650;}
+  .tok-mixleg .k i{color:var(--text-faint);font-style:normal;font-size:10px;font-variant-numeric:tabular-nums;}
+  .tok-mixleg .saved{margin-left:auto;font-size:11px;color:var(--text-dim);}
+  .tok-mixleg .saved b{color:#3ecf8e;font-weight:750;font-size:12.5px;}
+
+  .tok-mid{display:grid;grid-template-columns:1fr 340px;gap:12px;}
+  @media(max-width:820px){ .tok-mid{grid-template-columns:1fr;} .tok-stats{grid-template-columns:1fr 1fr;} .tok-vdiv{display:none;} }
+  .tok-leg{display:flex;gap:12px;font-size:10.5px;color:var(--text-dim);}
+  .tok-leg .k{display:flex;align-items:center;gap:5px;}
+  .tok-leg .dot{width:7px;height:7px;border-radius:50%;flex:none;}
+  .tok-chartwrap{position:relative;margin-top:6px;}
+  .tok-chart{display:block;width:100%;height:auto;}
+  .tok-chart .g{stroke:var(--border);stroke-width:1;}
+  .tok-chart .ax{fill:var(--text-faint);font-size:9px;font-family:var(--font-mono);}
+  .tok-chart .ln{fill:none;stroke:var(--brand);stroke-width:2;stroke-linejoin:round;stroke-linecap:round;}
+  .tok-chart .lastd{fill:var(--brand);stroke:var(--bg-panel);stroke-width:3;}
+  .tok-chart .peakd{fill:#ff8c42;stroke:var(--bg-panel);stroke-width:3;}
+  .tok-chart .pl{stroke:rgba(255,255,255,.18);stroke-width:1;stroke-dasharray:3 3;}
+  .tok-empty{padding:28px 10px;text-align:center;color:var(--text-faint);font-size:12px;}
+
+  .tok-mrow{display:grid;grid-template-columns:26px 1fr auto;grid-template-rows:auto auto;column-gap:10px;align-items:center;padding:10px 2px;border-top:1px solid var(--border);}
+  .tok-mrow:first-of-type{border-top:0;padding-top:2px;}
+  .tok-mrow .badge{grid-row:1/3;width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#0d0e13;}
+  .tok-mrow .nm{font-size:12px;font-weight:600;color:var(--text);}
+  .tok-mrow .nm span{color:var(--text-faint);font-weight:500;font-size:10.5px;}
+  .tok-mrow .mt{grid-column:2;font-size:9.5px;color:var(--text-faint);font-variant-numeric:tabular-nums;margin-top:2px;}
+  .tok-mrow .cst{grid-column:3;grid-row:1/3;text-align:right;font-size:14px;font-weight:700;color:var(--brand);font-variant-numeric:tabular-nums;}
+  .tok-mrow .cst small{display:block;font-size:9.5px;font-weight:500;color:var(--text-faint);margin-top:2px;}
+  .tok-share{grid-column:2/4;margin-top:7px;height:5px;border-radius:3px;background:var(--bg-input);overflow:hidden;}
+  .tok-share span{display:block;height:100%;border-radius:3px;}
+
+  .tok-tablecard{padding:0;overflow:hidden;}
+  .tok-th{display:flex;align-items:center;justify-content:space-between;padding:13px 16px 9px;}
+  .tok-th h3{font-size:12.5px;font-weight:650;margin:0;}
+  .tok-th .cnt{font-size:10.5px;color:var(--text-faint);font-variant-numeric:tabular-nums;}
+  .tok-tscroll{max-height:340px;overflow-y:auto;}
+  .tok-tscroll::-webkit-scrollbar{width:8px;}
+  .tok-tscroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:4px;}
+  .tok-tscroll::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.2);}
+  .tok-tscroll::-webkit-scrollbar-track{background:transparent;}
+  body.standalone-tokens .tok-tscroll{max-height:none;}
+  .tok-table{width:100%;border-collapse:collapse;font-size:11.5px;}
+  .tok-table thead th{position:sticky;top:0;background:var(--bg-panel);text-align:right;font-weight:500;color:var(--text-faint);font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;padding:6px 9px;border-bottom:1px solid var(--border);}
+  .tok-table thead th:nth-child(-n+3){text-align:left;}
+  .tok-table tbody td{padding:7px 9px;text-align:right;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums;color:var(--text-dim);}
+  .tok-table tbody td:first-child{color:var(--text-faint);}
+  .tok-table td.tm{text-align:left;color:var(--text-faint);font-family:var(--font-mono);font-size:10.5px;}
+  .tok-table td.md{text-align:left;color:var(--text);font-family:var(--font-mono);font-size:10.5px;}
+  .tok-table td.cs{color:var(--brand);font-weight:600;}
+  .tok-table tbody tr:hover td{background:rgba(255,255,255,.02);}
+  .tok-ubar{display:inline-flex;height:6px;width:110px;border-radius:3px;overflow:hidden;background:var(--bg-input);vertical-align:middle;gap:1px;}
+  .tok-ubar span{height:100%;}
+  .tok-table td.us{text-align:left;padding-left:12px;}
+
+  .tok-foot{display:flex;align-items:center;gap:10px;padding:13px 18px;border-top:1px solid var(--border);}
+  .tok-btn{font-size:11.5px;padding:7px 14px;border-radius:8px;border:1px solid rgba(255,255,255,.14);background:transparent;color:var(--text-dim);cursor:pointer;font-family:var(--font-ui);}
+  .tok-btn:hover{background:var(--bg-panel);color:var(--text);}
+  .tok-btn.reset{border-color:rgba(239,68,68,.4);color:var(--red);}
+  .tok-btn.reset:hover{background:rgba(239,68,68,.1);}
+  .tok-cur{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text-faint);margin-left:auto;}
+  .tok-cur select{background:var(--bg-panel);color:var(--text);border:1px solid rgba(255,255,255,.14);border-radius:8px;padding:6px 9px;font-family:var(--font-ui);font-size:11px;cursor:pointer;}
+  .tok-overlay::-webkit-scrollbar{width:9px;}
+  .tok-overlay::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:4px;}
+  .tok-overlay::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.2);}
+  .tok-overlay::-webkit-scrollbar-track{background:transparent;}
+
   /* ---- settings modal ---- */
   .settings-overlay{position:absolute;inset:0;background:rgba(0,0,0,.5);display:none;z-index:50;}
   .settings-overlay.show{display:block;}
@@ -470,6 +571,14 @@
   body.standalone-settings .composer-wrap,
   body.standalone-settings .errpanel{display:none!important;}
   body.standalone-settings .settings-overlay{background:none;display:block;}
+  body.standalone-tokens .topbar,
+  body.standalone-tokens .sidebar,
+  body.standalone-tokens .sidebar-overlay,
+  body.standalone-tokens .chatwrap,
+  body.standalone-tokens .composer-wrap,
+  body.standalone-tokens .errpanel{display:none!important;}
+  body.standalone-tokens .tok-overlay{background:var(--bg);display:block;padding:0;z-index:1;}
+  body.standalone-tokens .tok-modal{max-width:none;border:0;border-radius:0;box-shadow:none;min-height:100%;}
   .settings-modal{position:absolute;inset:0;background:var(--bg);display:flex;flex-direction:column;}
   .settings-topbar{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--border);flex:none;}
   .settings-topbar .st-title{flex:1;font-size:13px;font-weight:600;}
@@ -774,6 +883,26 @@
     <div class="errlog" id="errLog"></div>
   </div>
 
+  <!-- Token analytics modal -->
+  <div class="tok-overlay" id="tokOverlay">
+    <div class="tok-modal">
+      <div class="tok-bar">
+        <span class="mk"></span>
+        <h2>Token usage analytics</h2>
+        <span class="sub">· this session</span>
+        <span class="x" id="tokClose">✕</span>
+      </div>
+      <div class="tok-body" id="tokBody"></div>
+      <div class="tok-foot">
+        <button class="tok-btn reset" id="tokReset">Reset stats</button>
+        <div class="tok-cur">Currency
+          <select id="tokCurrency"><option value="USD">USD ($)</option><option value="IDR">IDR (Rp)</option></select>
+        </div>
+        <button class="tok-btn" id="tokCloseBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Settings modal -->
   <div class="settings-overlay" id="settingsOverlay">
     <div class="settings-modal">
@@ -1040,6 +1169,8 @@
 (function(){
   const IS_SETTINGS_STANDALONE = location.hash.indexOf('settings-standalone')>=0;
   if(IS_SETTINGS_STANDALONE) document.body.classList.add('standalone-settings');
+  const IS_TOKENS_STANDALONE = location.hash.indexOf('tokens-standalone')>=0;
+  if(IS_TOKENS_STANDALONE) document.body.classList.add('standalone-tokens');
   const field = document.getElementById('field');
   const composer = document.getElementById('composer');
   const sendBtn = document.getElementById('sendBtn');
@@ -2212,7 +2343,154 @@
       });
     }
   });
-  document.getElementById('usageStatsItem').addEventListener('click', e=>{ e.stopPropagation(); usagePop.classList.remove('show'); if(bridge) bridge.openDialog('usage'); });
+  document.getElementById('usageStatsItem').addEventListener('click', e=>{ e.stopPropagation(); usagePop.classList.remove('show'); if(bridge && bridge.openTokenWindow) bridge.openTokenWindow(); else openTokenAnalytics(); });
+
+  // ---- token usage analytics modal ----
+  const TOK_PAL=['#3ecf8e','#fbbf24','#6ea8fe','#a78bfa','#f0a94a','#f472b6','#38bdf8'];
+  let _tokData=null, _tokCur='USD', _tokRate=0;
+  function tokFmt(n){ n=n||0; if(n>=1e6) return (n/1e6).toFixed(2)+'M'; if(n>=1000) return (n/1000).toFixed(1)+'K'; return String(Math.round(n)); }
+  function tokMoney(usd){ usd=usd||0; if(_tokCur==='IDR' && _tokRate>0) return 'Rp '+Math.round(usd*_tokRate).toLocaleString('id-ID'); return '$'+usd.toFixed(4); }
+  function tokProv(m){ m=(m||'').toLowerCase();
+    if(m.indexOf('deepseek')>=0)return'DeepSeek';
+    if(m.indexOf('claude')>=0)return'Anthropic';
+    if(m.indexOf('gemini')>=0)return'Google';
+    if(m.indexOf('grok')>=0)return'xAI';
+    if(m.indexOf('mistral')>=0||m.indexOf('mixtral')>=0)return'Mistral';
+    if(m.indexOf('kimi')>=0||m.indexOf('moonshot')>=0)return'Moonshot';
+    if(m.indexOf('llama')>=0)return'Meta';
+    if(m.indexOf('qwen')>=0)return'Qwen';
+    if(m.indexOf('glm')>=0)return'Zhipu';
+    if(m.indexOf('gpt')===0||m.indexOf('o1')>=0||m.indexOf('o3')>=0||m.indexOf('openai')>=0)return'OpenAI';
+    return''; }
+  function tokBadge(m){ const s=(m||'?').replace(/[^a-z0-9]/gi,''); return (s.slice(0,2)||'?').toUpperCase(); }
+
+  function tokChart(calls){
+    const costs=calls.map(c=>c.cost||0), n=costs.length;
+    if(n===0) return '';
+    const W=640,H=200,padL=30,padR=10,padT=12,padB=20;
+    const max=(Math.max.apply(null,costs)*1.15)||1;
+    const X=i=> n<2? W/2 : padL+(i/(n-1))*(W-padL-padR);
+    const Y=v=> padT+(1-v/max)*(H-padT-padB);
+    let peakI=0; costs.forEach((v,i)=>{ if(v>costs[peakI])peakI=i; });
+    let d='M '+X(0).toFixed(1)+' '+Y(costs[0]).toFixed(1);
+    for(let i=1;i<n;i++) d+=' L '+X(i).toFixed(1)+' '+Y(costs[i]).toFixed(1);
+    const area=d+' L '+X(n-1).toFixed(1)+' '+(H-padB)+' L '+X(0).toFixed(1)+' '+(H-padB)+' Z';
+    let grid=''; for(let g=0;g<=3;g++){ const gy=(padT+(g/3)*(H-padT-padB)).toFixed(1); grid+='<line class="g" x1="'+padL+'" x2="'+(W-padR)+'" y1="'+gy+'" y2="'+gy+'"/>'; }
+    let ax=''; const marks=n<=1?[0]:[0,Math.floor((n-1)/2),n-1]; const seen={};
+    marks.forEach(idx=>{ if(seen[idx])return; seen[idx]=1; ax+='<text class="ax" x="'+X(idx).toFixed(1)+'" y="'+(H-5)+'" text-anchor="middle">#'+(idx+1)+'</text>'; });
+    const peakEl=n>1? '<line class="pl" x1="'+X(peakI).toFixed(1)+'" x2="'+X(peakI).toFixed(1)+'" y1="'+Y(costs[peakI]).toFixed(1)+'" y2="'+(H-padB)+'"/><circle class="peakd" r="4" cx="'+X(peakI).toFixed(1)+'" cy="'+Y(costs[peakI]).toFixed(1)+'"/>':'';
+    return '<svg class="tok-chart" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none">'
+      +'<defs><linearGradient id="tokfill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffc107" stop-opacity="0.26"/><stop offset="1" stop-color="#ffc107" stop-opacity="0"/></linearGradient></defs>'
+      +grid+'<path d="'+area+'" fill="url(#tokfill)"/><path class="ln" d="'+d+'"/>'+peakEl
+      +'<circle class="lastd" r="4" cx="'+X(n-1).toFixed(1)+'" cy="'+Y(costs[n-1]).toFixed(1)+'"/>'+ax+'</svg>';
+  }
+
+  function renderTokenAnalytics(d){
+    d=d||{}; _tokData=d;
+    const calls=d.calls||[], byModel=d.byModel||[];
+    const cost=d.cost||0, reqs=d.requests||0, hit=d.hitRate||0, avgLat=d.avgLatency||0;
+    const inTok=d.inputTokens||0, outTok=d.outputTokens||0, reason=d.reasoningTokens||0;
+    const cRead=d.cacheRead||0, cWrite=d.cacheWrite||0, total=d.totalTokens||0;
+    const body=document.getElementById('tokBody');
+    if(reqs===0 && calls.length===0){
+      body.innerHTML='<div class="tok-card"><div class="tok-empty">No usage yet this session.<br>Stats appear here after your first message.</div></div>';
+      return;
+    }
+    const mixTotal=(cRead+cWrite+outTok+reason)||1;
+    const fx=v=> Math.max(1, Math.round(v/mixTotal*1000));
+    const pc=v=>{ const p=v/mixTotal*100; return p>0&&p<1? p.toFixed(1): Math.round(p); };
+    const summary=''
+      +'<div class="tok-card tok-sum">'
+      +  '<div class="tok-stats">'
+      +    '<div class="tok-cost"><div class="tok-lab">Estimated cost</div>'
+      +      '<div class="big">'+tokMoney(cost)+'</div>'
+      +      '<div class="meta">'+reqs+' requests · <span class="tok-up">'+hit.toFixed(1)+'%</span> cache hit rate</div></div>'
+      +    '<div class="tok-vdiv"></div>'
+      +    '<div class="tok-s"><div class="tok-lab">Requests</div><div class="v">'+reqs+'</div><div class="m">avg '+avgLat.toFixed(1)+'s latency</div></div>'
+      +    '<div class="tok-s"><div class="tok-lab">Total tokens</div><div class="v">'+tokFmt(total)+'</div><div class="m">'+tokFmt(inTok)+' in · '+tokFmt(outTok)+' out</div></div>'
+      +    '<div class="tok-s"><div class="tok-lab">Cache hit rate</div><div class="v">'+hit.toFixed(1)+'%</div><div class="m">'+tokFmt(cRead)+' reused</div></div>'
+      +  '</div>'
+      +  '<div class="tok-mix"><div class="tok-mixhead"><span class="tok-lab">Token mix</span><span class="tok-lab" style="color:var(--text-dim)">'+mixTotal.toLocaleString()+' total</span></div>'
+      +    '<div class="tok-mixbar">'
+      +      '<span style="flex:'+fx(cRead)+';background:#3ecf8e"></span>'
+      +      '<span style="flex:'+fx(cWrite)+';background:#f0a94a"></span>'
+      +      '<span style="flex:'+fx(outTok)+';background:#6ea8fe"></span>'
+      +      '<span style="flex:'+fx(reason)+';background:#a78bfa"></span>'
+      +    '</div>'
+      +    '<div class="tok-mixleg">'
+      +      '<span class="k"><span class="dot" style="background:#3ecf8e"></span>Input · cache <b>'+tokFmt(cRead)+'</b><i>'+pc(cRead)+'%</i></span>'
+      +      '<span class="k"><span class="dot" style="background:#f0a94a"></span>Input · fresh <b>'+tokFmt(cWrite)+'</b><i>'+pc(cWrite)+'%</i></span>'
+      +      '<span class="k"><span class="dot" style="background:#6ea8fe"></span>Output <b>'+tokFmt(outTok)+'</b><i>'+pc(outTok)+'%</i></span>'
+      +      '<span class="k"><span class="dot" style="background:#a78bfa"></span>Reasoning <b>'+tokFmt(reason)+'</b><i>'+pc(reason)+'%</i></span>'
+      +      '<span class="saved"><b>'+tokFmt(cRead)+'</b> tokens reused via cache</span>'
+      +    '</div></div></div>';
+
+    const totCost=byModel.reduce((a,m)=>a+(m.cost||0),0)||1;
+    const rows=byModel.map((m,i)=>{
+      const share=(m.cost||0)/totCost, col=TOK_PAL[i%TOK_PAL.length];
+      const prov=tokProv(m.model), provTxt=prov? ' <span>· '+prov+'</span>':'';
+      const cw=(m.cacheHit||0)+(m.cacheMiss||0), chr=cw>0? Math.round((m.cacheHit||0)/cw*100):0;
+      return '<div class="tok-mrow">'
+        +'<span class="badge" style="background:'+col+'">'+tokBadge(m.model)+'</span>'
+        +'<span class="nm">'+esc(m.model||'')+provTxt+'</span>'
+        +'<span class="mt">'+(m.requests||0)+' req · '+tokFmt(m.input||0)+' in · '+tokFmt(m.output||0)+' out · '+chr+'% cache</span>'
+        +'<span class="cst">'+tokMoney(m.cost||0)+'<small>'+Math.round(share*100)+'%</small></span>'
+        +'<span class="tok-share"><span style="width:'+Math.round(share*100)+'%;background:'+col+'"></span></span>'
+        +'</div>';
+    }).join('');
+    const mid=''
+      +'<div class="tok-mid">'
+      +  '<div class="tok-card"><div class="tok-chead"><h3>Cost per request</h3>'
+      +    '<div class="tok-leg"><span class="k"><span class="dot" style="background:var(--brand)"></span>Cost</span><span class="k"><span class="dot" style="background:#ff8c42"></span>Peak</span></div></div>'
+      +    '<div class="tok-chartwrap">'+tokChart(calls)+'</div></div>'
+      +  '<div class="tok-card"><div class="tok-chead"><h3>By model</h3><div class="tok-leg"><span class="k">'+byModel.length+' model'+(byModel.length===1?'':'s')+'</span></div></div>'
+      +    (rows||'<div class="tok-empty">—</div>')+'</div>'
+      +'</div>';
+
+    const trs=calls.slice().reverse().map((c,idx)=>{
+      const num=calls.length-idx;
+      const tms=((c.ts||'').split('T')[1]||'').slice(0,8);
+      const tot=c.total||((c.input||0)+(c.output||0));
+      const den=((c.cacheHit||0)+(c.cacheMiss||0)+(c.output||0))||1;
+      const wC=Math.round((c.cacheHit||0)/den*108), wF=Math.round((c.cacheMiss||0)/den*108), wO=Math.max(2,Math.round((c.output||0)/den*108));
+      const lat=(typeof c.latency==='number')? c.latency.toFixed(1): (c.latency||'0');
+      return '<tr>'
+        +'<td>'+num+'</td><td class="tm">'+tms+'</td><td class="md">'+esc(c.model||'')+'</td>'
+        +'<td>'+tokFmt(c.input||0)+'</td><td>'+tokFmt(c.cacheHit||0)+'</td><td>'+(c.output||0)+'</td>'
+        +'<td style="color:var(--text)">'+tokFmt(tot)+'</td><td>'+lat+'s</td><td class="cs">'+tokMoney(c.cost||0)+'</td>'
+        +'<td class="us"><span class="tok-ubar"><span style="width:'+wC+'px;background:#3ecf8e"></span><span style="width:'+wF+'px;background:#f0a94a"></span><span style="width:'+wO+'px;background:#6ea8fe"></span></span></td>'
+        +'</tr>';
+    }).join('');
+    const table=''
+      +'<div class="tok-card tok-tablecard"><div class="tok-th"><h3>Call details</h3><span class="cnt">'+calls.length+' call'+(calls.length===1?'':'s')+'</span></div>'
+      +'<div class="tok-tscroll"><table class="tok-table"><thead><tr>'
+      +'<th>#</th><th>Time</th><th>Model</th><th>Input</th><th>Cache&#8595;</th><th>Output</th><th>Total</th><th>Latency</th><th>Cost</th><th style="text-align:left;padding-left:12px">Usage</th>'
+      +'</tr></thead><tbody>'+trs+'</tbody></table></div></div>';
+
+    body.innerHTML=summary+mid+table;
+  }
+
+  function openTokenAnalytics(){
+    const ov=document.getElementById('tokOverlay');
+    if(bridge && bridge.tokenAnalytics){
+      bridge.tokenAnalytics(function(js){ renderTokenAnalytics(safeJSON(js)||{}); ov.classList.add('show'); });
+    } else { renderTokenAnalytics({}); ov.classList.add('show'); }
+  }
+  function closeTokenAnalytics(){
+    if(IS_TOKENS_STANDALONE){ if(bridge && bridge.closeTokenWindow) bridge.closeTokenWindow(); return; }
+    document.getElementById('tokOverlay').classList.remove('show');
+  }
+  document.getElementById('tokClose').addEventListener('click', closeTokenAnalytics);
+  document.getElementById('tokCloseBtn').addEventListener('click', closeTokenAnalytics);
+  document.getElementById('tokOverlay').addEventListener('click', e=>{ if(!IS_TOKENS_STANDALONE && e.target.id==='tokOverlay') closeTokenAnalytics(); });
+  document.getElementById('tokReset').addEventListener('click', function(){ if(bridge && bridge.resetTokenStats) bridge.resetTokenStats(); openTokenAnalytics(); });
+  document.getElementById('tokCurrency').addEventListener('change', function(){
+    _tokCur=this.value;
+    if(_tokCur==='IDR' && _tokRate<=0 && bridge && bridge.idrRate){
+      const sel=this; sel.disabled=true;
+      bridge.idrRate(function(r){ _tokRate=r||0; sel.disabled=false; if(_tokRate<=0){ _tokCur='USD'; sel.value='USD'; showToast('Live IDR rate unavailable'); } renderTokenAnalytics(_tokData||{}); });
+    } else { renderTokenAnalytics(_tokData||{}); }
+  });
 
   document.getElementById('sidebarNewBtn').addEventListener('click', startNewChat);
 
@@ -3316,6 +3594,7 @@
         const target=localStorage.getItem('morfyai_settings_target_page');
         if(target){ localStorage.removeItem('morfyai_settings_target_page'); selectSettingsPage(target); }
       }
+      if(IS_TOKENS_STANDALONE){ openTokenAnalytics(); }
     });
   });
 })();

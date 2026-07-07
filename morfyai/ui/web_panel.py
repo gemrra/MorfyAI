@@ -512,6 +512,29 @@ class Bridge(QtCore.QObject):
             return json.dumps({"totalTokens": 0, "cost": 0.0, "requests": 0})
 
     @QtCore.Slot(result=str)
+    def tokenAnalytics(self):
+        try:
+            return json.dumps(self.owner.token_analytics())
+        except Exception as e:
+            self._err("tokenAnalytics failed", e)
+            return json.dumps({"calls": [], "byModel": [], "requests": 0})
+
+    @QtCore.Slot()
+    def resetTokenStats(self):
+        try:
+            self.owner.reset_token_stats()
+        except Exception as e:
+            self._err("resetTokenStats failed", e)
+
+    @QtCore.Slot(result=float)
+    def idrRate(self):
+        try:
+            return float(self.owner.idr_rate())
+        except Exception as e:
+            self._err("idrRate failed", e)
+            return 0.0
+
+    @QtCore.Slot(result=str)
     def hipInfo(self):
         try:
             path, name = self.owner.hip_info()
@@ -792,6 +815,20 @@ class Bridge(QtCore.QObject):
         except Exception as e:
             self._err("closeSettingsWindow failed", e)
 
+    @QtCore.Slot()
+    def openTokenWindow(self):
+        try:
+            self.owner.open_token_window()
+        except Exception as e:
+            self._err("openTokenWindow failed", e)
+
+    @QtCore.Slot()
+    def closeTokenWindow(self):
+        try:
+            self.owner.close_token_window()
+        except Exception as e:
+            self._err("closeTokenWindow failed", e)
+
     @QtCore.Slot(int)
     def setFontScale(self, pct):
         try:
@@ -896,6 +933,7 @@ class MorfyWebPanel(QtWidgets.QWidget):
         self._known_op_labels = set()  # id(label) already forwarded to JS
         self._last_plan_data = None    # the plan awaiting the user's accept/revise/reject
         self._settings_win = None      # separate top-level Settings window (lazy-created)
+        self._token_win = None         # separate top-level Token-analytics window (lazy-created)
         self._font_scale_pct = 100     # native Qt page zoom %, shared across all open windows
 
         # ---- build the REAL engine, hidden ----
@@ -2112,6 +2150,104 @@ class MorfyWebPanel(QtWidgets.QWidget):
             "contextLimit": context_limit,
         }
 
+    def token_analytics(self):
+        """Full payload for the Token usage analytics dialog: session totals,
+        a per-model breakdown, and every call record (drives the chart +
+        table). All derived from the same _token_stats / _call_records the old
+        Qt dialog read."""
+        e = self.engine
+        s = e._token_stats
+        records = list(getattr(e, '_call_records', None) or [])
+
+        by_model = {}
+        for r in records:
+            m = r.get('model') or 'unknown'
+            d = by_model.get(m)
+            if d is None:
+                d = {'model': m, 'requests': 0, 'input': 0, 'output': 0,
+                     'reasoning': 0, 'cacheHit': 0, 'cacheMiss': 0, 'cost': 0.0}
+                by_model[m] = d
+            d['requests'] += 1
+            d['input'] += r.get('input_tokens', 0)
+            d['output'] += r.get('output_tokens', 0)
+            d['reasoning'] += r.get('reasoning_tokens', 0)
+            d['cacheHit'] += r.get('cache_hit', 0)
+            d['cacheMiss'] += r.get('cache_miss', 0)
+            d['cost'] += r.get('estimated_cost', 0.0) or 0.0
+        by_model_list = sorted(by_model.values(), key=lambda x: x['cost'], reverse=True)
+
+        calls = [{
+            'ts': r.get('timestamp', ''),
+            'model': r.get('model', ''),
+            'input': r.get('input_tokens', 0),
+            'output': r.get('output_tokens', 0),
+            'reasoning': r.get('reasoning_tokens', 0),
+            'cacheHit': r.get('cache_hit', 0),
+            'cacheMiss': r.get('cache_miss', 0),
+            'total': r.get('total_tokens', 0),
+            'latency': r.get('latency', 0),
+            'cost': r.get('estimated_cost', 0.0) or 0.0,
+        } for r in records]
+
+        cache_read = s.get('cache_read', 0)
+        cache_write = s.get('cache_write', 0)
+        cache_total = cache_read + cache_write
+        hit_rate = (cache_read / cache_total * 100.0) if cache_total > 0 else 0.0
+        lats = [r.get('latency', 0) for r in records if r.get('latency')]
+        avg_lat = (sum(lats) / len(lats)) if lats else 0.0
+
+        return {
+            "totalTokens": s.get('total_tokens', 0),
+            "inputTokens": s.get('input_tokens', 0),
+            "outputTokens": s.get('output_tokens', 0),
+            "reasoningTokens": s.get('reasoning_tokens', 0),
+            "cacheRead": cache_read,
+            "cacheWrite": cache_write,
+            "hitRate": hit_rate,
+            "cost": s.get('estimated_cost', 0.0),
+            "requests": s.get('requests', 0),
+            "avgLatency": avg_lat,
+            "byModel": by_model_list,
+            "calls": calls,
+        }
+
+    def idr_rate(self):
+        """USD→IDR multiplier for the analytics currency toggle. Fetched live
+        from open.er-api.com (free, no key) and cached for an hour. Returns 0
+        if unavailable so the UI can fall back to USD."""
+        import time as _t
+        cache = getattr(self, '_idr_cache', None)
+        if cache and cache[0] > 0 and (_t.time() - cache[1]) < 3600:
+            return cache[0]
+        try:
+            import urllib.request, json as _j, ssl
+            ctx = ssl.create_default_context()
+            req = urllib.request.Request(
+                "https://open.er-api.com/v6/latest/USD",
+                headers={'User-Agent': 'MorfyAI (TokenAnalytics)'})
+            with urllib.request.urlopen(req, timeout=6, context=ctx) as resp:
+                data = _j.loads(resp.read().decode('utf-8'))
+            rate = float(data.get('rates', {}).get('IDR', 0))
+            if rate > 0:
+                self._idr_cache = (rate, _t.time())
+                return rate
+        except Exception:
+            pass
+        return (cache[0] if cache else 0.0) or 0.0
+
+    def reset_token_stats(self):
+        e = self.engine
+        e._token_stats = {
+            'input_tokens': 0, 'output_tokens': 0, 'reasoning_tokens': 0,
+            'cache_read': 0, 'cache_write': 0, 'total_tokens': 0,
+            'requests': 0, 'estimated_cost': 0.0,
+        }
+        e._call_records = []
+        try:
+            e._update_token_stats_display()
+        except Exception:
+            pass
+
     # ---------- providers / keys ----------
     def save_api_key(self, provider, key):
         key = (key or "").strip()
@@ -2750,6 +2886,68 @@ class MorfyWebPanel(QtWidgets.QWidget):
             except RuntimeError:
                 pass
             self._settings_win = None
+
+    def open_token_window(self):
+        """Open the Token usage analytics view as its own top-level window
+        (same standalone pattern as Settings), not an in-panel overlay."""
+        if self._token_win is not None:
+            try:
+                self._token_win.show()
+                self._token_win.raise_()
+                self._token_win.activateWindow()
+                try:
+                    self._token_win._view.page().runJavaScript(
+                        "if (typeof openTokenAnalytics === 'function') openTokenAnalytics();"
+                    )
+                except Exception:
+                    pass
+                return
+            except RuntimeError:
+                self._token_win = None
+
+        from PySide6.QtWebChannel import QWebChannel
+        from PySide6.QtCore import QUrl
+
+        MorfyWebView = _make_web_view_class()
+        win = QtWidgets.QMainWindow(self.window())
+        win.setWindowTitle("Token usage analytics")
+        win.setWindowFlags(QtCore.Qt.Window)
+        win.resize(980, 720)
+
+        view = MorfyWebView(win)
+        try:
+            from PySide6.QtWebEngineCore import QWebEngineSettings
+            st = view.settings()
+            st.setAttribute(QWebEngineSettings.LocalContentCanAccessFileUrls, True)
+            st.setAttribute(QWebEngineSettings.LocalContentCanAccessRemoteUrls, True)
+        except Exception:
+            pass
+        channel = QWebChannel(view.page())
+        channel.registerObject("bridge", self.bridge)
+        view.page().setWebChannel(channel)
+        _grant_clipboard_permission(view.page())
+        index_path = os.path.join(_WEBUI_DIR, "index.html")
+        url = QUrl.fromLocalFile(index_path)
+        url.setFragment("tokens-standalone")
+        view.setUrl(url)
+        win.setCentralWidget(view)
+        win._view = view
+        try:
+            view.page().setZoomFactor(max(0.5, min(2.0, self._font_scale_pct / 100.0)))
+        except Exception:
+            pass
+        win.show()
+        win.raise_()
+        win.activateWindow()
+        self._token_win = win
+
+    def close_token_window(self):
+        if self._token_win is not None:
+            try:
+                self._token_win.close()
+            except RuntimeError:
+                pass
+            self._token_win = None
 
     def apply_font_scale(self, pct):
         """Native Qt page zoom instead of CSS `zoom` on body — avoids layout
