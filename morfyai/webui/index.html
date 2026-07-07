@@ -3050,8 +3050,8 @@
     setUpdateBtn('Installing…', null);
     bridge.installUpdate(_downloadedZipPath, function(js){
       const r = safeJSON(js) || {};
-      statusEl.textContent = r.message || (r.ok ? 'Update installed. Please restart Houdini.' : 'Install failed.');
-      setUpdateBtn('', null);
+      statusEl.textContent = r.message || (r.ok ? 'Update installed — restarting MorfyAI…' : 'Install failed.');
+      setUpdateBtn(r.ok && r.restarting ? 'Restarting…' : '', null);
       if(r.ok){ _pendingUpdate = null; _downloadedZipPath = null; }
     });
   }

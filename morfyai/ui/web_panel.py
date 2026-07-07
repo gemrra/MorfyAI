@@ -2339,9 +2339,10 @@ class MorfyWebPanel(QtWidgets.QWidget):
 
     def install_update(self, zip_path):
         """Extract the release zip's MorfyAI/ folder over the live install
-        directory. Files are just Python/HTML source, not locked DLLs, so
-        overwriting while Houdini is open is safe — Houdini just needs a
-        restart afterward to pick up the new code."""
+        directory, then auto-restart just the MorfyAI panel (close + relaunch
+        via morfyai.main.show_tool(), which reloads every changed module) —
+        Houdini itself does not need to be restarted; a full Houdini restart
+        is only recommended afterward for best performance, not required."""
         import zipfile
         import shutil
         import tempfile
@@ -2367,7 +2368,34 @@ class MorfyWebPanel(QtWidgets.QWidget):
         except Exception:
             pass
 
-        return {"ok": True, "message": "Update installed. Please restart Houdini to finish."}
+        try:
+            QtCore.QTimer.singleShot(400, self._restart_panel)
+        except Exception:
+            pass
+
+        return {
+            "ok": True,
+            "restarting": True,
+            "message": "Update installed — restarting MorfyAI... "
+                       "(Houdini itself doesn't need to restart, but a full restart "
+                       "is recommended later for best performance.)",
+        }
+
+    def _restart_panel(self):
+        """Close just the MorfyAI window and relaunch it via main.show_tool(),
+        which force-reloads every changed module — no Houdini restart needed."""
+        try:
+            top = self.engine.window()
+            if top is not None:
+                top.force_quit = True
+                top.close()
+        except Exception as e:
+            _dbg("[WebPanel] restart_panel: closing old window failed: %s" % e)
+        try:
+            import morfyai.main as _main
+            _main.show_tool()
+        except Exception as e:
+            _dbg("[WebPanel] restart_panel: show_tool() failed: %s" % e)
 
     # ---------- Debug console (inline) ----------
     def get_debug_log(self):
