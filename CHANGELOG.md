@@ -4,6 +4,31 @@ All notable changes to MorfyAI are documented here. One entry per release —
 this is also what gets pasted into the GitHub Release notes and the public
 changelog page at morfyfx.com/morfyai/changelog.
 
+## 2.1 — 2026-07-07
+
+**Providers**
+- Added 9 built-in providers: Anthropic (native), Google Gemini, xAI (Grok),
+  Groq, Mistral, Moonshot (Kimi), Together AI, Perplexity, and OpenCode Zen.
+  Their model lists auto-fetch live from each provider once a key is added,
+  so nothing goes stale.
+- Providers are now opt-in — none are active until you enable them, and each
+  provider's models default OFF too, so the composer picker only shows what
+  you've turned on instead of every model at once.
+- Removed the always-present "Custom" entry; custom endpoints only appear
+  after you add one via "+ Add Provider".
+
+**Onboarding & fixes**
+- A "set up a provider" card on the welcome screen (when nothing is
+  configured yet) opens Settings straight to Providers.
+- Fixed Plan mode getting stuck: after a plan finishes executing it now
+  returns to Auto, so the next message works normally.
+- Staged context (Read Selection / Analyze Scene / Read Viewport) now shows
+  as a chip above your message, like attached images.
+- Fixed sessions being unreliable — deleted chats could reappear and new ones
+  vanish after reopening the panel; the session list is now saved immediately
+  on every new/delete/rename.
+- Removed the Vision (eyes) setup card from Settings.
+
 ## 2.0 — 2026-07-07
 
 The whole panel, rebuilt. MorfyAI now runs as a web-based UI (QWebEngineView),
