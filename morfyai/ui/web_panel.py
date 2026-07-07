@@ -124,6 +124,21 @@ class Bridge(QtCore.QObject):
             return json.dumps({"contextLimit": None, "supportsVision": False})
 
     @QtCore.Slot(str, result=str)
+    def enabledModels(self, provider):
+        try:
+            return json.dumps(self.owner.enabled_models(provider))
+        except Exception as e:
+            self._err("enabledModels failed", e)
+            return json.dumps([])
+
+    @QtCore.Slot(str, str, bool)
+    def setModelEnabled(self, provider, model, enabled):
+        try:
+            self.owner.set_model_enabled(provider, model, enabled)
+        except Exception as e:
+            self._err("setModelEnabled failed", e)
+
+    @QtCore.Slot(str, result=str)
     def getCustomProviderConfig(self, provider_id):
         try:
             return json.dumps(self.owner.get_custom_provider_config(provider_id or "custom"))
@@ -885,6 +900,11 @@ class MorfyWebPanel(QtWidgets.QWidget):
         self._wire_engine_signals()
 
         self._disabled_providers = self._load_disabled_providers()
+        # Per-model opt-in for built-in providers: {provider_id: set(model_ids)}.
+        # Models default OFF — the composer only shows models the user has
+        # explicitly enabled, so a provider's whole catalog doesn't flood the
+        # picker. (Custom providers keep their own enabled-only model list.)
+        self._enabled_models = self._load_enabled_models()
         custom_name = self._load_custom_provider_name()
         if custom_name != 'Custom':
             self.engine._custom_provider_config['name'] = custom_name
@@ -1101,10 +1121,10 @@ class MorfyWebPanel(QtWidgets.QWidget):
         return list(e._model_map.get(provider, []))
 
     def list_enabled_models(self):
-        """Every model across every ENABLED provider — the composer's model
-        picker shows all of these at once (not just the current provider's),
-        so turning two providers on genuinely lets you pick either one's
-        models in the same menu."""
+        """Every ENABLED model across every ENABLED provider — the composer's
+        model picker. Built-in providers contribute only the models the user
+        has toggled on (default none); custom providers' _model_map is already
+        their enabled-only list."""
         e = self.engine
         result = []
         for i in range(e.provider_combo.count()):
@@ -1112,9 +1132,57 @@ class MorfyWebPanel(QtWidgets.QWidget):
             if pid in self._disabled_providers:
                 continue
             pname = e.provider_combo.itemText(i)
-            for mid in e._model_map.get(pid, []):
+            if self._is_custom_provider_id(pid):
+                mids = e._model_map.get(pid, [])
+            else:
+                on = self._enabled_models.get(pid, set())
+                mids = [m for m in e._model_map.get(pid, []) if m in on]
+            for mid in mids:
                 result.append({"providerId": pid, "providerName": pname, "id": mid})
         return result
+
+    def _load_enabled_models(self):
+        try:
+            from shared.common_utils import load_config
+            cfg, _ = load_config('ai', dcc_type='houdini')
+            if cfg and cfg.get('enabled_models'):
+                raw = json.loads(cfg['enabled_models'])
+                return {pid: set(ids) for pid, ids in raw.items()}
+        except Exception:
+            pass
+        return {}
+
+    def _save_enabled_models(self):
+        try:
+            from shared.common_utils import load_config, save_config
+            cfg, _ = load_config('ai', dcc_type='houdini')
+            cfg = cfg or {}
+            cfg['enabled_models'] = json.dumps(
+                {pid: sorted(ids) for pid, ids in self._enabled_models.items() if ids})
+            save_config('ai', cfg, dcc_type='houdini')
+        except Exception:
+            pass
+
+    def enabled_models(self, provider_id):
+        """The user-enabled model ids for a built-in provider (for the
+        Settings toggle state)."""
+        return sorted(self._enabled_models.get(provider_id, set()))
+
+    def set_model_enabled(self, provider_id, model_id, enabled):
+        """Toggle a single built-in-provider model on/off and persist +
+        broadcast so every open window's composer picker updates."""
+        model_id = (model_id or "").strip()
+        if not model_id:
+            return
+        on = self._enabled_models.setdefault(provider_id, set())
+        if enabled:
+            on.add(model_id)
+        else:
+            on.discard(model_id)
+        if not on:
+            self._enabled_models.pop(provider_id, None)
+        self._save_enabled_models()
+        self._broadcast_models_changed()
 
     def list_providers(self):
         e = self.engine

@@ -2554,16 +2554,25 @@
   }
 
   function renderModelsListBuiltin(provider, ids, activeModel){
-    if(!bridge || !bridge.modelInfo){ renderModelRows(provider, ids.map(id=>({id})), activeModel); return; }
-    let pending = ids.length, results = new Array(ids.length);
-    if(!pending){ renderModelRows(provider, [], activeModel); return; }
-    ids.forEach((id, i)=>{
-      bridge.modelInfo(provider, id, function(js){
-        const d=safeJSON(js)||{};
-        results[i] = {id, contextLimit: d.contextLimit, supportsVision: d.supportsVision, supportsReasoning: d.supportsReasoning, supportsFc: d.supportsFc, inputPrice: d.inputPrice, outputPrice: d.outputPrice};
-        if(--pending===0) renderModelRows(provider, results, activeModel);
+    const finish = (enabledSet)=>{
+      if(!bridge || !bridge.modelInfo){ renderModelRows(provider, ids.map(id=>({id, enabled: enabledSet.has(id)})), activeModel); return; }
+      let pending = ids.length, results = new Array(ids.length);
+      if(!pending){ renderModelRows(provider, [], activeModel); return; }
+      ids.forEach((id, i)=>{
+        bridge.modelInfo(provider, id, function(js){
+          const d=safeJSON(js)||{};
+          results[i] = {id, enabled: enabledSet.has(id), contextLimit: d.contextLimit, supportsVision: d.supportsVision, supportsReasoning: d.supportsReasoning, supportsFc: d.supportsFc, inputPrice: d.inputPrice, outputPrice: d.outputPrice};
+          if(--pending===0) renderModelRows(provider, results, activeModel);
+        });
       });
-    });
+    };
+    // Built-in providers: models default OFF (opt-in). Pull which ones the
+    // user has enabled so the toggles reflect real state.
+    if(bridge && bridge.enabledModels){
+      bridge.enabledModels(provider, function(js){ finish(new Set(safeJSON(js)||[])); });
+    } else {
+      finish(new Set());
+    }
   }
 
   function renderModelsList(provider){
@@ -2646,14 +2655,20 @@
         }
         row.appendChild(priceEl);
       }
-      if(isCustomProvider(provider)){
+      // Every provider's models get an enable toggle — models default OFF, so
+      // the composer picker only shows what the user opts into.
+      {
         const tgl=document.createElement('label'); tgl.className='toggle-switch'; tgl.style.flex='none';
         tgl.innerHTML='<input type="checkbox"'+(enabled?' checked':'')+'><span class="toggle-track"></span>';
         tgl.addEventListener('click', e=>e.stopPropagation());
         tgl.querySelector('input').addEventListener('change', function(){
-          const entry = providerModelsCache.find(x=>x.id===m.id);
-          if(entry) entry.enabled = this.checked;
-          persistCustomModels(provider);
+          if(isCustomProvider(provider)){
+            const entry = providerModelsCache.find(x=>x.id===m.id);
+            if(entry) entry.enabled = this.checked;
+            persistCustomModels(provider);
+          } else if(bridge && bridge.setModelEnabled){
+            bridge.setModelEnabled(provider, m.id, this.checked);
+          }
         });
         row.appendChild(tgl);
       }
