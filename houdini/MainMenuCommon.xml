@@ -9,7 +9,24 @@
 
       <scriptItem id="morfyai_open_floating">
         <label>Open MorfyAI</label>
-        <scriptCode><![CDATA[import launcher
+        <scriptCode><![CDATA[import os, sys
+# Both the release and the dev copy ship a top-level launcher.py, and both
+# roots sit on PYTHONPATH -- so a bare `import launcher` can bind to the dev
+# copy and open THAT instead. Force this release's own root to the front and
+# drop any stale `launcher` before importing, so we always load ours.
+_r = os.environ.get('MORFYAI')
+if not _r:
+    try:
+        import hou
+        _r = hou.getenv('MORFYAI')
+    except Exception:
+        _r = None
+if _r and os.path.isdir(_r):
+    if _r in sys.path:
+        sys.path.remove(_r)
+    sys.path.insert(0, _r)
+sys.modules.pop('launcher', None)
+import launcher
 launcher.show_tool()]]></scriptCode>
       </scriptItem>
     </subMenu>

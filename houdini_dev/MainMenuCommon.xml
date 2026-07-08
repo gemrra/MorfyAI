@@ -11,7 +11,22 @@
 
       <scriptItem id="morfyai_dev_open">
         <label>Open MorfyAI Dev</label>
-        <scriptCode><![CDATA[import launcher_dev
+        <scriptCode><![CDATA[import os, sys
+# Force this dev root to the front so launcher_dev (and everything it imports)
+# resolves to the dev copy, never the release copy sharing PYTHONPATH.
+_r = os.environ.get('MORFYAI_DEV')
+if not _r:
+    try:
+        import hou
+        _r = hou.getenv('MORFYAI_DEV')
+    except Exception:
+        _r = None
+if _r and os.path.isdir(_r):
+    if _r in sys.path:
+        sys.path.remove(_r)
+    sys.path.insert(0, _r)
+sys.modules.pop('launcher_dev', None)
+import launcher_dev
 launcher_dev.show_tool()]]></scriptCode>
       </scriptItem>
     </subMenu>

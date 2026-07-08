@@ -4,6 +4,18 @@ All notable changes to MorfyAI are documented here. One entry per release —
 this is also what gets pasted into the GitHub Release notes and the public
 changelog page at morfyfx.com/morfyai/changelog.
 
+## 2.5 — 2026-07-08
+
+**Fixes**
+- Fixed "Open MorfyAI" launching the dev-mode copy instead of the installed
+  release. Both installs ship a top-level `launcher.py` and both roots sit on
+  PYTHONPATH, so the menu's bare `import launcher` could bind to the dev
+  copy's file and open that — no amount of restarting helped, since it wasn't
+  a stale-session issue. The menu now forces its own package root to the
+  front of the path (and drops any stale `launcher`) before importing, so
+  each menu always opens its own copy. This is the real cause behind the
+  release and dev installs appearing to "share" data.
+
 ## 2.4 — 2026-07-08
 
 **Polish**
