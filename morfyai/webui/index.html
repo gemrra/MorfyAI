@@ -396,7 +396,8 @@
   .metabtn{display:flex;align-items:center;font-size:11.5px;color:var(--text-dim);padding:4px 6px;border-radius:6px;cursor:pointer;user-select:none;}
   .metabtn:hover{background:var(--bg-pill);color:var(--text);}
 
-  .ring{width:15px;height:15px;border-radius:50%;position:relative;flex:none;cursor:pointer;}
+  .ring{width:15px;height:15px;border-radius:50%;position:relative;flex:none;cursor:pointer;transition:background .12s,box-shadow .12s;}
+  .ring:hover{background:var(--bg-pill);box-shadow:0 0 0 4px var(--bg-pill);}
   .ring svg{transform:rotate(-90deg);}
   .ring circle{fill:none;stroke-width:2.4;}
   .ring .bgc{stroke:rgba(255,255,255,.1);}

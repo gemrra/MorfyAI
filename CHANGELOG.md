@@ -4,6 +4,12 @@ All notable changes to MorfyAI are documented here. One entry per release —
 this is also what gets pasted into the GitHub Release notes and the public
 changelog page at morfyfx.com/morfyai/changelog.
 
+## 2.4 — 2026-07-08
+
+**Polish**
+- The context-usage ring now gets a bright hover highlight, matching the
+  other composer-toolbar controls.
+
 ## 2.3 — 2026-07-08
 
 **Fixes**
