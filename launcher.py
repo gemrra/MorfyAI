@@ -24,11 +24,11 @@ _ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 _MORFYAI_DIR = os.path.join(_ROOT_DIR, 'morfyai')
 _LIB_DIR = os.path.join(_ROOT_DIR, 'lib')
 
-for _p in (_LIB_DIR, _MORFYAI_DIR, _ROOT_DIR):
-    if os.path.exists(_p):
-        if _p in sys.path:
-            sys.path.remove(_p)
-        sys.path.insert(0, _p)
+# Bare top-level names MorfyAI uses that also exist in the DEV copy (and in
+# the unrelated upstream "Houdini Agent" product). Any of these cached from
+# another install must be evicted so THIS install imports its own.
+_ISOLATE = ('shared', 'main', 'morfyai', 'launcher_dev')
+
 
 def _purge_foreign_modules(names):
     """Drop cached top-level modules (and submodules) whose file lives
@@ -45,7 +45,23 @@ def _purge_foreign_modules(names):
             except KeyError:
                 pass
 
-_purge_foreign_modules({'shared', 'main', 'morfyai'})
+
+def _prioritize_and_isolate():
+    """Put this install's dirs at the front of sys.path and evict any cached
+    colliding modules from a different install. MUST run on EVERY launch (not
+    just first import) — otherwise, after the DEV copy has been opened in the
+    same Houdini session, its cached `shared`/`main`/`morfyai` modules linger
+    and the release panel resolves config/history through the DEV copy,
+    silently sharing data between the two installs."""
+    for _p in (_LIB_DIR, _MORFYAI_DIR, _ROOT_DIR):
+        if os.path.exists(_p):
+            if _p in sys.path:
+                sys.path.remove(_p)
+            sys.path.insert(0, _p)
+    _purge_foreign_modules(_ISOLATE)
+
+
+_prioritize_and_isolate()
 
 # ============================================================
 
@@ -61,6 +77,11 @@ def detect_dcc():
 
 def launch_morfyai():
     """Launch MorfyAI"""
+    # Re-assert this install's path priority and evict any foreign (dev)
+    # copies cached earlier in the session, so config/history resolve to
+    # THIS install every time — not just on the first launch.
+    _prioritize_and_isolate()
+
     tool_path = os.path.join(os.path.dirname(__file__), "morfyai")
     if tool_path not in sys.path:
         sys.path.insert(0, tool_path)

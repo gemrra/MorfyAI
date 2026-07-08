@@ -4,6 +4,17 @@ All notable changes to MorfyAI are documented here. One entry per release —
 this is also what gets pasted into the GitHub Release notes and the public
 changelog page at morfyfx.com/morfyai/changelog.
 
+## 2.3 — 2026-07-08
+
+**Fixes**
+- Fixed the release and dev-mode installs sharing data when switched without
+  restarting Houdini. The release launcher only isolated its own modules on
+  first import, so after the dev copy had been opened in the same session its
+  cached modules lingered and the release panel resolved its config, history,
+  and memory through the dev install — showing identical chats and settings
+  across both. Module isolation now re-runs on every launch, so each install
+  always reads its own data.
+
 ## 2.2 — 2026-07-07
 
 **Token usage analytics, redesigned**
