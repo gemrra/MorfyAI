@@ -22,6 +22,12 @@ changelog page at morfyfx.com/morfyai/changelog.
   scene-mutating (kept out of read-only Ask mode) via a broader set of
   action-verb name prefixes.
 
+**New built-in skills (small utilities)**
+- 11 everyday node/parm utilities, useful across almost any build:
+  `rename_nodes`, `color_nodes`, `add_comment`, `bypass_toggle`,
+  `get_parm_value`, `set_parm_value`, `list_children`, `set_frame_range`,
+  `duplicate_node`, `select_by_type`, `add_null`.
+
 ## 2.6 — 2026-07-08
 
 **Fixes**
