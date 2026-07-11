@@ -4,6 +4,16 @@ All notable changes to MorfyAI are documented here. One entry per release —
 this is also what gets pasted into the GitHub Release notes and the public
 changelog page at morfyfx.com/morfyai/changelog.
 
+## 2.6 — 2026-07-08
+
+**Fixes**
+- Fixed the MCP server going dead/red when both the release and dev-mode
+  installs are used. Both defaulted to port 9000, so whichever started first
+  bound it and the other's MCP couldn't come up. The port is now overridable
+  via a `MORFYAI_MCP_PORT` env var; the dev package uses 9001, leaving 9000
+  (the port external MCP clients expect) for the release install, so both can
+  run at once.
+
 ## 2.5 — 2026-07-08
 
 **Fixes**

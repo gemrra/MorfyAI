@@ -2,6 +2,7 @@
   "enable": true,
   "env": [
     { "MORFYAI_DEV": "E:/AILocal/MorfyAI" },
+    { "MORFYAI_MCP_PORT": "9001" },
     { "HOUDINI_PATH": { "value": ["$MORFYAI_DEV/houdini_dev"], "method": "prepend" } },
     { "PYTHONPATH": { "value": ["$MORFYAI_DEV"], "method": "prepend" } }
   ]

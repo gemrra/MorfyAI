@@ -76,10 +76,18 @@ def read_settings() -> MCPSettings:
 		except Exception:
 			return default
 
+	# Port precedence: MORFYAI_MCP_PORT env override > config file > 9000.
+	# The env override lets a second install (the dev-mode package) run its MCP
+	# server on a different port so it doesn't fight the release install for
+	# 9000 — otherwise whichever starts first binds it and the other's MCP goes
+	# dead/red. The dev package sets MORFYAI_MCP_PORT=9001; the release install
+	# sets nothing and keeps 9000 (the port external MCP clients expect).
+	_port_env = os.environ.get("MORFYAI_MCP_PORT")
+
 	return MCPSettings(
 		enabled=_bool(cfg_dict.get("mcp_enabled"), True),
 		host=cfg_dict.get("mcp_host", "127.0.0.1"),
-		port=_int(cfg_dict.get("mcp_port"), 9000),
+		port=_int(_port_env if _port_env else cfg_dict.get("mcp_port"), 9000),
 		transport=cfg_dict.get("mcp_transport", "streamable-http"),
 		request_timeout=_float(cfg_dict.get("mcp_request_timeout"), 12.0),
 		request_retries=_int(cfg_dict.get("mcp_request_retries"), 2),
