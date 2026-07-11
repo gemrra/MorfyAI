@@ -4,6 +4,24 @@ All notable changes to MorfyAI are documented here. One entry per release —
 this is also what gets pasted into the GitHub Release notes and the public
 changelog page at morfyfx.com/morfyai/changelog.
 
+## 2.7 — 2026-07-08
+
+**New built-in skills (wave 1)**
+- Broadened the built-in skill set beyond sims/analysis into everyday
+  look-dev, modeling, attribute, and pipeline tasks — all using stock
+  Houdini nodes (no SideFX Labs / Redshift dependency):
+  - **Look-dev:** `setup_dome_light` (envlight, optional HDRI),
+    `setup_camera` (creates a camera framed on a target's bounds).
+  - **Modeling:** `scatter_points` (Scatter SOP by count),
+    `clean_geo` (fuse points, drop degenerate prims).
+  - **Attributes:** `promote_attribute` (Attribute Promote between classes),
+    `transfer_attributes` (Attribute Transfer by proximity).
+  - **Pipeline:** `import_geo_file` (new geo object + File/Alembic loader),
+    `cache_to_disk` (File Cache SOP set up for on-demand baking).
+- Skills that create or modify nodes are now correctly classified as
+  scene-mutating (kept out of read-only Ask mode) via a broader set of
+  action-verb name prefixes.
+
 ## 2.6 — 2026-07-08
 
 **Fixes**

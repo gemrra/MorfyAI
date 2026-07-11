@@ -169,7 +169,13 @@ def _register_skills_to_registry():
 
             # Classify skill: builders/wrappers MUTATE the scene, so they must NOT
             # appear in read-only Ask mode. Analysis/discovery skills stay read-only.
-            _mutating = name.startswith(("build_", "wrap_", "create_", "make_"))
+            _MUTATING_PREFIXES = (
+                "build_", "wrap_", "create_", "make_", "setup_", "add_",
+                "import_", "export_", "cache_", "scatter_", "clean_",
+                "promote_", "transfer_", "assign_", "boolean_", "convert_",
+                "fuse_", "delete_", "remove_",
+            )
+            _mutating = name.startswith(_MUTATING_PREFIXES)
             if _mutating:
                 _tags = {"geometry", "skill", "simulation"}
                 _modes = {"agent", "plan_executing"}
