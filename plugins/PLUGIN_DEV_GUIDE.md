@@ -10,8 +10,8 @@
 
 The plugin system integrates with the unified ToolRegistry which manages all tools:
 
-- Core Tools (38+): Built-in Houdini operations
-- Skills (9+): Pre-optimized Python analysis scripts
+- Core Tools (40+): Built-in Houdini operations
+- Skills (50+): Pre-optimized Python scripts — sim builders, look-dev/modeling/attribute/pipeline helpers, node/parm housekeeping utilities, and analysis scripts
 - Plugin Tools: Tools registered by plugins via ctx.register_tool()
 - User Skills: User-defined skills in a custom directory
 

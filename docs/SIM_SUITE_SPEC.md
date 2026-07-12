@@ -1,8 +1,10 @@
 # MorfyAI Sim Suite — Research & Design Spec
 
-> Status: **IMPLEMENTED (untested in live Houdini).** All code written, compiles, self-reviewed,
-> defensive. Phases 1-fix, A, B, C, and core Roles/Debug/thinking are done as of this pass.
-> Next step: test in Houdini 21 → iterate. Reference doc for the build.
+> Status: **IMPLEMENTED AND SHIPPED.** Live since v1.0, consolidated behind the
+> single `skill__build_sim` skill since the update noted below. This is now a
+> reference doc for the design/verification work behind the sim builders, not
+> an open task — the "untested" note that used to live here is stale; the
+> builders have been in production use for many releases.
 > Target: Houdini 21+. Model target: DeepSeek V4 Pro (native), scales up on Opus/GPT.
 > All node names verified against SideFX docs (links at bottom).
 
