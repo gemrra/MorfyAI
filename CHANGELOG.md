@@ -4,6 +4,20 @@ All notable changes to MorfyAI are documented here. One entry per release —
 this is also what gets pasted into the GitHub Release notes and the public
 changelog page at morfyfx.com/morfyai/changelog.
 
+## 2.8 — 2026-07-12
+
+**Fixes**
+- Fixed the v2.6 MCP port fix actually causing the release install's MCP to
+  bind the wrong port. Houdini package env vars are merged into the single
+  houdini.exe process's environment, not scoped per package — so the dev
+  package's `MORFYAI_MCP_PORT=9001` was equally visible to the release
+  install's code in the same session, and the release server started on
+  9001 too, leaving 9000 (the port external clients expect) empty. The port
+  is now derived from each install's own filesystem instead: whether its
+  repo root ships `launcher_dev.py`, a dev-only file the release zip build
+  always excludes. This can't leak between installs, since each resolves
+  its own root.
+
 ## 2.7 — 2026-07-08
 
 **New built-in skills (wave 1)**

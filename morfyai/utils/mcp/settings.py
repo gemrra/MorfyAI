@@ -43,6 +43,41 @@ except Exception:
 		return cfg, path
 
 
+def _find_repo_root() -> Optional[str]:
+	try:
+		cur = os.path.dirname(os.path.abspath(__file__))
+		while True:
+			if os.path.exists(os.path.join(cur, "README.md")):
+				return cur
+			parent = os.path.dirname(cur)
+			if parent == cur:
+				return None
+			cur = parent
+	except Exception:
+		return None
+
+
+def _default_port() -> int:
+	"""9000 for a normal (release) install, 9001 for the dev-mode copy.
+
+	IMPORTANT: this can NOT be a Houdini package env var (e.g. a
+	MORFYAI_MCP_PORT set in MorfyAI-Dev.json) — package env vars are merged
+	into the single houdini.exe process's environment, not scoped per
+	package, so a var set by the dev package is equally visible to the
+	release install's code running in the same session. That was tried and
+	caused the release install to also bind 9001, leaving 9000 empty.
+	Instead this is derived from something that can never leak: whether
+	THIS install's own repo root ships launcher_dev.py, a dev-only file the
+	release zip build always excludes (see tools/release/build_zip.py
+	_EXCLUDE). Each install's settings.py resolves its own root, so there's
+	no cross-install leakage possible.
+	"""
+	root = _find_repo_root()
+	if root and os.path.exists(os.path.join(root, "launcher_dev.py")):
+		return 9001
+	return 9000
+
+
 @dataclass
 class MCPSettings:
 	enabled: bool = True
@@ -76,18 +111,10 @@ def read_settings() -> MCPSettings:
 		except Exception:
 			return default
 
-	# Port precedence: MORFYAI_MCP_PORT env override > config file > 9000.
-	# The env override lets a second install (the dev-mode package) run its MCP
-	# server on a different port so it doesn't fight the release install for
-	# 9000 — otherwise whichever starts first binds it and the other's MCP goes
-	# dead/red. The dev package sets MORFYAI_MCP_PORT=9001; the release install
-	# sets nothing and keeps 9000 (the port external MCP clients expect).
-	_port_env = os.environ.get("MORFYAI_MCP_PORT")
-
 	return MCPSettings(
 		enabled=_bool(cfg_dict.get("mcp_enabled"), True),
 		host=cfg_dict.get("mcp_host", "127.0.0.1"),
-		port=_int(_port_env if _port_env else cfg_dict.get("mcp_port"), 9000),
+		port=_int(cfg_dict.get("mcp_port"), _default_port()),
 		transport=cfg_dict.get("mcp_transport", "streamable-http"),
 		request_timeout=_float(cfg_dict.get("mcp_request_timeout"), 12.0),
 		request_retries=_int(cfg_dict.get("mcp_request_retries"), 2),
