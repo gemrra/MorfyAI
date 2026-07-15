@@ -4,6 +4,19 @@ All notable changes to MorfyAI are documented here. One entry per release —
 this is also what gets pasted into the GitHub Release notes and the public
 changelog page at morfyfx.com/morfyai/changelog.
 
+## 2.9 — 2026-07-14
+
+**Fixes (critical)**
+- Fixed `.gitignore`'s `*.py[cod]` pattern silently matching `.pyd` files too
+  (the `[cod]` character class matches `d` as well as `c`/`o`) — every Windows
+  compiled binary extension under `lib/` (numpy's core binary, pydantic_core,
+  cryptography, pywin32, and 70+ others) has never been committed to git, and
+  therefore never included in any release zip. This is the real cause behind
+  the MCP server refusing to start on release installs: `fastmcp` depends on
+  `pydantic_core`'s compiled backend, which was silently missing, and the
+  failure was swallowed without an error message. All 75 previously-excluded
+  binaries are now tracked and ship in the release package.
+
 ## 2.8 — 2026-07-12
 
 **Fixes**

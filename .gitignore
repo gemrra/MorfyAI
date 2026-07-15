@@ -2,8 +2,14 @@
 # Python
 # ============================================================
 __pycache__/
-*.py[cod]
+*.pyc
+*.pyo
 *$py.class
+# NOTE: do NOT ignore *.pyd here (Windows compiled extension modules, e.g.
+# numpy/pydantic_core/cryptography's binary backends under lib/) -- the old
+# `*.py[cod]` pattern matched .pyd too, silently excluding every vendored
+# binary dependency from git and therefore from every release zip. This
+# was the real cause of the MCP server never starting on release installs.
 *.so
 *.egg-info/
 dist/
