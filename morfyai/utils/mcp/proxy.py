@@ -27,10 +27,22 @@ def _log(*a):
 
 
 def _bootstrap_lib():
-    """Put vendored deps (mcp + pywin32) on the path. Silent on stdout."""
+    """Put vendored deps (mcp + pywin32) on the path. Silent on stdout.
+
+    This script is spawned standalone by the MCP client (Claude Code, etc.)
+    over stdio, using whatever Python interpreter the client is configured
+    to invoke -- not necessarily Houdini's bundled one. Vendored .pyd
+    binaries are locked to one Python minor version, so pick whichever
+    vendor folder matches THIS interpreter (same logic as
+    shared.common_utils.get_lib_dir, inlined here since this entrypoint
+    can't assume `shared` is importable yet)."""
     try:
         here = os.path.dirname(os.path.abspath(__file__))
-        lib = os.path.abspath(os.path.join(here, "..", "..", "..", "lib"))
+        root = os.path.abspath(os.path.join(here, "..", "..", ".."))
+        major, minor = sys.version_info[0], sys.version_info[1]
+        lib = os.path.join(root, f"lib_py{major}{minor}") if (major, minor) != (3, 11) else os.path.join(root, "lib")
+        if not os.path.isdir(lib):
+            lib = os.path.join(root, "lib")
         if os.path.isdir(lib):
             if lib not in sys.path:
                 sys.path.insert(0, lib)

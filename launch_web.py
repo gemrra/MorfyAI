@@ -16,7 +16,21 @@ import os
 import sys
 
 _ROOT = os.path.dirname(os.path.abspath(__file__))
-_LIB = os.path.join(_ROOT, "lib")
+
+
+def _pick_lib_dir():
+    """Same version-aware pick as launcher.py -- vendored .pyd binaries are
+    locked to one Python minor version, and Houdini's bundled Python differs
+    by release, so use whichever vendor folder matches THIS interpreter."""
+    major, minor = sys.version_info[0], sys.version_info[1]
+    if (major, minor) != (3, 11):
+        versioned = os.path.join(_ROOT, f"lib_py{major}{minor}")
+        if os.path.isdir(versioned):
+            return versioned
+    return os.path.join(_ROOT, "lib")
+
+
+_LIB = _pick_lib_dir()
 if os.path.isdir(_LIB) and _LIB not in sys.path:
     sys.path.insert(0, _LIB)
 if _ROOT not in sys.path:

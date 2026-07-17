@@ -29,8 +29,12 @@ except Exception:
 # Document-search feature has been removed; use web_search to query the official docs.
 # ============================================================
 
-# forceusethisplace lib directoryin depend onlibrary
-_lib_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'lib')
+# Force-use the version-matched vendor lib directory (see
+# shared.common_utils.get_lib_dir -- vendored .pyd binaries are locked to
+# one Python minor version, and Houdini's bundled Python differs by
+# release, so this picks whichever vendor folder matches THIS interpreter).
+from shared.common_utils import get_lib_dir as _get_lib_dir
+_lib_path = _get_lib_dir()
 if os.path.exists(_lib_path):
     # will lib directoryaddto sys.path mostpreviousface, ensurepreferreduse
     if _lib_path in sys.path:

@@ -13,10 +13,13 @@ import re
 from typing import List, Dict, Optional, Any, Callable, Generator, Tuple
 from urllib.parse import quote_plus
 
-from shared.common_utils import load_config, save_config
+from shared.common_utils import load_config, save_config, get_lib_dir
 
-# Force-use dependencies from the local lib directory
-_lib_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'lib')
+# Force-use dependencies from the version-matched vendor lib directory
+# (see shared.common_utils.get_lib_dir -- vendored .pyd binaries are locked
+# to one Python minor version, and Houdini's bundled Python differs by
+# release, so this picks whichever vendor folder matches THIS interpreter).
+_lib_path = get_lib_dir()
 if os.path.exists(_lib_path):
     # Prepend lib to sys.path so it takes priority
     if _lib_path in sys.path:

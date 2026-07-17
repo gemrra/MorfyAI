@@ -4,6 +4,22 @@ All notable changes to MorfyAI are documented here. One entry per release —
 this is also what gets pasted into the GitHub Release notes and the public
 changelog page at morfyfx.com/morfyai/changelog.
 
+## 2.11 — 2026-07-17
+
+**Fixes**
+- Fixed Houdini 22 (Python 3.13) still loading the Python-3.11 vendor folder
+  for MCP and the AI client, breaking `import pywintypes`/`fastmcp` even
+  after v2.10's dual-Python packaging. Four call sites (`ai_client.py`,
+  `mcp/client.py`, `mcp/proxy.py`, `launch_web.py`) each independently
+  hardcoded a bare `lib/` path instead of using the version-aware picker
+  added in v2.10 — one of them ran later in the same import chain and
+  silently re-inserted the wrong folder ahead of the correct one. All
+  vendor-path lookups now go through the single shared
+  `shared.common_utils.get_lib_dir()` (or an inlined equivalent for
+  standalone entrypoints) instead of being reimplemented per file.
+  Verified end-to-end against a real Houdini 22.0.368 + Python 3.13
+  session — `ensure_mcp_running()` now actually binds a port.
+
 ## 2.10 — 2026-07-16
 
 **Houdini 22 support**
