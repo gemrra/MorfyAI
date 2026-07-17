@@ -22,7 +22,25 @@ import os
 # ============================================================
 _ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 _MORFYAI_DIR = os.path.join(_ROOT_DIR, 'morfyai')
-_LIB_DIR = os.path.join(_ROOT_DIR, 'lib')
+
+
+def _pick_lib_dir():
+    """Vendored deps are ABI-locked to one Python minor version (.pyd
+    binaries). Houdini's bundled Python varies by release (3.11 through
+    H21, 3.13 as of H22), so pick whichever vendor folder matches THIS
+    interpreter instead of requiring a specific Houdini Python build —
+    MorfyAI adapts to whatever Houdini the user has installed.
+    'lib' is the default/legacy folder (Python 3.11); newer minor
+    versions get a 'lib_pyXY' sibling, added as they're supported."""
+    major, minor = sys.version_info[0], sys.version_info[1]
+    if (major, minor) != (3, 11):
+        versioned = os.path.join(_ROOT_DIR, f'lib_py{major}{minor}')
+        if os.path.isdir(versioned):
+            return versioned
+    return os.path.join(_ROOT_DIR, 'lib')
+
+
+_LIB_DIR = _pick_lib_dir()
 
 # Bare top-level names MorfyAI uses that also exist in the DEV copy (and in
 # the unrelated upstream "Houdini Agent" product). Any of these cached from

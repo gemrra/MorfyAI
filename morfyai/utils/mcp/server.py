@@ -35,7 +35,15 @@ def _bootstrap_pywin32_from_lib():
 	import sys
 	try:
 		here = os.path.dirname(os.path.abspath(__file__))
-		lib = os.path.abspath(os.path.join(here, "..", "..", "..", "lib"))
+		root = os.path.abspath(os.path.join(here, "..", "..", ".."))
+		# Vendored .pyd binaries are locked to one Python minor version;
+		# Houdini's bundled Python differs by release (3.11 through H21,
+		# 3.13 as of H22), so use whichever vendor folder matches THIS
+		# interpreter -- see shared.common_utils.get_lib_dir.
+		major, minor = sys.version_info[0], sys.version_info[1]
+		lib = os.path.join(root, f"lib_py{major}{minor}") if (major, minor) != (3, 11) else os.path.join(root, "lib")
+		if not os.path.isdir(lib):
+			lib = os.path.join(root, "lib")
 		if not os.path.isdir(lib):
 			return
 		if lib not in sys.path:

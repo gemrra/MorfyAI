@@ -29,9 +29,22 @@ _DEV_ROOT = os.path.dirname(os.path.abspath(__file__))
 _ISOLATE = ("launcher", "main", "shared", "morfyai")
 
 
+def _pick_lib_dir():
+    """Same version-aware pick as launcher.py -- see its _pick_lib_dir for
+    why: vendored .pyd binaries are locked to one Python minor version, and
+    Houdini's bundled Python differs by release, so use whichever vendor
+    folder matches THIS interpreter."""
+    major, minor = sys.version_info[0], sys.version_info[1]
+    if (major, minor) != (3, 11):
+        versioned = os.path.join(_DEV_ROOT, f"lib_py{major}{minor}")
+        if os.path.isdir(versioned):
+            return versioned
+    return os.path.join(_DEV_ROOT, "lib")
+
+
 def _prioritize_and_isolate():
     # Put this dev install's dirs at the very front of sys.path.
-    for p in (os.path.join(_DEV_ROOT, "lib"),
+    for p in (_pick_lib_dir(),
               os.path.join(_DEV_ROOT, "morfyai"),
               _DEV_ROOT):
         if os.path.isdir(p):

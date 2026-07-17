@@ -4,6 +4,19 @@ All notable changes to MorfyAI are documented here. One entry per release —
 this is also what gets pasted into the GitHub Release notes and the public
 changelog page at morfyfx.com/morfyai/changelog.
 
+## 2.10 — 2026-07-16
+
+**Houdini 22 support**
+- Houdini 22 ships Python 3.13 by default (up from 3.11 in H21 and earlier),
+  and MorfyAI's vendored binary dependencies (fastmcp, numpy, pywin32,
+  cryptography, etc.) are ABI-locked to one Python minor version. Rather than
+  requiring users to install the alternate Python-3.11 build of Houdini 22,
+  MorfyAI now ships a second vendored dependency set built for Python 3.13
+  and picks whichever one matches the running interpreter automatically —
+  MorfyAI adapts to whatever Houdini version is installed, not the other way
+  around. Houdini 19.5–21 (Python 3.11) is unaffected and keeps using the
+  original `lib/` folder.
+
 ## 2.9 — 2026-07-14
 
 **Fixes (critical)**

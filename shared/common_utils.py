@@ -3,7 +3,36 @@ Shared Utilities for MorfyAI
 """
 
 import os
+import sys
 from datetime import datetime
+
+
+def get_lib_dir(repo_root=None):
+    """Pick the vendored dependency folder matching the *running* interpreter.
+
+    Houdini's bundled Python version varies by release (3.10/3.11 through
+    H21, 3.13 as the default build starting with H22) and compiled
+    extensions (.pyd) are ABI-locked to one Python minor version -- a
+    cp311 wheel cannot load under a cp313 interpreter or vice versa. Rather
+    than making the user match a specific Houdini Python build, MorfyAI
+    ships one vendored lib/ per supported minor version and picks the
+    right one here, keyed off sys.version_info -- MorfyAI adapts to
+    whatever Houdini the user already has, not the other way around.
+
+    'lib' (no suffix) is the original/default vendor folder, built for
+    Python 3.11 (matches Houdini <=21's bundled interpreter). Newer
+    minor versions get a 'lib_pyXY' sibling folder; add one per version
+    as needed by installing deps with that interpreter via
+    `python -m pip install --target lib_pyXY <packages>`.
+    """
+    root = repo_root or get_repo_root()
+    major, minor = sys.version_info[0], sys.version_info[1]
+    if (major, minor) != (3, 11):
+        versioned = os.path.join(root, f"lib_py{major}{minor}")
+        if os.path.isdir(versioned):
+            return versioned
+    return os.path.join(root, "lib")
+
 
 def get_repo_root(start_dir=None):
     """Get the repository root (directory containing README.md is treated as root)."""
