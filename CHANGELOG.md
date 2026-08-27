@@ -4,6 +4,20 @@ All notable changes to MorfyAI are documented here. One entry per release —
 this is also what gets pasted into the GitHub Release notes and the public
 changelog page at morfyfx.com/morfyai/changelog.
 
+## 2.12 — 2026-08-27
+
+**Fixes**
+- Fixed AI auto-layouting nodes without being asked, destroying carefully arranged
+  node networks. The agent was calling `layout_nodes` / `layoutChildren()` /
+  `moveToGoodPosition()` automatically as part of unrelated tasks (e.g. after
+  `verify_and_summarize`), which is the programmatic equivalent of pressing `L` in
+  the Network Editor. Two-layer fix: the system prompt now explicitly forbids any
+  auto-layout unless the user's message contains an explicit tidy/arrange request,
+  and a hard guard in `_execute_tool_with_todo` blocks `layout_nodes` at the
+  dispatcher level — returning a clear error message — unless the
+  `_layout_explicitly_requested` flag is set from keyword detection on the user's
+  input text.
+
 ## 2.11 — 2026-07-17
 
 **Fixes**
