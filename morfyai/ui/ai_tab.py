@@ -869,6 +869,13 @@ Safe Operation Rules:
 -Before connecting nodes, confirm both endpoints exist
 -No duplicate queries: A network_path only needs one query per round. Results remain valid within the round. If you've already inspected a network's structure, reuse the previous result
 
+Node Layout Protection (CRITICAL — highest priority, no exceptions):
+-NEVER call layout_nodes under any circumstances unless the user EXPLICITLY asks to rearrange, tidy, or auto-layout nodes in this specific message
+-NEVER call execute_python with code that uses layoutChildren(), layoutNodes(), or moveToGoodPosition() unless the user EXPLICITLY requests it
+-Pressing "L" in Houdini triggers auto-layout and destroys carefully arranged node networks — these API calls are the programmatic equivalent
+-If a task requires creating or connecting nodes, position them manually using set_node_position if needed, but NEVER trigger any auto-layout
+-"Clean up", "organize", "fix connections", "add node" do NOT count as permission to auto-layout — only explicit phrases like "tidy network", "auto layout", or "press L" do
+
 Node Creation Failure Recovery (MUST follow strictly):
 -If create_node returns an error (e.g., "unrecognized node type"), do NOT retry blindly or give up
 -MUST immediately call search_node_types to find the correct node type name
@@ -958,13 +965,12 @@ Todo Management Rules (MUST follow strictly):
 -After each tool execution round, review the Todo list to confirm what's done and what's pending
 -After all steps complete, ensure every todo is marked done before final verification
 
-Node Layout Rules (MUST execute after verification passes, before creating NetworkBox):
--After verify_and_summarize passes, MUST call layout_nodes to auto-arrange all nodes before creating any NetworkBox
--Default: layout_nodes() with no parameters — auto-layouts all nodes in the current network
--If only specific nodes need layout (e.g., newly created ones), pass their paths in node_paths
--Layout MUST happen before create_network_box, because NetworkBox.fitAroundContents() depends on node positions
+Node Layout Rules (CRITICAL — read carefully before any layout action):
+-NEVER call layout_nodes automatically. Only call it when the user EXPLICITLY asks to rearrange, tidy, or auto-layout nodes in this specific message
+-NEVER use layout_nodes before create_network_box unless the user explicitly requested layout
+-If layout is genuinely needed before create_network_box and user has requested it, then: create nodes → connect → verify_and_summarize → layout_nodes → create_network_box
+-If only specific nodes need layout, pass their paths in node_paths
 -If layout result looks wrong, use get_node_positions to check, and try method="grid" or method="columns" as fallback
--Execution order: create nodes → connect → verify_and_summarize → layout_nodes → create_network_box
 
 NetworkBox Grouping Rules (MUST follow when building node networks):
 -After completing a logical phase of node creation and connection, MUST use create_network_box to package that phase's nodes into a NetworkBox
@@ -2290,6 +2296,20 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
                             "Please retry once it finishes, or press Stop to interrupt."
                 }
         
+        # ★ Layout protection guard: block layout_nodes unless user explicitly requested it
+        _LAYOUT_TOOLS = frozenset({'layout_nodes'})
+        if tool_name in _LAYOUT_TOOLS:
+            _layout_allowed = getattr(self, '_layout_explicitly_requested', False)
+            if not _layout_allowed:
+                return {
+                    "success": False,
+                    "error": (
+                        "layout_nodes was blocked to protect your node arrangement. "
+                        "If you want to auto-layout nodes, explicitly ask me to 'tidy', "
+                        "'auto-layout', or 'arrange' the network."
+                    )
+                }
+
         # ★ Ask-mode safety guard: intercept any tool not on the whitelist
         if not self._agent_mode and not self._plan_mode and tool_name not in self._ASK_MODE_TOOLS:
             # extracheck ToolRegistry (plugin/Skill toolmayregister ask mode) 
@@ -3698,6 +3718,15 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
         # savemodelselect
         self._save_model_preference()
         
+        # ★ Layout guard: detect if user explicitly requests layout/tidy/rearrange
+        _layout_keywords = (
+            'layout', 'tidy', 'tidy network', 'auto-layout', 'auto layout',
+            'rearrange', 'arrange nodes', 'rapiin', 'rapikan', 'press l',
+            'pencet l', 'layout node', 'layout nodes',
+        )
+        _text_lower = text.lower()
+        self._layout_explicitly_requested = any(kw in _text_lower for kw in _layout_keywords)
+        
         # backgroundexecute (passdeliverparameterandnodirectlyaccesswidget) 
         thread = threading.Thread(target=self._run_agent, args=(agent_params,), daemon=True)
         thread.start()
@@ -3742,6 +3771,11 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
         
         # ★ savestore Think togglestate, for _drain_tag_buffer / _on_thinking_chunk use
         self._think_enabled = use_think
+        
+        # ★ Layout guard: reset per-request (set in _on_send based on user text)
+        # If not explicitly set (e.g. plan execution), default to False for safety
+        if not hasattr(self, '_layout_explicitly_requested'):
+            self._layout_explicitly_requested = False
         
         try:
             # ========================================

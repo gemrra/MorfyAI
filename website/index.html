@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MorfyAI — an AI agent for Houdini</title>
+<meta name="description" content="MorfyAI reads your Houdini scene, writes VEX and Python, and runs full simulations from plain language.">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+  :root{
+    --outer:#0a0a0b;
+    --card:#131417; --line:rgba(255,255,255,.08);
+    --ink:#eceef1; --ink-dim:#9a9ca6; --ink-faint:#5f616b;
+    --amber:#ffc107; --amber-deep:#ffb300;
+    --lav:#26272d; --sand:#1a1b1f; --dark:#0e0f12;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{font-family:'Inter',-apple-system,sans-serif; background:var(--outer); color:var(--ink); line-height:1.6; font-weight:400;}
+  a{color:inherit; text-decoration:none;}
+  code{font-family:'JetBrains Mono',Consolas,monospace;}
+  img,svg{display:block; max-width:100%;}
+  section{scroll-margin-top:24px;}
+
+  .reveal{opacity:0; transform:translateY(28px); transition:opacity .7s cubic-bezier(.16,.8,.3,1), transform .7s cubic-bezier(.16,.8,.3,1);}
+  .reveal.in{opacity:1; transform:translateY(0);}
+  .reveal-stagger > *{opacity:0; transform:translateY(20px); transition:opacity .5s cubic-bezier(.16,.8,.3,1), transform .5s cubic-bezier(.16,.8,.3,1);}
+  .reveal-stagger.in > *{opacity:1; transform:translateY(0);}
+  .reveal-stagger.in > *:nth-child(1){transition-delay:.03s;}
+  .reveal-stagger.in > *:nth-child(2){transition-delay:.09s;}
+  .reveal-stagger.in > *:nth-child(3){transition-delay:.15s;}
+  .reveal-stagger.in > *:nth-child(4){transition-delay:.21s;}
+  .reveal-stagger.in > *:nth-child(5){transition-delay:.27s;}
+  .reveal-stagger.in > *:nth-child(6){transition-delay:.33s;}
+
+  /* ---------- OUTER FRAME ---------- */
+  .stage{
+    padding:56px 24px 80px;
+    background-color:var(--outer);
+    background-image:url("assets/gradientbackground.png");
+    background-size:cover;
+    background-position:top left;
+    background-repeat:no-repeat;
+  }
+  .card{
+    max-width:1240px; margin:0 auto; background:var(--card); border-radius:32px;
+    box-shadow:0 40px 90px -40px rgba(21,20,15,.25); overflow:hidden;
+  }
+  .inner{padding:0 60px;}
+
+  /* ---------- NAV ---------- */
+  nav{display:flex; align-items:center; justify-content:space-between; padding:36px 0;}
+  .brand{display:flex; align-items:center; gap:10px; font-weight:600; font-size:16px; letter-spacing:-.1px;}
+  .brand img{width:60px; height:60px;}
+  .navlinks{display:flex; align-items:center; gap:36px; font-size:14px; font-weight:500; color:var(--ink-dim);}
+  .navlinks a:hover{color:var(--ink);}
+  .navlinks .badge{font-size:12px; font-weight:500; color:var(--ink-faint); border:1px solid var(--line); padding:6px 12px; border-radius:99px;}
+  .navlinks .cta{background:var(--amber); color:#1a1400; padding:10px 20px; border-radius:99px; font-weight:600;}
+  .navlinks .cta:hover{background:#ffcd38;}
+
+  /* ---------- HERO ---------- */
+  .hero{display:grid; grid-template-columns:1fr 1fr; gap:64px; padding:32px 0 88px; align-items:center;}
+  .eyebrow-pill{
+    display:inline-flex; align-items:center; gap:7px; font-size:12.5px; font-weight:500; color:var(--ink-dim);
+    border:1px solid var(--line); padding:7px 15px; border-radius:99px; margin-bottom:30px;
+  }
+  .eyebrow-pill .dot{width:6px; height:6px; border-radius:50%; background:#3ecf8e;}
+  h1{font-size:44px; font-weight:600; letter-spacing:-1px; line-height:1.22; margin-bottom:28px;}
+  h1 u{text-decoration-color:var(--amber-deep); text-decoration-thickness:2px; text-underline-offset:5px;}
+  .hero p.lede{font-size:15.5px; color:var(--ink-dim); max-width:440px; line-height:1.75; margin-bottom:36px;}
+  .hero-ctas{display:flex; align-items:center; gap:16px; margin-bottom:44px;}
+  .btn-pill{display:inline-flex; align-items:center; gap:8px; padding:13px 24px; border-radius:99px; font-weight:600; font-size:14px; transition:transform .15s, background .18s, border-color .18s; will-change:transform;}
+  .btn-pill:active{transform:scale(.96);}
+  .btn-amber{background:var(--amber); color:#1a1400;}
+  .btn-amber:hover{background:#ffcd38;}
+  .btn-outline{border:1px solid var(--line); color:var(--ink);}
+  .btn-outline:hover{border-color:var(--ink-faint);}
+  .fact-row{display:flex; gap:32px; font-size:13px; color:var(--ink-dim); flex-wrap:wrap;}
+  .fact-row b{color:var(--ink); font-weight:600;}
+
+  /* ---------- BENTO (right col of hero) ---------- */
+  .bento{display:grid; grid-template-columns:1fr 1fr; grid-template-rows:auto; gap:16px;}
+  .btile{border-radius:20px; padding:28px; position:relative; overflow:hidden; transition:transform .18s, border-color .18s, box-shadow .18s;}
+  .btile.big{grid-column:1/3; min-height:180px; background:var(--sand); border:1px solid var(--line); color:var(--ink); display:flex; flex-direction:column; gap:16px; padding-right:70px;}
+  .btile.stat{min-height:160px; display:flex; flex-direction:column; gap:16px;}
+  .btile:hover{transform:translateY(-3px); box-shadow:0 20px 40px -24px rgba(0,0,0,.5);}
+  .btile.big:hover, .btile.stat:hover{border-color:var(--ink-faint);}
+  .btile.amber-tile:hover, .btile.lav-tile:hover{border-color:transparent;}
+  .tag-pill{
+    display:inline-flex; align-items:center; font-size:11px; font-weight:500; background:rgba(255,255,255,.08);
+    padding:6px 13px; border-radius:99px; width:fit-content;
+  }
+  .tag-pill.dark-on-light{background:var(--card); color:var(--ink-dim);}
+  .btile-head{font-size:18px; font-weight:500; line-height:1.5; max-width:480px;}
+  .circle-arrow{
+    width:34px; height:34px; border-radius:50%; background:rgba(255,255,255,.08); display:flex; align-items:center;
+    justify-content:center; font-size:14px; position:absolute; right:22px; bottom:22px; transition:transform .18s, background .18s;
+  }
+  .btile:hover .circle-arrow{transform:rotate(45deg); background:rgba(255,255,255,.16);}
+  .btile.stat .circle-arrow{background:var(--card); color:var(--ink);}
+  .btile.stat:hover .circle-arrow{background:var(--card);}
+  .stat-num{font-size:40px; font-weight:600; letter-spacing:-.5px;}
+  .stat-cap{font-size:12.5px; color:var(--ink-dim); max-width:150px; line-height:1.55; margin-top:6px;}
+  .btile.amber-tile{background:linear-gradient(140deg,var(--amber),var(--amber-deep));}
+  .btile.amber-tile .stat-cap{color:rgba(26,20,0,.7);}
+  .btile.amber-tile .stat-num{color:#1a1400;}
+  .btile.lav-tile{background:var(--lav);}
+
+  /* ---------- DEMO SHOWCASE (list left, chatbox right) ---------- */
+  .demo-layout{display:grid; grid-template-columns:1fr 540px; gap:32px; align-items:start;}
+  .demo-list{display:flex; flex-direction:column; gap:4px;}
+  .demo-item{padding:18px 20px; border-radius:14px; cursor:pointer; border:1px solid transparent; transition:.15s;}
+  .demo-item:hover{background:var(--sand);}
+  .demo-item.on{background:var(--sand); border-color:var(--line);}
+  .demo-item .dh{display:flex; align-items:center; gap:10px; margin-bottom:5px;}
+  .demo-item h4{font-size:15px; font-weight:500;}
+  .demo-item .dtag{font-size:10.5px; font-family:'JetBrains Mono',Consolas,monospace; color:var(--ink-faint); border:1px solid var(--line); padding:2px 8px; border-radius:20px;}
+  .demo-item p{font-size:13px; color:var(--ink-faint); line-height:1.6;}
+  .appframe-full{background:var(--dark); border:1px solid var(--line); border-radius:20px; overflow:hidden;}
+  .app-topbar{display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:1px solid var(--line);}
+  .app-topbar .aham{display:flex; flex-direction:column; gap:3px; flex-shrink:0;}
+  .app-topbar .aham span{width:15px; height:2px; background:var(--ink-dim); border-radius:1px;}
+  .app-topbar .atitle{font-size:12.5px; font-weight:600; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .app-topbar .amcp{margin-left:auto; display:flex; align-items:center; gap:5px; font-size:10.5px; color:#3ecf8e; flex-shrink:0;}
+  .app-topbar .amcp .d{width:5px; height:5px; border-radius:50%; background:#3ecf8e;}
+  .app-topbar .agear{width:15px; height:15px; flex-shrink:0; color:var(--ink-faint);}
+  .app-body-full{padding:24px 22px; min-height:440px;}
+  .duser{display:flex; justify-content:flex-end; margin-bottom:20px;}
+  .duser .b{background:rgba(255,193,7,.1); border:1px solid rgba(255,193,7,.22); border-radius:14px; border-bottom-right-radius:4px; padding:11px 16px; font-size:13.5px; max-width:70%;}
+  .dai .head{display:flex; align-items:center; gap:8px; margin-bottom:10px;}
+  .dai .head img{width:20px; height:20px;}
+  .dai .head b{font-size:12px; font-weight:600;}
+  .dai .txt{font-size:13.5px; color:#d3d5dc; line-height:1.7; max-width:600px; margin-bottom:14px;}
+  .toolstack{border-top:1px solid var(--line); padding-top:10px; display:flex; flex-direction:column; gap:2px;}
+  .toolstack .row{
+    display:flex; align-items:center; gap:9px; font-size:12px; font-family:'JetBrains Mono',Consolas,monospace;
+    color:var(--ink-dim); padding:6px 4px; border-radius:6px; transition:background .12s;
+  }
+  .toolstack .row:hover{background:rgba(255,255,255,.04);}
+  .toolstack .row .ok{color:#3ecf8e;}
+  .toolstack .row .fn{color:var(--ink);}
+  .toolstack .row .arg{color:var(--ink-faint);}
+
+  /* rich response formats — real components from the panel */
+  .node-link{font-family:'JetBrains Mono',Consolas,monospace; color:var(--amber); text-decoration:underline dotted; text-underline-offset:2px; cursor:pointer;}
+
+  .codeblock-wrap{margin:10px 0; background:#0f1013; border:1px solid var(--line); border-radius:8px; overflow:hidden;}
+  .codeblock-head{display:flex; justify-content:space-between; align-items:center; padding:6px 10px; background:rgba(255,255,255,.03); border-bottom:1px solid var(--line); font-size:10px; color:var(--ink-faint); text-transform:uppercase; letter-spacing:.04em;}
+  .codeblock-head-actions{display:flex; gap:6px;}
+  .wrangle-btn,.copy-code-btn{font-size:10px; padding:3px 9px; border-radius:5px; font-family:'Inter',sans-serif;}
+  .wrangle-btn{border:1px solid rgba(255,193,7,.35); background:rgba(255,193,7,.08); color:var(--amber);}
+  .copy-code-btn{border:1px solid var(--line); background:transparent; color:var(--ink-dim);}
+  .codeblock-wrap pre{margin:0; padding:10px 12px; overflow-x:auto;}
+  .codeblock-wrap code{font-family:'JetBrains Mono',Consolas,monospace; font-size:11.5px; color:#d3d5dc; white-space:pre;}
+  .tok-keyword{color:#c792ea;} .tok-string{color:#9ccc65;} .tok-comment{color:var(--ink-faint); font-style:italic;} .tok-number{color:#f78c6c;}
+
+  .msg-table{width:100%; border-collapse:collapse; font-size:11.5px; margin:10px 0;}
+  .msg-table th,.msg-table td{border:1px solid var(--line); padding:6px 9px; text-align:left;}
+  .msg-table th{background:rgba(255,255,255,.03); color:var(--ink); font-weight:600; white-space:nowrap;}
+  .msg-table td{color:var(--ink-dim);}
+
+  .todo-list2{display:flex; flex-direction:column; gap:6px; margin:10px 0;}
+  .todo-row2{display:flex; align-items:center; gap:8px; font-size:12.5px;}
+  .todo-row2 .m{width:12px; font-size:10px; text-align:center; flex-shrink:0;}
+  .todo-row2.done .m{color:#3ecf8e;} .todo-row2.done .t{text-decoration:line-through; color:var(--ink-faint);}
+  .todo-row2.active .m{color:#f59e0b;} .todo-row2.active .t{color:var(--ink);}
+  .todo-row2.pending .m{color:var(--ink-faint);} .todo-row2.pending .t{color:var(--ink-dim);}
+
+  .attach-chip2{display:inline-flex; align-items:center; gap:7px; padding:5px 10px; border-radius:8px; background:var(--sand); border:1px solid var(--line); font-size:11.5px; color:var(--ink-dim); margin:10px 0 0;}
+  .attach-chip2 svg{width:13px; height:13px; flex-shrink:0; color:var(--ink-dim);}
+  .app-composer-full{border-top:1px solid var(--line); padding:14px 18px 12px;}
+  .app-ctxpill{
+    display:inline-flex; align-items:center; gap:6px; font-size:10.5px; color:var(--ink-dim); background:var(--lav);
+    border:1px solid var(--line); padding:4px 9px; border-radius:7px; margin-bottom:10px;
+  }
+  .app-ctxpill .ic{color:var(--ink-faint);}
+  .app-inputbox{
+    display:flex; align-items:center; gap:10px; background:var(--sand); border:1px solid var(--line);
+    border-radius:12px; padding:11px 10px 11px 14px; margin-bottom:10px;
+  }
+  .app-inputbox .ph{flex:1; font-size:13px; color:var(--ink-faint); font-family:'Inter',sans-serif;}
+  .app-inputbox .csend{
+    width:26px; height:26px; border-radius:7px; background:var(--lav); color:var(--ink-dim); display:flex;
+    align-items:center; justify-content:center; font-size:12px; flex-shrink:0;
+  }
+  .app-toolrow{display:flex; align-items:center; gap:10px; padding:0 2px;}
+  .app-modetxt{font-size:12px; font-weight:600; color:var(--amber);}
+  .app-iconbtn{width:15px; height:15px; color:var(--ink-dim); flex-shrink:0;}
+  .app-toolrow-spacer{flex:1;}
+  .app-metabtn{font-size:11.5px; color:var(--ink-dim);}
+  .app-metabtn.effort{color:#60a5fa;}
+  .app-ring{
+    width:16px; height:16px; border-radius:50%; flex-shrink:0; position:relative;
+    background:conic-gradient(var(--amber) 0% 34%, var(--lav) 34% 100%);
+  }
+  .app-ring:after{content:""; position:absolute; inset:2.5px; border-radius:50%; background:var(--dark);}
+
+  /* ---------- UNDER THE HOOD (presentation-style, timeline) ---------- */
+  .hood-list{
+    display:flex; flex-direction:column; border-top:1px solid var(--line); border-bottom:1px solid var(--line);
+    position:relative;
+  }
+  .hood-list:before{
+    content:""; position:absolute; left:17px; top:0; bottom:0; width:1px; z-index:0;
+    background:linear-gradient(var(--line), var(--line)) , linear-gradient(rgba(255,193,7,.35), transparent 60%);
+    background-blend-mode:screen;
+  }
+  .hood-row{
+    display:grid; grid-template-columns:280px 1fr; gap:48px; padding:40px 28px; margin:0 -28px;
+    border-radius:16px; transition:background .2s; position:relative; z-index:1;
+  }
+  .hood-row:hover{background:rgba(255,255,255,.02);}
+  .hood-num-row{display:flex; align-items:flex-start; gap:18px; position:relative;}
+  .hood-icon-wrap{
+    position:relative; z-index:2; width:34px; height:34px; border-radius:50%; flex-shrink:0;
+    background:var(--card); border:1px solid rgba(255,193,7,.22); display:flex; align-items:center; justify-content:center;
+    transition:border-color .2s, background .2s, box-shadow .2s;
+  }
+  .hood-row:hover .hood-icon-wrap{border-color:var(--amber); background:var(--amber); box-shadow:0 0 0 4px rgba(255,193,7,.15);}
+  .hood-textcol{padding-top:6px;}
+  .hood-num{font-size:12.5px; font-family:'JetBrains Mono',Consolas,monospace; color:rgba(255,193,7,.55); margin-bottom:6px;}
+  .hood-icon{width:16px; height:16px; color:rgba(255,193,7,.6); flex-shrink:0; transition:color .2s;}
+  .hood-row:hover .hood-icon{color:#1a1400;}
+  .hood-head h3{font-size:21px; font-weight:600; letter-spacing:-.3px; margin-bottom:10px;}
+  .htag{font-size:10.5px; font-family:'JetBrains Mono',Consolas,monospace; color:var(--ink-faint); font-weight:400; border:1px solid var(--line); padding:2px 9px; border-radius:20px; display:inline-block;}
+  .hood-body{padding-top:32px;}
+  .hood-body p{font-size:15px; color:var(--ink-dim); line-height:1.75; max-width:620px;}
+  .hood-body p code{color:var(--ink);}
+  .hlt{color:var(--amber);}
+  .hood-body p + p{margin-top:12px;}
+
+  /* provider list — icon, name, model line */
+  .provider-list{display:grid; grid-template-columns:1fr 1fr; gap:10px 24px; margin-top:20px; max-width:620px;}
+  .provider-row{
+    display:flex; align-items:flex-start; gap:12px; padding:12px 10px 12px 14px; border-top:1px solid var(--line);
+    border-left:2px solid transparent; border-radius:0 8px 8px 0; transition:background .15s, border-color .15s;
+  }
+  .provider-row:hover{background:rgba(255,255,255,.025); border-left-color:var(--pclr,var(--ink-faint));}
+  .provider-row svg, .provider-row img{width:18px; height:18px; flex-shrink:0; color:var(--ink-dim); margin-top:2px;}
+  .provider-row .pname{font-size:13.5px; color:var(--ink); font-weight:500; display:flex; align-items:center; gap:7px;}
+  .provider-row .pmodels{font-size:12px; color:var(--ink-faint); margin-top:2px;}
+
+  /* ---------- SECTIONS ---------- */
+  section{padding:84px 0;}
+  .sec-eyebrow{
+    display:inline-block; font-size:11.5px; font-weight:500; color:var(--ink-dim); border:1px solid var(--line);
+    padding:6px 14px; border-radius:99px; margin-bottom:22px;
+  }
+  h2{font-size:28px; font-weight:600; letter-spacing:-.6px; margin-bottom:48px; max-width:600px;}
+
+  /* ---------- CAPABILITIES: plain columns, no cards ---------- */
+  .plain-cols{display:grid; grid-template-columns:1fr 1fr 1fr; gap:64px; text-align:left; max-width:100%; margin:0 auto;}
+  .pc-icon{width:20px; height:20px; color:var(--amber); margin-bottom:14px;}
+  .plain-col h4{font-size:15px; font-weight:600; margin-bottom:8px;}
+  .plain-col p{font-size:13.5px; color:var(--ink-dim); line-height:1.65;}
+
+  /* ---------- SIM SUITE: tidy chip row, outline style ---------- */
+  .scatter-wrap{display:flex; flex-wrap:wrap; gap:14px; margin-top:36px;}
+  .scatter-chip{
+    padding:16px 38px; border-radius:99px; font-weight:400; font-size:16px; white-space:nowrap;
+    background:transparent; transition:transform .18s, background .18s, border-color .18s; cursor:default;
+  }
+  .scatter-chip:hover{transform:translateY(-3px);}
+  .scatter-chip:active{transform:translateY(-1px) scale(.97);}
+  .scatter-chip.sc-light{border:1px solid var(--ink-faint); color:var(--ink);}
+  .scatter-chip.sc-light:hover{background:rgba(255,255,255,.04); border-color:var(--ink-dim);}
+  .scatter-chip.sc-dark{border:1px solid var(--line); color:var(--ink-dim);}
+  .scatter-chip.sc-dark:hover{background:rgba(255,255,255,.03); border-color:var(--ink-faint);}
+  .scatter-chip.sc-amber{border:1px solid rgba(255,193,7,.45); color:var(--amber);}
+  .scatter-chip.sc-amber:hover{background:rgba(255,193,7,.08);}
+  .scatter-chip.sc-fill.sc-amber{background:rgba(255,193,7,.1);}
+  .scatter-chip.sc-fill.sc-light{background:rgba(255,255,255,.07);}
+  .scatter-chip.sc-fill.sc-dark{background:rgba(255,255,255,.035);}
+
+  /* ---------- INSTALL: connected flow ---------- */
+  .steprow{display:grid; grid-template-columns:1fr auto 1fr auto 1fr; gap:0; align-items:start;}
+  .stepflow-arrow{
+    display:flex; align-items:center; justify-content:center; padding-top:14px; color:var(--ink-faint); flex-shrink:0; width:32px;
+  }
+  .stepflow-arrow svg{width:18px; height:18px;}
+  .stepcard{padding:0 6px;}
+  .stepcard .snum{
+    font-family:'Inter',sans-serif; font-size:32px; font-weight:300; color:var(--ink-faint);
+    margin-bottom:14px; line-height:1; letter-spacing:-.5px;
+  }
+  .stepcard h4{font-size:16px; font-weight:600; margin-bottom:8px;}
+  .stepcard p{font-size:13.5px; color:var(--ink-dim); line-height:1.65;}
+  .step-path{
+    margin-top:16px; display:flex; align-items:center; gap:5px; padding-top:12px; border-top:1px solid var(--line);
+    font-family:'JetBrains Mono',Consolas,monospace; font-size:12.5px; color:var(--ink-faint);
+  }
+  .step-path .sep{color:var(--ink-faint); opacity:.5;}
+  .step-path .hi{color:var(--amber); font-weight:600;}
+
+  /* ---------- FAQ ---------- */
+  .faq-split{display:grid; grid-template-columns:.85fr 1.15fr; gap:56px; align-items:start;}
+  .faq-lede{font-size:14.5px; color:var(--ink-dim); line-height:1.75; margin-top:16px; max-width:360px;}
+  .faq-list{display:flex; flex-direction:column; gap:10px;}
+  .faq-item{background:var(--sand); border:1px solid var(--line); border-radius:16px; overflow:hidden; transition:border-color .15s;}
+  .faq-item:hover{border-color:var(--ink-faint);}
+  .faq-q{
+    display:flex; justify-content:space-between; align-items:center; gap:16px; padding:19px 22px;
+    cursor:pointer; font-weight:600; font-size:14.5px; color:var(--ink); user-select:none;
+  }
+  .faq-toggle{
+    width:26px; height:26px; border-radius:50%; background:var(--lav); color:var(--ink-dim); flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; transition:transform .25s, background .2s, color .2s;
+  }
+  .faq-toggle svg{width:13px; height:13px; display:block;}
+  .faq-item.open .faq-toggle{background:var(--amber); color:#1a1400; transform:rotate(180deg);}
+  .faq-a{max-height:0; overflow:hidden; transition:max-height .25s ease;}
+  .faq-a p{font-size:13.5px; color:var(--ink-dim); line-height:1.7; padding:0 22px 20px;}
+  .faq-item.open .faq-a{max-height:240px;}
+
+  /* ---------- DONATE ---------- */
+  .donate{background:var(--sand); border:1px solid var(--line); border-radius:20px; padding:32px 34px; display:flex; align-items:center; justify-content:space-between; gap:24px; flex-wrap:wrap;}
+  .donate h4{font-size:16px; font-weight:500; margin-bottom:6px;}
+  .donate p{font-size:13px; color:var(--ink-dim); max-width:380px;}
+  .donate-links{display:flex; gap:10px;}
+  .donate-links a{background:var(--lav); border:1px solid var(--line); padding:10px 18px; border-radius:99px; font-size:12.5px; font-weight:500; color:var(--ink);}
+
+  /* ---------- FOOTER ---------- */
+  footer{background:var(--dark); color:#8f9099; padding:44px 60px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px; font-size:12.5px;}
+  .footer-brand{display:flex; align-items:center; gap:12px;}
+  .footer-brand img{width:30px; height:30px; opacity:.9;}
+  footer .flinks{display:flex; gap:20px;}
+  footer .flinks a:hover{color:#fff;}
+
+  @media (max-width:840px){
+    .inner{padding:0 22px;}
+    .hero{grid-template-columns:1fr;}
+    h1{font-size:32px;}
+    .steprow, .demo-layout, .provider-list, .hood-row, .plain-cols, .faq-split, .donate-duo{grid-template-columns:1fr;}
+    .stepflow-arrow{display:none;}
+    .steprow .stepcard{margin-bottom:24px;}
+    .provider-row[style]{grid-column:1/2 !important;}
+    .navlinks a:not(.cta):not(.badge){display:none;}
+  }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="card">
+    <div class="inner">
+
+      <nav>
+        <div class="brand"><img src="assets/morfyai-logo.png" alt="">MorfyAI</div>
+        <div class="navlinks">
+          <a href="#demo">Demo</a>
+          <a href="#simsuite">Toolkit</a>
+          <a href="#underhood">Under the hood</a>
+          <a href="#product">Product</a>
+          <a href="#install">Install</a>
+          <a href="#faq">FAQ</a>
+          <a class="cta" href="https://gemrra.gumroad.com/l/MorfyAI" target="_blank" rel="noopener">Download</a>
+        </div>
+      </nav>
+
+      <div class="hero">
+        <div>
+          <div class="eyebrow-pill"><span class="dot"></span>Free &amp; open-source</div>
+          <h1>MorfyAI understands your <u>Houdini scene</u>. Helps when you're stuck.</h1>
+          <p class="lede">MorfyAI is an AI agent built directly into Houdini — not a separate app, not a chatbot bolted on the side. Free and open-source, part of the MorfyFX ecosystem.</p>
+          <div class="hero-ctas">
+            <a class="btn-pill btn-amber" href="https://gemrra.gumroad.com/l/MorfyAI" target="_blank" rel="noopener">Download for Houdini</a>
+            <a class="btn-pill btn-outline" href="https://morfyfx.com/morfyai/changelog">Changelog</a>
+          </div>
+          <div class="fact-row">
+            <span><b>47</b> tools</span>
+            <span><b>12</b> sim skills</span>
+            <span><b>10</b> providers</span>
+            <span><b>MIT</b> license</span>
+          </div>
+        </div>
+
+        <div class="bento">
+          <div class="btile big">
+            <span class="tag-pill">MCP</span>
+            <div>
+              <div class="btile-head">Already paying for Claude, GPT, Gemini, or any AI subscription that supports MCP? Drive MorfyAI with it — no extra key needed.</div>
+            </div>
+          </div>
+          <div class="btile stat amber-tile">
+            <span class="tag-pill dark-on-light" style="background:rgba(26,20,0,.12); color:#1a1400;">tools</span>
+            <div>
+              <div class="stat-num">47</div>
+              <div class="stat-cap">node ops, diagnostics, and simulation, all in one panel</div>
+            </div>
+          </div>
+          <div class="btile stat lav-tile">
+            <span class="tag-pill dark-on-light">providers</span>
+            <div>
+              <div class="stat-num">10</div>
+              <div class="stat-cap">Claude, GPT, Gemini, and more — plus local models via Ollama</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DEMO SHOWCASE -->
+      <section id="demo" style="padding-top:0;">
+        <div class="sec-eyebrow">See it work</div>
+        <h2>One panel, endless ways to use it</h2>
+
+        <div class="demo-layout">
+          <div class="demo-list" id="demoTabs">
+            <div class="demo-item on" data-demo="build">
+              <div class="dh"><h4>Write custom VEX</h4><span class="dtag">create_wrangle_node</span></div>
+              <p>Ask for a wrangle in plain language — it writes the VEX and drops the node straight in.</p>
+            </div>
+            <div class="demo-item" data-demo="fix">
+              <div class="dh"><h4>Fix an error</h4><span class="dtag">check_errors</span></div>
+              <p>Reads the cook error, inspects the node's parameters, and corrects the one that's wrong.</p>
+            </div>
+            <div class="demo-item" data-demo="explain">
+              <div class="dh"><h4>Explain a network</h4><span class="dtag">get_network_structure</span></div>
+              <p>Walks the node graph and explains what a chain of nodes actually does.</p>
+            </div>
+            <div class="demo-item" data-demo="optimize">
+              <div class="dh"><h4>Optimize cook time</h4><span class="dtag">perf_start_profile</span></div>
+              <p>Profiles the network, finds the slow node, and proposes a fix.</p>
+            </div>
+            <div class="demo-item" data-demo="organize">
+              <div class="dh"><h4>Organize a messy network</h4><span class="dtag">layout_nodes</span></div>
+              <p>Auto-lays-out a tangled chain and boxes related nodes together.</p>
+            </div>
+            <div class="demo-item" data-demo="batch">
+              <div class="dh"><h4>Batch-edit parameters</h4><span class="dtag">batch_set_parameters</span></div>
+              <p>Finds every matching node and updates a parameter across all of them at once.</p>
+            </div>
+            <div class="demo-item" data-demo="docs">
+              <div class="dh"><h4>Look up a Houdini concept</h4><span class="dtag">get_houdini_node_doc</span></div>
+              <p>Pulls the real node documentation instead of guessing from memory.</p>
+            </div>
+            <div class="demo-item" data-demo="todo">
+              <div class="dh"><h4>Track a multi-step task</h4><span class="dtag">add_todo</span></div>
+              <p>Breaks a bigger ask into steps, checks them off, and summarizes when it's done.</p>
+            </div>
+          </div>
+
+          <div class="appframe-full">
+            <div class="app-topbar">
+              <div class="aham"><span></span><span></span><span></span></div>
+              <span class="atitle" id="demoPath">Writing a wrangle</span>
+              <span class="amcp"><span class="d"></span>MCP</span>
+              <svg class="agear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 01-4 0v-.1a1.7 1.7 0 00-1-1.6 1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.9 1.7 1.7 0 00-1.5-1H3a2 2 0 010-4h.1a1.7 1.7 0 001.5-1 1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.9.3H9a1.7 1.7 0 001-1.5V3a2 2 0 014 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.9-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.9V9a1.7 1.7 0 001.5 1H21a2 2 0 010 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>
+            </div>
+            <div class="app-body-full">
+
+              <div class="demo-scenario" id="demo-build">
+                <div class="duser"><div class="b">write me a wrangle that adds slight random color variation per point on this pyro source</div></div>
+                <div class="dai">
+                  <div class="head"><img src="assets/morfyai-logo.png" alt=""><b>MorfyAI</b></div>
+                  <div class="txt">Sure thing — here's a wrangle that hashes each point's ID into a small random offset and nudges the color per point, so it doesn't look flat. I'll drop it straight into the network for you:</div>
+                  <div class="codeblock-wrap">
+                    <div class="codeblock-head"><span>vex</span><div class="codeblock-head-actions"><button class="wrangle-btn" type="button">Create Wrangle</button><button class="copy-code-btn" type="button">Copy</button></div></div>
+                    <pre><code><span class="tok-comment">// small per-point color variation, seeded by point number</span>
+<span class="tok-keyword">float</span> n = fit01(rand(@ptnum), <span class="tok-number">-0.08</span>, <span class="tok-number">0.08</span>);
+<span class="tok-keyword">vector</span> base = <span class="tok-number">{</span><span class="tok-number">1</span>, <span class="tok-number">0.6</span>, <span class="tok-number">0.2</span><span class="tok-number">}</span>;
+@Cd = base + n;</code></pre>
+                  </div>
+                  <div class="toolstack">
+                    <div class="row"><span class="ok">✓</span><span class="fn">create_wrangle_node</span><span class="arg">pyrosource1</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="demo-scenario" id="demo-fix" style="display:none;">
+                <div class="duser"><div class="b">the sim keeps failing to cook, can you find out why?</div></div>
+                <div class="dai">
+                  <div class="head"><img src="assets/morfyai-logo.png" alt=""><b>MorfyAI</b></div>
+                  <div class="txt">Okay, found the culprit. <span class="node-link">pyrosolver1</span> had its substeps parameter set to <code>0</code>, which was causing a divide-by-zero the moment it tried to cook. I bumped it up to <code>4</code> and re-ran it — it's cooking cleanly now, no more errors.</div>
+                  <div class="toolstack">
+                    <div class="row"><span class="ok">✓</span><span class="fn">check_errors</span><span class="arg">/obj/geo1</span></div>
+                    <div class="row"><span class="ok">✓</span><span class="fn">get_node_parameters</span><span class="arg">pyrosolver1</span></div>
+                    <div class="row"><span class="ok">✓</span><span class="fn">set_node_parameter</span><span class="arg">substeps = 4</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="demo-scenario" id="demo-explain" style="display:none;">
+                <div class="duser"><div class="b">what does this node network actually do?</div></div>
+                <div class="dai">
+                  <div class="head"><img src="assets/morfyai-logo.png" alt=""><b>MorfyAI</b></div>
+                  <div class="txt">Sure thing — I walked the chain from <span class="node-link">geo1</span> down to the output, and here's what each node is actually doing along the way:</div>
+                  <table class="msg-table">
+                    <tr><th>Node</th><th>Type</th><th>Role</th></tr>
+                    <tr><td class="node-link">geo1</td><td>geo</td><td>source geometry</td></tr>
+                    <tr><td class="node-link">wrangle1</td><td>attribwrangle</td><td>remaps density</td></tr>
+                    <tr><td class="node-link">pyrosolver1</td><td>pyrosolver</td><td>runs the sim</td></tr>
+                    <tr><td class="node-link">filecache1</td><td>filecache</td><td>caches to disk</td></tr>
+                  </table>
+                  <div class="toolstack">
+                    <div class="row"><span class="ok">✓</span><span class="fn">get_network_structure</span><span class="arg">/obj/geo1</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="demo-scenario" id="demo-optimize" style="display:none;">
+                <div class="duser"><div class="b">why is this so slow to cook?</div></div>
+                <div class="dai">
+                  <div class="head"><img src="assets/morfyai-logo.png" alt=""><b>MorfyAI</b></div>
+                  <div class="txt">I profiled the network to see where the time was actually going, and it's pretty lopsided — <span class="node-link">pyrosolver1</span> alone is eating most of your cook time. Here's the breakdown:</div>
+                  <table class="msg-table">
+                    <tr><th>Node</th><th>Cook time</th><th>Share</th></tr>
+                    <tr><td class="node-link">pyrosolver1</td><td>2.8s</td><td>78%</td></tr>
+                    <tr><td class="node-link">wrangle1</td><td>0.5s</td><td>14%</td></tr>
+                    <tr><td>other</td><td>0.3s</td><td>8%</td></tr>
+                  </table>
+                  <div class="txt" style="margin-top:2px;">That's almost entirely down to a small voxel size. Widening it a bit should bring the cook time down noticeably without hurting the look much — want me to try it and show you the difference?</div>
+                  <div class="toolstack">
+                    <div class="row"><span class="ok">✓</span><span class="fn">perf_start_profile</span><span class="arg">/obj/geo1</span></div>
+                    <div class="row"><span class="ok">✓</span><span class="fn">perf_stop_and_report</span><span class="arg">cook breakdown</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="demo-scenario" id="demo-organize" style="display:none;">
+                <div class="duser"><div class="b">this network is a mess, can you clean up the layout?</div></div>
+                <div class="dai">
+                  <div class="head"><img src="assets/morfyai-logo.png" alt=""><b>MorfyAI</b></div>
+                  <div class="txt">Yeah, I can see why — it's grown pretty tangled. I laid the chain out top-to-bottom and grouped <span class="node-link">pyrosolver1</span> with its inputs into a labeled box, so the flow should read a lot more clearly now.</div>
+                  <div class="toolstack">
+                    <div class="row"><span class="ok">✓</span><span class="fn">layout_nodes</span><span class="arg">/obj/geo1</span></div>
+                    <div class="row"><span class="ok">✓</span><span class="fn">create_network_box</span><span class="arg">"Pyro"</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="demo-scenario" id="demo-batch" style="display:none;">
+                <div class="duser"><div class="b">turn off the simulate flag on every wrangle in this network</div></div>
+                <div class="dai">
+                  <div class="head"><img src="assets/morfyai-logo.png" alt=""><b>MorfyAI</b></div>
+                  <div class="txt">Got it — I searched the network for every wrangle with that flag on, found 6 of them, and flipped them all off in a single pass. No need to click through each one by hand:</div>
+                  <table class="msg-table">
+                    <tr><th>Node</th><th>simulate</th></tr>
+                    <tr><td class="node-link">wrangle1</td><td>0</td></tr>
+                    <tr><td class="node-link">wrangle2</td><td>0</td></tr>
+                    <tr><td>+4 more</td><td>0</td></tr>
+                  </table>
+                  <div class="toolstack">
+                    <div class="row"><span class="ok">✓</span><span class="fn">find_nodes_by_param</span><span class="arg">simulate = 1</span></div>
+                    <div class="row"><span class="ok">✓</span><span class="fn">batch_set_parameters</span><span class="arg">6 nodes</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="demo-scenario" id="demo-docs" style="display:none;">
+                <div class="duser"><div class="b">what does the substep parameter actually control on a solver?</div></div>
+                <div class="dai">
+                  <div class="head"><img src="assets/morfyai-logo.png" alt=""><b>MorfyAI</b></div>
+                  <div class="txt">Good question — rather than guess, I pulled the actual docs for that parameter. Substeps control how many sub-frames the solver simulates for every single frame, so raising it buys you accuracy at the cost of cook time, and vice versa. Here's a quick wrangle you could drop in to sanity-check the value before you raise it:</div>
+                  <div class="codeblock-wrap">
+                    <div class="codeblock-head"><span>vex</span><div class="codeblock-head-actions"><button class="wrangle-btn" type="button">Create Wrangle</button><button class="copy-code-btn" type="button">Copy</button></div></div>
+                    <pre><code><span class="tok-comment">// bail out if the solver is already substepping enough</span>
+<span class="tok-keyword">int</span> substeps = chi(<span class="tok-string">"../pyrosolver1/substeps"</span>);
+<span class="tok-keyword">if</span> (substeps &lt; <span class="tok-number">2</span>) {
+    warning(<span class="tok-string">"substeps may be too low for this scale"</span>);
+}</code></pre>
+                  </div>
+                  <div class="toolstack">
+                    <div class="row"><span class="ok">✓</span><span class="fn">get_houdini_node_doc</span><span class="arg">pyrosolver</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="demo-scenario" id="demo-todo" style="display:none;">
+                <div class="duser"><div class="b">set up pyro, then a collision object, then render a preview</div></div>
+                <div class="dai">
+                  <div class="head"><img src="assets/morfyai-logo.png" alt=""><b>MorfyAI</b></div>
+                  <div class="txt">Got it, that's a few moving pieces so I'll break it into steps and work through them in order rather than trying to do everything at once. First one's already done:</div>
+                  <div class="todo-list2">
+                    <div class="todo-row2 done"><span class="m">✓</span><span class="t">Build the Pyro source and solver</span></div>
+                    <div class="todo-row2 active"><span class="m">◐</span><span class="t">Add a collision object</span></div>
+                    <div class="todo-row2 pending"><span class="m">○</span><span class="t">Render a viewport preview</span></div>
+                  </div>
+                  <div class="toolstack">
+                    <div class="row"><span class="ok">✓</span><span class="fn">add_todo</span><span class="arg">3 steps</span></div>
+                    <div class="row"><span class="ok">✓</span><span class="fn">verify_and_summarize</span><span class="arg">on completion</span></div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+            <div class="app-composer-full">
+              <div class="app-ctxpill"><span class="ic">⌂</span>scene_v04.hip</div>
+              <div class="app-inputbox">
+                <div class="ph">Describe what you want built, fixed, or explained…</div>
+                <div class="csend">↑</div>
+              </div>
+              <div class="app-toolrow">
+                <span class="app-modetxt">Auto</span>
+                <svg class="app-iconbtn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg>
+                <svg class="app-iconbtn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="4" width="7" height="7" rx="1.3"/><rect x="13" y="4" width="7" height="7" rx="1.3"/><rect x="4" y="13" width="7" height="7" rx="1.3"/><rect x="13" y="13" width="7" height="7" rx="1.3"/></svg>
+                <span class="app-toolrow-spacer"></span>
+                <span class="app-metabtn" id="demoModel">Opus 4.8</span>
+                <span class="app-metabtn effort">Low</span>
+                <div class="app-ring" title="Context used"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TOOLKIT — scattered chip cluster -->
+      <section id="simsuite" style="padding-top:0;">
+        <div class="sec-eyebrow">Toolkit</div>
+        <h2 style="margin-bottom:16px;">Solvers, code, and everything around them</h2>
+        <p style="font-size:15px; color:var(--ink-dim); max-width:600px; line-height:1.7; margin-bottom:36px;">
+          Sim skills cook and verify the same way you just saw above. Underneath that, it's speaking the languages you already use — VEX, Python, HDAs, node graphs — plus curated recipes for installed third-party tools.
+        </p>
+
+        <div class="scatter-wrap reveal-stagger" style="margin-top:0;">
+          <span class="scatter-chip sc-amber sc-fill">Pyro</span>
+          <span class="scatter-chip sc-light">FLIP</span>
+          <span class="scatter-chip sc-dark sc-fill">RBD</span>
+          <span class="scatter-chip sc-light">MPM</span>
+          <span class="scatter-chip sc-amber">Vellum</span>
+          <span class="scatter-chip sc-dark sc-fill">POP</span>
+          <span class="scatter-chip sc-light sc-fill">Ocean</span>
+          <span class="scatter-chip sc-dark">Whitewater</span>
+          <span class="scatter-chip sc-amber sc-fill">VEX</span>
+          <span class="scatter-chip sc-light">Python</span>
+          <span class="scatter-chip sc-dark">HDA</span>
+          <span class="scatter-chip sc-amber">Node graph</span>
+          <span class="scatter-chip sc-light sc-fill">Wrangle</span>
+          <span class="scatter-chip sc-dark sc-fill">MCP</span>
+          <span class="scatter-chip sc-amber">Skills</span>
+          <span class="scatter-chip sc-light">Plugins</span>
+          <span class="scatter-chip sc-amber sc-fill">Memory</span>
+          <span class="scatter-chip sc-light">Axiom</span>
+          <span class="scatter-chip sc-dark">Paradigm</span>
+          <span class="scatter-chip sc-light sc-fill">MoPs</span>
+          <span class="scatter-chip sc-dark">qLib</span>
+        </div>
+      </section>
+
+      <!-- UNDER THE HOOD — presentation-style walkthrough -->
+      <section id="underhood" style="padding-top:0;">
+        <div class="sec-eyebrow">Under the hood</div>
+        <h2>What else is in there</h2>
+
+        <div class="hood-list reveal-stagger">
+          <div class="hood-row">
+            <div class="hood-num-row">
+              <div class="hood-icon-wrap"><svg class="hood-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 3l14 8-6 1.5L11 19z"/></svg></div>
+              <div class="hood-textcol">
+                <div class="hood-num">01</div>
+                <div class="hood-head"><h3>Read your selection</h3></div>
+                <span class="htag">read_selection</span>
+              </div>
+            </div>
+            <div class="hood-body">
+              <p>Select nodes in Houdini first, and MorfyAI stages them as <span class="hlt">context before you even ask</span> — no need to describe which nodes you mean, it already knows.</p>
+            </div>
+          </div>
+
+          <div class="hood-row">
+            <div class="hood-num-row">
+              <div class="hood-icon-wrap"><svg class="hood-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg></div>
+              <div class="hood-textcol">
+                <div class="hood-num">02</div>
+                <div class="hood-head"><h3>Memory that carries over</h3></div>
+                <span class="htag">search_memory</span>
+              </div>
+            </div>
+            <div class="hood-body">
+              <p>Three separate stores — <b style="color:var(--ink);">episodic</b> memory for this session's events, <b style="color:var(--ink);">semantic</b> memory for facts and preferences, and <b style="color:var(--ink);">procedural</b> memory for how-to patterns.</p>
+              <p>Your <span class="hlt">naming conventions and scene structure carry over</span> between chats, not just within one — you stop repeating yourself.</p>
+            </div>
+          </div>
+
+          <div class="hood-row">
+            <div class="hood-num-row">
+              <div class="hood-icon-wrap"><svg class="hood-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg></div>
+              <div class="hood-textcol">
+                <div class="hood-num">03</div>
+                <div class="hood-head"><h3>Skills &amp; plugins</h3></div>
+                <span class="htag">run_skill</span>
+              </div>
+            </div>
+            <div class="hood-body">
+              <p>32 pre-built diagnostic skills ship in the box. On top of that, <code>@tool</code>, <code>@hook</code>, and <code>@ui_button</code> decorators let <span class="hlt">anyone extend the panel</span> — no changes to core code required.</p>
+            </div>
+          </div>
+
+          <div class="hood-row">
+            <div class="hood-num-row">
+              <div class="hood-icon-wrap"><svg class="hood-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5"/></svg></div>
+              <div class="hood-textcol">
+                <div class="hood-num">04</div>
+                <div class="hood-head"><h3>MCP server</h3></div>
+                <span class="htag">port 9000</span>
+              </div>
+            </div>
+            <div class="hood-body">
+              <p>Already paying for a Claude Code or Claude Desktop subscription? <span class="hlt">That same subscription can reach into Houdini</span> through MorfyAI's MCP server — no separate API key, no extra cost.</p>
+              <p>Release and dev installs run on separate ports (9000 / 9001), so both can stay connected at once without fighting over the port.</p>
+            </div>
+          </div>
+
+          <div class="hood-row">
+            <div class="hood-num-row">
+              <div class="hood-icon-wrap"><svg class="hood-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="8" cy="8" r="5"/><path d="M11.5 11.5L20 20M16 16l2-2M18 18l2-2"/></svg></div>
+              <div class="hood-textcol">
+                <div class="hood-num">05</div>
+                <div class="hood-head"><h3>Bring your own model</h3></div>
+                <span class="htag">10 providers</span>
+              </div>
+            </div>
+            <div class="hood-body">
+              <p>Every provider is <span class="hlt">opt-in</span> — nothing is active until you add a key, and individual models default off too.</p>
+              <div class="provider-list">
+                <div class="provider-row" style="--pclr:#d97757;">
+                  <img src="assets/logos/anthropic.svg" alt="">
+                  <div><div class="pname">Anthropic</div><div class="pmodels">Claude — Opus, Sonnet, Haiku</div></div>
+                </div>
+                <div class="provider-row" style="--pclr:#74aa9c;">
+                  <img src="assets/logos/openai.svg" alt="">
+                  <div><div class="pname">OpenAI</div><div class="pmodels">GPT-5.x family</div></div>
+                </div>
+                <div class="provider-row" style="--pclr:#4d6bfe;">
+                  <img src="assets/logos/deepseek.svg" alt="">
+                  <div><div class="pname">DeepSeek</div><div class="pmodels">DeepSeek v4</div></div>
+                </div>
+                <div class="provider-row" style="--pclr:#8e75f0;">
+                  <img src="assets/logos/googlegemini.svg" alt="">
+                  <div><div class="pname">Google Gemini</div><div class="pmodels">Gemini family</div></div>
+                </div>
+                <div class="provider-row" style="--pclr:#e0e0e0;">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 5l14 14M19 5L5 19"/></svg>
+                  <div><div class="pname">xAI</div><div class="pmodels">Grok family</div></div>
+                </div>
+                <div class="provider-row" style="--pclr:#f55036;">
+                  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L5 14h5l-1 8 9-12h-5z"/></svg>
+                  <div><div class="pname">Groq</div><div class="pmodels">fast-hosted open models</div></div>
+                </div>
+                <div class="provider-row" style="--pclr:#ff7000;">
+                  <img src="assets/logos/mistralai.svg" alt="">
+                  <div><div class="pname">Mistral</div><div class="pmodels">Large, Small</div></div>
+                </div>
+                <div class="provider-row" style="--pclr:#7c8cf8;">
+                  <img src="assets/logos/moonshotai.svg" alt="">
+                  <div><div class="pname">Moonshot</div><div class="pmodels">Kimi</div></div>
+                </div>
+                <div class="provider-row" style="--pclr:#e5e5e5;">
+                  <img src="assets/logos/ollama.svg" alt="">
+                  <div><div class="pname">Ollama</div><div class="pmodels">any local model you pull</div></div>
+                </div>
+                <div class="provider-row" style="--pclr:#6366f1;">
+                  <img src="assets/logos/openrouter.svg" alt="">
+                  <div><div class="pname">OpenRouter</div><div class="pmodels">routes to any hosted model</div></div>
+                </div>
+                <div class="provider-row" style="grid-column:1/3; --pclr:#5f616b;">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 4v16M4 12h16" stroke-linecap="round"/></svg>
+                  <div><div class="pname">Custom endpoint</div><div class="pmodels">any OpenAI-compatible API</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CAPABILITIES — simple centered row, no cards -->
+      <section id="product" style="padding-top:0;">
+        <div class="sec-eyebrow">Product</div>
+        <h2 style="max-width:640px;">It moves fast without moving carelessly.</h2>
+
+        <div class="plain-cols reveal-stagger">
+          <div class="plain-col">
+            <svg class="pc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z"/></svg>
+            <h4>Auto mode</h4>
+            <p>Plans, wires, cooks, and checks the result on its own — every op still lands its own Undo / Keep.</p>
+          </div>
+          <div class="plain-col">
+            <svg class="pc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M9 11l3 3L22 4M2 12a10 10 0 1018.6-5"/></svg>
+            <h4>Plan mode</h4>
+            <p>Shows every step before it touches a node. Approve once, and it finishes the rest on its own.</p>
+          </div>
+          <div class="plain-col">
+            <svg class="pc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>
+            <h4>Memory</h4>
+            <p>Episodic, semantic, and procedural stores keep your conventions across sessions, not just one chat.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- INSTALL -->
+      <section id="install">
+        <div class="sec-eyebrow">Get started</div>
+        <h2>Install in three steps</h2>
+        <div class="steprow reveal-stagger">
+          <div class="stepcard">
+            <div class="snum">01</div>
+            <h4>Download</h4>
+            <p>Grab the free download — no account required.</p>
+          </div>
+          <div class="stepflow-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12h14M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="stepcard">
+            <div class="snum">02</div>
+            <h4>Extract to packages/</h4>
+            <p>Unzip it straight into your Houdini <code>packages/</code> folder.</p>
+            <div class="step-path"><span>Houdini21.0</span><span class="sep">/</span><span class="hi">packages</span><span class="sep">/</span></div>
+          </div>
+          <div class="stepflow-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12h14M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="stepcard">
+            <div class="snum">03</div>
+            <h4>Open Houdini</h4>
+            <p>MorfyAI appears next to your other packages in the top menu bar. Add a provider key in Settings and you're building.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- FAQ -->
+      <section id="faq">
+        <div class="faq-split">
+          <div>
+            <div class="sec-eyebrow">Frequently asked</div>
+            <h2 style="margin-bottom:0;">Questions people actually ask</h2>
+            <p class="faq-lede">No paid tiers, no hidden costs — just a plugin, your own API key, and a Houdini scene.</p>
+          </div>
+
+          <div class="faq-list reveal-stagger" id="faqList">
+            <div class="faq-item open">
+              <div class="faq-q"><span>Is MorfyAI really free?</span><span class="faq-toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span></div>
+              <div class="faq-a"><p>Yes — MIT licensed, no paid tiers, no locked features. A donation toward development is welcome but never required.</p></div>
+            </div>
+            <div class="faq-item">
+              <div class="faq-q"><span>Is my API key and scene data safe?</span><span class="faq-toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span></div>
+              <div class="faq-a"><p>MorfyAI talks directly to whichever provider you configure — Anthropic, OpenAI, or anything else you add. Nothing about your scene is routed through a third-party server we run.</p></div>
+            </div>
+            <div class="faq-item">
+              <div class="faq-q"><span>Can I run it fully offline?</span><span class="faq-toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span></div>
+              <div class="faq-a"><p>Yes — point it at a local model through Ollama and it works without an internet connection or a paid API key at all.</p></div>
+            </div>
+            <div class="faq-item">
+              <div class="faq-q"><span>What's the difference between Auto and Plan mode?</span><span class="faq-toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span></div>
+              <div class="faq-a"><p>Auto runs the whole task end-to-end on its own. Plan shows you every step first and waits for approval before touching a node. Both still give you per-operation Undo / Keep.</p></div>
+            </div>
+            <div class="faq-item">
+              <div class="faq-q"><span>Does it work with third-party plugins like Axiom or MoPs?</span><span class="faq-toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span></div>
+              <div class="faq-a"><p>Yes — curated recipes exist for Axiom, Paradigm, and MoPs, plus generic discovery for anything else installed in your scene.</p></div>
+            </div>
+            <div class="faq-item">
+              <div class="faq-q"><span>Which Houdini version do I need?</span><span class="faq-toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span></div>
+              <div class="faq-a"><p>Houdini 19.5 through 22 — including Houdini 22's Python 3.13 build. Drop the release into your <code>packages/</code> folder and it appears next to your other packages automatically.</p></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section style="padding-top:0;">
+        <div class="donate-duo reveal-stagger" style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:18px;">
+          <div class="donate" style="flex-direction:column; align-items:flex-start; gap:18px; background:linear-gradient(135deg,rgba(255,193,7,.12),var(--sand)); border-color:rgba(255,193,7,.3);">
+            <div>
+              <h4>Get MorfyAI</h4>
+              <p>Download the latest release, free — hosted on Gumroad.</p>
+            </div>
+            <a href="https://gemrra.gumroad.com/l/MorfyAI" target="_blank" rel="noopener" class="btn-pill" style="background:var(--amber); color:#1a1400;">Download on Gumroad →</a>
+          </div>
+
+          <div class="donate" style="flex-direction:column; align-items:flex-start; gap:18px;">
+            <div>
+              <h4 style="display:flex; align-items:center; gap:10px;"><img src="assets/morfyai-logo.png" alt="" style="width:24px; height:24px;">MorfyAI is free. Forever.</h4>
+              <p>No paid tiers. If it saves you time, a donation toward development is welcome — never required.</p>
+            </div>
+            <div class="donate-links">
+              <a href="https://github.com/sponsors/gemrra" target="_blank" rel="noopener">GitHub Sponsors</a>
+            </div>
+          </div>
+
+          <div class="donate" style="flex-direction:column; align-items:flex-start; gap:18px; background:linear-gradient(135deg,rgba(88,101,242,.12),var(--sand)); border-color:rgba(88,101,242,.3);">
+            <div>
+              <h4>Questions, bugs, or just want to say hi?</h4>
+              <p>Join the Discord — it's where releases get announced first and where the actual development discussion happens.</p>
+            </div>
+            <a href="https://discord.gg/vpqC66mUY3" target="_blank" rel="noopener" class="btn-pill" style="background:#5865F2; color:#fff;">Join the Discord →</a>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <footer>
+      <div class="footer-brand">
+        <img src="assets/morfyfx-logo.png" alt="">
+        <span>© 2026 gemrra — MorfyAI, part of the MorfyFX ecosystem</span>
+      </div>
+      <div class="flinks">
+        <!-- TODO: repo not published yet --><a href="#" data-github="true">GitHub</a>
+        <a href="https://discord.gg/vpqC66mUY3" target="_blank" rel="noopener">Discord</a>
+        <a href="https://morfyfx.com">MorfyLib</a>
+        <a href="https://morfyfx.com/morfyai/changelog">Changelog</a>
+      </div>
+    </footer>
+  </div>
+</div>
+
+<script>
+  // Auto/Plan toggle — swaps title, copy, and the tool-call preview.
+  var modeToggle = document.getElementById('modeToggle');
+  var modeTitle = document.getElementById('modeTitle');
+  var modeDesc = document.getElementById('modeDesc');
+  var modeStack = document.getElementById('modeStack');
+  var modeContent = {
+    auto: {
+      title: "Doesn't ask twice",
+      desc: 'Left alone, it plans the steps, wires the nodes, cooks, and checks the result — no back-and-forth. Every operation still lands its <span class="hlt">own Undo / Keep</span>.',
+      rows: '<div class="row"><span class="ok">✓</span><span class="fn">create_node</span><span class="arg">pyrosolver1</span></div>'
+          + '<div class="row"><span class="ok">✓</span><span class="fn">connect_nodes</span><span class="arg">geo1 → pyrosolver1</span></div>'
+          + '<div class="row"><span class="ok">✓</span><span class="fn">cook_and_verify</span><span class="arg">0 errors</span></div>'
+    },
+    plan: {
+      title: 'Asks first',
+      desc: 'Same agent, one difference: it <span class="hlt">shows you the steps before touching a single node</span>. Approve once, and it finishes the rest on its own.',
+      rows: '<div class="row"><span class="ok">✓</span><span class="fn">create_node</span><span class="arg">pyrosolver1</span></div>'
+          + '<div class="row"><span class="ok">✓</span><span class="fn">connect_nodes</span><span class="arg">geo1 → pyrosolver1</span></div>'
+          + '<div class="row"><span style="color:var(--ink-faint); margin-right:6px;">○</span><span class="fn">cook_and_verify</span><span class="arg">waiting for approval</span></div>'
+    }
+  };
+  if(modeToggle){
+    modeToggle.querySelectorAll('button').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        modeToggle.querySelectorAll('button').forEach(function(b){ b.classList.remove('on'); });
+        btn.classList.add('on');
+        var m = modeContent[btn.getAttribute('data-pmode')];
+        modeTitle.textContent = m.title;
+        modeDesc.innerHTML = m.desc;
+        modeStack.innerHTML = m.rows;
+      });
+    });
+  }
+
+  // FAQ accordion — click a question, it opens; others close.
+  var faqItems = document.querySelectorAll('#faqList .faq-item');
+  faqItems.forEach(function(item){
+    item.querySelector('.faq-q').addEventListener('click', function(){
+      var wasOpen = item.classList.contains('open');
+      faqItems.forEach(function(i){ i.classList.remove('open'); });
+      if(!wasOpen) item.classList.add('open');
+    });
+  });
+
+  // Demo showcase — many scenarios, one panel.
+  var demoTabs = document.querySelectorAll('#demoTabs .demo-item');
+  var demoPaths = {
+    build: 'Writing a wrangle',
+    fix: 'Debugging pyrosolver1',
+    explain: 'Reading the network',
+    optimize: 'Cook performance',
+    organize: 'Cleaning up layout',
+    batch: 'Batch parameter edit',
+    docs: 'Looking up docs',
+    todo: 'Multi-step task'
+  };
+  // Rotates through real, powerful models across providers — not just one.
+  var demoModels = {
+    build: 'Opus 4.8',
+    fix: 'GPT-5.1',
+    explain: 'Fable 5',
+    optimize: 'Sonnet 5',
+    organize: 'Gemini 3 Pro',
+    batch: 'Grok 5',
+    docs: 'Fable 5',
+    todo: 'Opus 4.8'
+  };
+  var demoPathEl = document.getElementById('demoPath');
+  var demoModelEl = document.getElementById('demoModel');
+  demoTabs.forEach(function(tab){
+    tab.addEventListener('click', function(){
+      demoTabs.forEach(function(t){ t.classList.remove('on'); });
+      tab.classList.add('on');
+      var key = tab.getAttribute('data-demo');
+      document.querySelectorAll('.demo-scenario').forEach(function(s){ s.style.display = 'none'; });
+      document.getElementById('demo-' + key).style.display = 'block';
+      demoPathEl.textContent = demoPaths[key];
+      demoModelEl.textContent = demoModels[key];
+    });
+  });
+
+  // Scroll-reveal animations
+  var revealEls = document.querySelectorAll('.reveal, .reveal-stagger');
+  var revealObserver = new IntersectionObserver(function(entries){
+    entries.forEach(function(entry){
+      if(entry.isIntersecting){
+        entry.target.classList.add('in');
+        revealObserver.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.15 });
+  revealEls.forEach(function(el){ revealObserver.observe(el); });
+</script>
+</body>
+</html>

@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Changelog — MorfyAI</title>
+<meta name="description" content="Every update to MorfyAI, newest first.">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+  :root{
+    --outer:#0a0a0b;
+    --card:#131417; --line:rgba(255,255,255,.08);
+    --ink:#eceef1; --ink-dim:#9a9ca6; --ink-faint:#5f616b;
+    --amber:#ffc107; --amber-deep:#ffb300;
+    --lav:#26272d; --sand:#1a1b1f; --dark:#0e0f12;
+    --green:#3ecf8e; --blue:#60a5fa; --red:#ef4444;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{font-family:'Inter',-apple-system,sans-serif; background:var(--outer); color:var(--ink); line-height:1.6; font-weight:400;}
+  a{color:inherit; text-decoration:none;}
+  code{font-family:'JetBrains Mono',Consolas,monospace;}
+  img,svg{display:block; max-width:100%;}
+
+  .reveal{opacity:0; transform:translateY(24px); transition:opacity .6s cubic-bezier(.16,.8,.3,1), transform .6s cubic-bezier(.16,.8,.3,1);}
+  .reveal.in{opacity:1; transform:translateY(0);}
+
+  .stage{
+    padding:56px 24px 80px;
+    background-color:var(--outer);
+    background-image:url("assets/gradientbackground.png");
+    background-size:cover;
+    background-position:top left;
+    background-repeat:no-repeat;
+  }
+  .card{max-width:1240px; margin:0 auto; background:var(--card); border-radius:32px; box-shadow:0 40px 90px -40px rgba(21,20,15,.25); overflow:hidden;}
+  .inner{padding:0 60px;}
+
+  nav{display:flex; align-items:center; justify-content:space-between; padding:36px 0;}
+  .brand{display:flex; align-items:center; gap:10px; font-weight:600; font-size:16px;}
+  .brand img{width:60px; height:60px;}
+  .navlinks{display:flex; align-items:center; gap:28px; font-size:14px; font-weight:500; color:var(--ink-dim);}
+  .navlinks a:hover{color:var(--ink);}
+  .navlinks .cta{background:var(--amber); color:#1a1400; padding:9px 18px; border-radius:99px; font-weight:600;}
+  .navlinks .cta:hover{background:#ffcd38;}
+
+  header.page-head{padding:8px 0 48px;}
+  .page-head h1{font-size:38px; font-weight:600; letter-spacing:-.8px; margin-bottom:10px;}
+  .page-head p{font-size:15.5px; color:var(--ink-dim);}
+
+  .rlist{display:flex; flex-direction:column; border-top:1px solid var(--line); border-bottom:1px solid var(--line); padding-bottom:56px;}
+  .rrow{display:grid; grid-template-columns:max-content 1fr; gap:90px; padding:40px 0; border-top:1px solid var(--line);}
+  .rrow > div:last-child{max-width:700px;}
+  .rrow:first-child{border-top:none;}
+  .rmeta{position:sticky; top:24px; align-self:start; margin-left:110px; text-align:right;}
+  .rver{font-family:'JetBrains Mono',Consolas,monospace; font-size:20px; font-weight:600; color:var(--ink); margin-bottom:6px;}
+  .rdate{font-size:12.5px; color:var(--ink-faint);}
+  .rlatest{
+    display:inline-block; margin-top:10px; font-size:10px; font-weight:700; letter-spacing:.04em; text-transform:uppercase;
+    color:var(--amber); background:rgba(255,193,7,.12); border:1px solid rgba(255,193,7,.3); padding:3px 9px; border-radius:20px;
+  }
+  .rtitle{font-size:19px; font-weight:600; letter-spacing:-.2px; margin-bottom:16px;}
+  .rgroup{margin-bottom:18px;}
+  .rgroup:last-child{margin-bottom:0;}
+  .rgroup h4{font-size:12.5px; font-weight:600; color:var(--ink-dim); margin-bottom:8px;}
+  .rchange{display:flex; gap:10px; padding:5px 0; font-size:14px; color:var(--ink-dim); line-height:1.65;}
+  .rtag{
+    flex-shrink:0; width:64px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
+    padding:2px 0; text-align:center; border-radius:5px; height:fit-content; margin-top:2px;
+  }
+  .rtag.new{background:rgba(62,207,142,.12); color:var(--green);}
+  .rtag.improved{background:rgba(96,165,250,.12); color:var(--blue);}
+  .rtag.fixed{background:rgba(239,68,68,.12); color:var(--red);}
+  .rtag.changed{background:rgba(255,255,255,.06); color:var(--ink-faint);}
+  .rtag.release{background:rgba(255,193,7,.12); color:var(--amber);}
+  .rchange b{color:var(--ink); font-weight:500;}
+  .rchange code{color:var(--ink);}
+
+  footer{background:var(--dark); color:#8f9099; padding:36px 60px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px; font-size:12.5px;}
+  .footer-brand{display:flex; align-items:center; gap:10px;}
+  .footer-brand img{width:30px; height:30px; opacity:.9;}
+
+  @media (max-width:640px){
+    .inner{padding:0 22px;}
+    .rrow{grid-template-columns:1fr; gap:12px;}
+    .rmeta{position:static; display:flex; align-items:center; gap:12px;}
+    .navlinks a:not(.cta){display:none;}
+  }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="card">
+    <div class="inner">
+
+      <nav>
+        <div class="brand"><img src="assets/morfyai-logo.png" alt="">MorfyAI</div>
+        <div class="navlinks">
+          <a href="/morfyai/">← Back to MorfyAI</a>
+          <a class="cta" href="https://gemrra.gumroad.com/l/MorfyAI" target="_blank" rel="noopener">Download</a>
+        </div>
+      </nav>
+
+      <header class="page-head">
+        <h1>Changelog</h1>
+        <p>Every update to MorfyAI, newest first.</p>
+      </header>
+
+      <div class="rlist">
+
+        <div class="rrow reveal">
+          <div class="rmeta">
+            <div class="rver">2.12</div>
+            <div class="rdate">27 Aug 2026</div>
+            <span class="rlatest">Latest</span>
+          </div>
+          <div>
+            <div class="rtitle">Node layout protection</div>
+            <div class="rgroup">
+              <div class="rchange"><span class="rtag fixed">Fixed</span><span>The AI was auto-layouting nodes without being asked — calling <code>layout_nodes</code> / <code>layoutChildren()</code> / <code>moveToGoodPosition()</code> as part of unrelated tasks, which is the programmatic equivalent of pressing <b>L</b> in the Network Editor and destroys carefully arranged node networks. Two-layer fix: the system prompt now explicitly forbids any auto-layout unless the user's message contains an explicit tidy/arrange request, and a hard guard in the tool dispatcher blocks <code>layout_nodes</code> entirely unless the user's message contains a keyword like "tidy", "auto-layout", or "rapiin".</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rrow reveal">
+          <div class="rmeta">
+            <div class="rver">2.11</div>
+            <div class="rdate">17 Jul 2026</div>
+          </div>
+          <div>
+            <div class="rtitle">Houdini 22 vendor-path fix</div>
+            <div class="rgroup">
+              <div class="rchange"><span class="rtag fixed">Fixed</span><span>Houdini 22 (Python 3.13) was still loading the Python-3.11 vendor folder for MCP and the AI client, breaking <code>import pywintypes</code>/<code>fastmcp</code> even after v2.10's dual-Python packaging — four call sites each independently hardcoded a bare <code>lib/</code> path instead of the version-aware picker. All vendor-path lookups now go through one shared resolver. Verified end-to-end against a real Houdini 22.0.368 + Python 3.13 session.</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rrow reveal">
+          <div class="rmeta"><div class="rver">2.10</div><div class="rdate">16 Jul 2026</div></div>
+          <div>
+            <div class="rtitle">Houdini 22 support</div>
+            <div class="rgroup">
+              <div class="rchange"><span class="rtag new">New</span><span>Houdini 22 ships Python 3.13 by default (up from 3.11 in H21 and earlier), and MorfyAI's vendored binary dependencies are ABI-locked to one Python minor version. MorfyAI now ships a second vendored dependency set built for Python 3.13 and picks whichever one matches the running interpreter automatically. Houdini 19.5–21 (Python 3.11) is unaffected.</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rrow reveal">
+          <div class="rmeta">
+            <div class="rver">2.9</div>
+            <div class="rdate">14 Jul 2026</div>
+          </div>
+          <div>
+            <div class="rtitle">Critical release-build fix</div>
+            <div class="rgroup">
+              <div class="rchange"><span class="rtag fixed">Fixed</span><span><code>.gitignore</code>'s <code>*.py[cod]</code> pattern was silently matching <code>.pyd</code> files too, so every Windows compiled binary extension under <code>lib/</code> (numpy, pydantic_core, cryptography, pywin32, and 70+ others) had never been committed to git — and never shipped in any release zip. This is the real cause behind the MCP server refusing to start on release installs: <code>fastmcp</code> depends on <code>pydantic_core</code>'s compiled backend, which was silently missing. All 75 previously-excluded binaries are now tracked and ship in the release package.</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rrow reveal">
+          <div class="rmeta"><div class="rver">2.8</div><div class="rdate">12 Jul 2026</div></div>
+          <div>
+            <div class="rtitle">MCP port leak fix</div>
+            <div class="rgroup">
+              <div class="rchange"><span class="rtag fixed">Fixed</span><span>The v2.6 MCP port fix actually caused the release install's MCP to bind the wrong port — Houdini package env vars are merged into the single houdini.exe process's environment, not scoped per package, so the dev package's <code>MORFYAI_MCP_PORT=9001</code> leaked into the release install too. The port is now derived from each install's own filesystem (whether its repo root ships the dev-only <code>launcher_dev.py</code>) instead, so it can't leak between installs.</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rrow reveal">
+          <div class="rmeta">
+            <div class="rver">2.7</div>
+            <div class="rdate">8 Jul 2026</div>
+          </div>
+          <div>
+            <div class="rtitle">New built-in skills</div>
+            <div class="rgroup">
+              <h4>Look-dev, modeling, attributes, pipeline</h4>
+              <div class="rchange"><span class="rtag new">New</span><span>Broadened the built-in skill set into everyday tasks using stock Houdini nodes only, no SideFX Labs or Redshift dependency: <b>setup_dome_light</b>, <b>setup_camera</b>, <b>scatter_points</b>, <b>clean_geo</b>, <b>promote_attribute</b>, <b>transfer_attributes</b>, <b>import_geo_file</b>, <b>cache_to_disk</b>.</span></div>
+              <div class="rchange"><span class="rtag changed">Changed</span><span>Skills that create or modify nodes are now correctly classified as scene-mutating, keeping them out of read-only Ask mode.</span></div>
+            </div>
+            <div class="rgroup">
+              <h4>Everyday utilities</h4>
+              <div class="rchange"><span class="rtag new">New</span><span>11 small node/parm utilities useful across almost any build: <code>rename_nodes</code>, <code>color_nodes</code>, <code>add_comment</code>, <code>bypass_toggle</code>, <code>get_parm_value</code>, <code>set_parm_value</code>, <code>list_children</code>, <code>set_frame_range</code>, <code>duplicate_node</code>, <code>select_by_type</code>, <code>add_null</code>.</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rrow reveal">
+          <div class="rmeta"><div class="rver">2.6</div><div class="rdate">8 Jul 2026</div></div>
+          <div>
+            <div class="rtitle">MCP port fix</div>
+            <div class="rgroup">
+              <div class="rchange"><span class="rtag fixed">Fixed</span><span>The MCP server going dead when both the release and dev-mode installs were used — both defaulted to port 9000, so whichever started first bound it. The port is now overridable via <code>MORFYAI_MCP_PORT</code>; dev uses 9001, release keeps 9000, so both can run at once.</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rrow reveal">
+          <div class="rmeta"><div class="rver">2.5</div><div class="rdate">8 Jul 2026</div></div>
+          <div>
+            <div class="rtitle">Open MorfyAI fix</div>
+            <div class="rgroup">
+              <div class="rchange"><span class="rtag fixed">Fixed</span><span>"Open MorfyAI" launching the dev-mode copy instead of the installed release. Each menu now forces its own package root to the front of the path before importing, so it always opens its own copy — the real cause behind the two installs appearing to share data.</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rrow reveal">
+          <div class="rmeta"><div class="rver">2.4</div><div class="rdate">8 Jul 2026</div></div>
+          <div>
+            <div class="rtitle">Ring hover polish</div>
+            <div class="rgroup">
+              <div class="rchange"><span class="rtag improved">Improved</span><span>The context-usage ring now gets a bright hover highlight, matching the other composer-toolbar controls.</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rrow reveal">
+          <div class="rmeta"><div class="rver">2.3</div><div class="rdate">8 Jul 2026</div></div>
+          <div>
+            <div class="rtitle">Data isolation fix</div>
+            <div class="rgroup">
+              <div class="rchange"><span class="rtag fixed">Fixed</span><span>The release and dev-mode installs no longer share data when switched without restarting Houdini. Module isolation now re-runs on every launch, so each install always reads its own config, history, and memory.</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rrow reveal">
+          <div class="rmeta"><div class="rver">2.2</div><div class="rdate">7 Jul 2026</div></div>
+          <div>
+            <div class="rtitle">Usage analytics, redesigned</div>
+            <div class="rgroup">
+              <div class="rchange"><span class="rtag new">New</span><span>The Usage &amp; cost stats view is a proper dashboard now, opening in its own window like Settings.</span></div>
+              <div class="rchange"><span class="rtag new">New</span><span>Summary widget — estimated cost, requests, total tokens, cache hit rate — plus a full token-mix bar (cached vs fresh input, output, reasoning).</span></div>
+              <div class="rchange"><span class="rtag new">New</span><span>A cost-per-request chart with the priciest call highlighted, and a <b>By model</b> breakdown — requests, tokens, cache rate, and cost share per model.</span></div>
+              <div class="rchange"><span class="rtag improved">Improved</span><span>Call details table with a per-row usage bar and app-styled scrollbars.</span></div>
+              <div class="rchange"><span class="rtag new">New</span><span>Currency toggle — switch between USD and IDR with a live exchange rate.</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rrow reveal">
+          <div class="rmeta"><div class="rver">2.1</div><div class="rdate">7 Jul 2026</div></div>
+          <div>
+            <div class="rtitle">More providers</div>
+            <div class="rgroup">
+              <h4>Providers</h4>
+              <div class="rchange"><span class="rtag new">New</span><span>9 built-in providers: Anthropic (native), Google Gemini, xAI (Grok), Groq, Mistral, Moonshot (Kimi), Together AI, Perplexity, and OpenCode Zen — model lists auto-fetch once a key is added.</span></div>
+              <div class="rchange"><span class="rtag changed">Changed</span><span>Providers are opt-in — none are active until enabled, and each provider's models default off too.</span></div>
+              <div class="rchange"><span class="rtag changed">Changed</span><span>Removed the always-present "Custom" entry; custom endpoints only appear after adding one via + Add Provider.</span></div>
+            </div>
+            <div class="rgroup">
+              <h4>Onboarding &amp; fixes</h4>
+              <div class="rchange"><span class="rtag new">New</span><span>A set-up-a-provider card on the welcome screen opens Settings straight to Providers.</span></div>
+              <div class="rchange"><span class="rtag fixed">Fixed</span><span>Plan mode getting stuck — it now returns to Auto once a plan finishes executing.</span></div>
+              <div class="rchange"><span class="rtag new">New</span><span>Staged context (Read Selection / Analyze Scene / Read Viewport) now shows as a chip above your message.</span></div>
+              <div class="rchange"><span class="rtag fixed">Fixed</span><span>Unreliable sessions — deleted chats reappearing, new ones vanishing. The session list now saves immediately on every change.</span></div>
+              <div class="rchange"><span class="rtag changed">Changed</span><span>Removed the Vision (eyes) setup card from Settings.</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rrow reveal">
+          <div class="rmeta"><div class="rver">2.0</div><div class="rdate">7 Jul 2026</div></div>
+          <div>
+            <div class="rtitle">Web panel</div>
+            <div class="rgroup">
+              <h4>Providers &amp; models</h4>
+              <div class="rchange"><span class="rtag new">New</span><span>Multi-provider support — add, remove, and switch between any number of custom OpenAI-compatible providers with auto-fetched model lists.</span></div>
+              <div class="rchange"><span class="rtag new">New</span><span>Auto-detected per-model capabilities (context length, vision, reasoning) and pricing, pulled from a live model catalog.</span></div>
+              <div class="rchange"><span class="rtag new">New</span><span>Per-model effort/reasoning dial matched to what each model actually supports, instead of one-size-fits-all.</span></div>
+              <div class="rchange"><span class="rtag fixed">Fixed</span><span>Custom-provider API keys silently failing to save, sending requests with no Authorization header.</span></div>
+            </div>
+            <div class="rgroup">
+              <h4>Rules, memory, plugins &amp; skills</h4>
+              <div class="rchange"><span class="rtag new">New</span><span>Rules editor (UI + auto-scanned file rules) injected into every turn.</span></div>
+              <div class="rchange"><span class="rtag new">New</span><span>Long-term memory toggle and tiered recall exposed in Settings.</span></div>
+              <div class="rchange"><span class="rtag new">New</span><span>Plugins &amp; Skills manager rebuilt with all three tabs (Tools, Skills, Plugins).</span></div>
+            </div>
+            <div class="rgroup">
+              <h4>Chat &amp; composer</h4>
+              <div class="rchange"><span class="rtag new">New</span><span>Node-op ledger — every node create/modify/delete gets a per-op Undo/Keep, plus an Undo All / Keep All batch bar.</span></div>
+              <div class="rchange"><span class="rtag new">New</span><span>Confirm mode and Plan mode.</span></div>
+              <div class="rchange"><span class="rtag new">New</span><span>Slash commands and @ node-mentions in the composer.</span></div>
+              <div class="rchange"><span class="rtag new">New</span><span>VEX/Python/JSON syntax highlighting, a one-click Create Wrangle action, and clickable node-path links.</span></div>
+              <div class="rchange"><span class="rtag new">New</span><span>Edit &amp; resend a previously sent message.</span></div>
+              <div class="rchange"><span class="rtag new">New</span><span>Image and text attachments rendered as proper attachment chips.</span></div>
+              <div class="rchange"><span class="rtag improved">Improved</span><span>Real usage/cost stats and a token-accurate context ring (previously a fake counter).</span></div>
+              <div class="rchange"><span class="rtag improved">Improved</span><span>Session persistence across restarts.</span></div>
+            </div>
+            <div class="rgroup">
+              <h4>MCP server</h4>
+              <div class="rchange"><span class="rtag improved">Improved</span><span>Live connection status, universal setup prompt; the server no longer leaks its startup banner into the Houdini Console.</span></div>
+            </div>
+            <div class="rgroup">
+              <h4>Settings &amp; about</h4>
+              <div class="rchange"><span class="rtag improved">Improved</span><span>Settings panel fully redesigned — pixel-aligned provider/model lists, reworked navigation.</span></div>
+              <div class="rchange"><span class="rtag improved">Improved</span><span>About page redesigned with working, Discord-branded Discord/Changelog links.</span></div>
+              <div class="rchange"><span class="rtag new">New</span><span>A new Updates page — check, download, and install new versions from inside the app.</span></div>
+            </div>
+            <div class="rgroup">
+              <h4>Housekeeping</h4>
+              <div class="rchange"><span class="rtag changed">Changed</span><span>Removed dead EN/ZH language-switcher remnants — MorfyAI is English-only by design.</span></div>
+              <div class="rchange"><span class="rtag fixed">Fixed</span><span>Vendored numpy — the memory system imported it unconditionally with no fallback, crashing on a clean install without numpy.</span></div>
+              <div class="rchange"><span class="rtag fixed">Fixed</span><span>Houdini top menu bar position — MorfyAI now sits next to qLib/Redshift instead of the far left.</span></div>
+              <div class="rchange"><span class="rtag improved">Improved</span><span>Simplified the top menu bar to a single "Open MorfyAI" entry.</span></div>
+              <div class="rchange"><span class="rtag fixed">Fixed</span><span>The drop-in release package pointing at an invalid Houdini variable, leaving the plugin path empty — now uses <code>$HOUDINI_PACKAGE_PATH</code>.</span></div>
+              <div class="rchange"><span class="rtag fixed">Fixed</span><span>An "Access denied" crash on machines with the separate Houdini Agent product installed, caused by a shared-module conflict.</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rrow reveal">
+          <div class="rmeta"><div class="rver">1.0</div><div class="rdate">28 May 2026</div></div>
+          <div>
+            <div class="rtitle">Hello, MorfyAI</div>
+            <div class="rgroup">
+              <div class="rchange"><span class="rtag release">Release</span><span>First public release: a full rebrand and redesign as MorfyAI, part of the MorfyFX ecosystem.</span></div>
+              <div class="rchange"><span class="rtag new">New</span><span>Full simulation suite — FLIP, RBD, Vellum, MPM, Pyro, ocean, whitewater, particles — plus a general cookbook/recipe system for procedural builds.</span></div>
+              <div class="rchange"><span class="rtag new">New</span><span>MCP server support — drive Houdini from Claude Code, Claude Desktop, OpenCode, or any MCP client.</span></div>
+              <div class="rchange"><span class="rtag new">New</span><span>Long-term memory system, Rules, and a Plugins &amp; Skills manager.</span></div>
+              <div class="rchange"><span class="rtag new">New</span><span>Visual refinement loop — the agent renders and iterates on its own results.</span></div>
+              <div class="rchange"><span class="rtag improved">Improved</span><span>In-app Debug Console, replacing Houdini Console spam.</span></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <footer>
+      <div class="footer-brand">
+        <img src="assets/morfyfx-logo.png" alt="">
+        <span>© 2026 gemrra — MorfyAI, part of the MorfyFX ecosystem</span>
+      </div>
+    </footer>
+  </div>
+</div>
+
+<script>
+  var revealEls = document.querySelectorAll('.reveal');
+  var revealObserver = new IntersectionObserver(function(entries){
+    entries.forEach(function(entry){
+      if(entry.isIntersecting){
+        entry.target.classList.add('in');
+        revealObserver.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.1 });
+  revealEls.forEach(function(el){ revealObserver.observe(el); });
+</script>
+</body>
+</html>
