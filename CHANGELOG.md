@@ -4,6 +4,50 @@ All notable changes to MorfyAI are documented here. One entry per release —
 this is also what gets pasted into the GitHub Release notes and the public
 changelog page at morfyfx.com/morfyai/changelog.
 
+## 2.13 — 2026-08-28
+
+**New built-in skills: character rigging (KineFX)**
+- MorfyAI can now build full character rigs from a natural-language prompt,
+  closing the biggest gap in its workflow coverage (sims, look-dev, and
+  modeling were covered; rigging wasn't). All using stock KineFX SOPs
+  (H19.5+), verified against SideFX docs:
+  - **Skeleton** — `build_rig rig_type='skeleton'` procedurally generates a
+    joint chain (biped / quadruped / simple chain) as a polyline with
+    `name`+`transform` point attributes, then runs it through Rig Doctor and
+    Orient Joints. Can fit the skeleton's proportions to an existing
+    character mesh's bounding box (`fit_to_geometry`), attach control shapes
+    (Attach Joint Geometry), and appends a Visualize Rig node so the joints
+    are clearly visible in the viewport.
+  - **Skinning** — `build_rig rig_type='skinning'` binds a mesh: skin ->
+    Joint Capture Proximity (or Biharmonic for higher-quality organic
+    weights) -> Joint Deform, wiring the skeleton as both rest/capture pose
+    and animated pose (Joint Deform's three inputs).
+  - **Pose** — `build_rig rig_type='pose'` appends Rig Pose (FK) and
+    optional Full Body IK (H19+), and can apply a TEST POSE by rotating a
+    named joint purely through parameters — no viewport interaction needed.
+- **Vision-assisted verification.** Rig correctness is mostly visual, so the
+  agent is now instructed to LOOK at the rig after each step: after building
+  a skeleton it captures the viewport to confirm the joints sit inside the
+  mesh with plausible proportions, and after skinning it applies a test pose
+  and captures the deformation to catch candy-wrapper collapse or unbound
+  areas — using `capture_viewport` when the main model has vision, or the
+  `visual_check` skill (cheap vision model) otherwise. The unified
+  `build_rig` skill also runs a data-level check (cooks the output, counts
+  joints/points, reports errors) after every build and surfaces a `next_step`
+  pointer to the visual pass.
+- **Dispatcher pattern.** Like `build_sim` for sims, the single
+  `skill__build_rig` entry point fronts three hidden per-task skills
+  (`build_rig_skeleton` / `build_rig_skinning` / `build_rig_pose`), so the
+  AI sees one tool with a `rig_type` switch instead of three near-duplicate
+  tools. Aliases (bones/joints, bind/capture/weights, fk/ik) map to the
+  canonical rig_type.
+- Added the full modern KineFX node set to the MCP node-input reference
+  (`kinefx--skeleton`, `rigdoctor`, `kinefx--orientjoints`,
+  `kinefx--rigpose`, `kinefx--jointcaptureproximity`,
+  `kinefx--jointcapturebiharmonic`, `kinefx--jointdeform`,
+  `kinefx--visualizerig`, `kinefx--attachjointgeo`, `kinefx--fullbodyik`) so
+  the AI wires these chains with the correct input ports.
+
 ## 2.12 — 2026-08-27
 
 **Fixes**

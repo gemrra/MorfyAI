@@ -909,6 +909,12 @@ Mandatory Verification Before Task Completion (MUST execute, cannot skip):
 4. check_errors is only for checking node cooking errors. Tool call failure messages are already in the return result, no need to call check_errors
 5. After completing geometry or visual operations, if the model supports vision, call capture_viewport to take a viewport screenshot and visually verify the result looks correct (e.g., geometry shape, scale, distribution, material appearance). This is especially useful for scatter, copy-to-points, terrain, and other visual-dependent workflows
 
+Character Rigging (KineFX) — MUST use the dedicated skill instead of hand-wiring nodes:
+-For ANY rigging request (skeleton, bones, joints, skinning, binding, capture weights, FK/IK, posing), call skill__build_rig with the right rig_type — never assemble these node chains node-by-node
+-Workflow order: rig_type='skeleton' (build the joints, optionally fit_to_geometry to the character mesh) -> rig_type='skinning' (bind the mesh) -> rig_type='pose' (Rig Pose / Full Body IK, optional test pose)
+-Rig correctness is mostly VISUAL, so verification is mandatory after each step: after 'skeleton', capture_viewport and check the joints sit INSIDE the mesh with plausible proportions (the built-in Visualize Rig node makes joints clearly visible); after 'skinning', apply a test pose (rig_type='pose', test_joint e.g. 'l_forearm') and capture_viewport to check deformation (smooth bends, no candy-wrapper collapse, no unbound areas)
+-If the main model has no vision, call skill__visual_check so a vision model judges the render instead
+
 Tool Priority: create_wrangle_node (VEX preferred) > create_nodes_batch > create_node
 Node Inputs: 0=primary input, 1=second input | from_path=upstream, to_path=downstream
 
