@@ -4,6 +4,27 @@ All notable changes to MorfyAI are documented here. One entry per release —
 this is also what gets pasted into the GitHub Release notes and the public
 changelog page at morfyfx.com/morfyai/changelog.
 
+## 2.14 — 2026-09-06
+
+**New built-in skill: mocap retargeting (KineFX)**
+- The rigging set is now end-to-end: build a skeleton, bind a mesh, pose it,
+  and now RETARGET animation onto it — all from natural language. The new
+  `build_rig rig_type='retarget'` follows SideFX's documented core retarget
+  workflow: Rig Match Pose (with bounding-box match to auto align/scale the
+  source to the target) -> Map Points (per-joint source->target mapping) ->
+  Full Body IK, with an optional skinned preview through Joint Deform.
+- **Automatic joint mapping.** The only interactive step of a retarget
+  (mapping joints between two skeletons) is now done procedurally by name: a
+  built-in Mixamo -> MorfyAI-biped table maps the standard clip out of the
+  box, and a `name` mode matches joints whose names line up for custom
+  skeletons. Node types are resolved at runtime to tolerate version drift.
+- The agent is instructed to verify a retarget visually: scrub the timeline,
+  capture the viewport, and confirm the target mirrors the source motion
+  (feet planted, limbs not twisted) — flagging an empty/misnamed Map Points
+  mapping when nothing moves.
+- Added the retarget nodes to the MCP node-input reference
+  (`kinefx--rigmatchpose`, `kinefx--mappoints`, `kinefx--rigstashpose`).
+
 ## 2.13 — 2026-08-28
 
 **New built-in skills: character rigging (KineFX)**
