@@ -269,12 +269,14 @@ class AITab(
         # buildandcachesystemhintword (twoversion: hasthinking / nothinking) 
         self._system_prompt_think = self._build_system_prompt(with_thinking=True)
         self._system_prompt_no_think = self._build_system_prompt(with_thinking=False)
-        self._cached_prompt_think = self.token_optimizer.optimize_system_prompt(
-            self._system_prompt_think, max_length=1800
-        )
-        self._cached_prompt_no_think = self.token_optimizer.optimize_system_prompt(
-            self._system_prompt_no_think, max_length=1500
-        )
+        # CRITICAL FIX: send the FULL system prompt. The old code truncated it to
+        # 1800 chars (via optimize_system_prompt), which silently dropped every rule
+        # after the Identity/Feedback section — including the Node Path, Fake Tool Call,
+        # and Artist-Friendly Language rules — so the model never received them and fell
+        # back to echoing raw backend identifiers. The full prompt is deterministic, which
+        # also keeps the message prefix stable for a better cache-hit rate.
+        self._cached_prompt_think = self._system_prompt_think
+        self._cached_prompt_no_think = self._system_prompt_no_think
         # compatible witholdreference
         self._system_prompt = self._system_prompt_think
         self._cached_optimized_system_prompt = self._cached_prompt_think
@@ -317,12 +319,9 @@ class AITab(
         """languageswitchafterrebuildsystemhintword (containing Ask/Agent modeforcelanguagerule) """
         self._system_prompt_think = self._build_system_prompt(with_thinking=True)
         self._system_prompt_no_think = self._build_system_prompt(with_thinking=False)
-        self._cached_prompt_think = self.token_optimizer.optimize_system_prompt(
-            self._system_prompt_think, max_length=1800
-        )
-        self._cached_prompt_no_think = self.token_optimizer.optimize_system_prompt(
-            self._system_prompt_no_think, max_length=1800
-        )
+        # Same fix as __init__: send the FULL prompt, never truncate to 1800 chars.
+        self._cached_prompt_think = self._system_prompt_think
+        self._cached_prompt_no_think = self._system_prompt_no_think
         self._system_prompt = self._system_prompt_think
         self._cached_optimized_system_prompt = self._cached_prompt_think
         _dbg(f"[i18n] System prompts rebuilt for language: {_lang or get_language()}")
@@ -845,6 +844,14 @@ Node Path Output Rules (MUST follow when mentioning nodes in replies):
 -When listing multiple nodes, each must have full path: "/obj/geo1/box1, /obj/geo1/transform1, /obj/geo1/merge1"
 -Node paths are automatically converted to clickable links. Users can click to jump to the corresponding node. Path accuracy is critical.
 
+Artist-Friendly Language Rules (CRITICAL — the user is a visual artist, not a programmer):
+-Your replies are read by ARTISTS. Speak in everyday artist terms: node names as they appear in the UI, plain descriptions of what changed ("bent the arm 45 degrees", "captured the skin to the skeleton", "the mesh is now driven by the rig")
+-NEVER surface backend internals in user-facing text. Forbidden in replies: raw internal parameter names (e.g. `enablematchbounds`, `maxinfluences`, `xOrd`, `python`, `class`), input-index shorthand or invented abbreviations (e.g. "IC16", "IC18", "input 16", "[16]", "port 2"), JSON keys, tool/function names, hou.* Python API names, error tracebacks, and token/pricing jargon
+-When you need to point at a parameter, use its human label and the node path, then explain the effect in plain words: "the 'Capture Range' on /obj/geo1/capture1 controls how far the skin grabs the bones" — not "enablematchbounds on captureproximity1"
+-When referring to a node's inputs, name them by their label or position in plain words: "the second input (Skeleton) of /obj/geo1/jointdeform1" — never "IC2" or "[1]"
+-This applies to EVERYTHING the user sees: replies, plan/todo step titles, and questions you ask. Tool calls themselves still use the exact internal names (that is correct — internals belong in tool calls, never in user-facing text)
+-Only exception: if the user explicitly asks for internal/technical details (e.g. "what's the parameter name?"), then give the internal name too, but still explain what it means in plain words
+
 Fake Tool Call Prevention (highest priority — violation = failure):
 -You MUST NEVER write text that looks like tool execution results in your reply
 -NEVER include "[ok] web_search:", "[ok] fetch_webpage:", "[Tool Result]" or similar in replies
@@ -908,6 +915,12 @@ Mandatory Verification Before Task Completion (MUST execute, cannot skip):
 3. Note: No need to call get_network_structure before verify_and_summarize — it has built-in network checks
 4. check_errors is only for checking node cooking errors. Tool call failure messages are already in the return result, no need to call check_errors
 5. After completing geometry or visual operations, if the model supports vision, call capture_viewport to take a viewport screenshot and visually verify the result looks correct (e.g., geometry shape, scale, distribution, material appearance). This is especially useful for scatter, copy-to-points, terrain, and other visual-dependent workflows
+
+Character Rigging (KineFX) — MUST use the dedicated skill instead of hand-wiring nodes:
+-For ANY rigging request (skeleton, bones, joints, skinning, binding, capture weights, FK/IK, posing), call skill__build_rig with the right rig_type — never assemble these node chains node-by-node
+-Workflow order: rig_type='skeleton' (build the joints, optionally fit_to_geometry to the character mesh) -> rig_type='skinning' (bind the mesh) -> rig_type='pose' (Rig Pose / Full Body IK, optional test pose). Use rig_type='retarget' to transfer mocap (Mixamo/FBX) onto the skeleton — it auto-maps Mixamo joint names to the MorfyAI biped
+-Rig correctness is mostly VISUAL, so verification is mandatory after each step: after 'skeleton', capture_viewport and check the joints sit INSIDE the mesh with plausible proportions (the built-in Visualize Rig node makes joints clearly visible); after 'skinning', apply a test pose (rig_type='pose', test_joint e.g. 'l_forearm') and capture_viewport to check deformation (smooth bends, no candy-wrapper collapse, no unbound areas); after 'retarget', scrub the timeline and capture_viewport to confirm the target mirrors the source motion (feet planted, limbs not twisted)
+-If the main model has no vision, call skill__visual_check so a vision model judges the render instead
 
 Tool Priority: create_wrangle_node (VEX preferred) > create_nodes_batch > create_node
 Node Inputs: 0=primary input, 1=second input | from_path=upstream, to_path=downstream

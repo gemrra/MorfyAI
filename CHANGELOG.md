@@ -4,6 +4,93 @@ All notable changes to MorfyAI are documented here. One entry per release —
 this is also what gets pasted into the GitHub Release notes and the public
 changelog page at morfyfx.com/morfyai/changelog.
 
+## 2.15 — 2026-09-06
+
+**Fixes**
+- Fixed the AI replying in raw backend jargon (internal parameter names like
+  `enablematchbounds`, invented input-index shorthand like "IC16"/"IC18",
+  JSON keys, tool names). Two-part fix:
+  - **System prompt was being silently truncated.** The main agent path sent
+    only the first ~1800 characters of the ~26k-character system prompt
+    (an upstream-inherited "token optimization"), so every behavioral rule
+    after the Identity/Feedback section — node-path formatting, fake-tool-call
+    prevention, tool-call parameter rules, verification mandates, the rigging
+    workflow guidance — never actually reached the model. The full prompt is
+    now sent. This also makes the context-usage ring honest: it always
+    estimated tokens as if the full prompt were sent, so estimates now match
+    reality. (Cost impact: ~6k extra input tokens per request, mostly
+    cache-hit priced — a fair trade for the rules actually applying.)
+  - Added explicit **Artist-Friendly Language rules** to the system prompt:
+    replies must speak in artist terms; raw parameter names, input-index
+    shorthand/abbreviations, JSON keys, tool names, and API names are
+    forbidden in user-facing text (point at parameters by their human label
+    + node path instead). Internal names still belong inside tool calls.
+
+## 2.14 — 2026-09-06
+
+**New built-in skill: mocap retargeting (KineFX)**
+- The rigging set is now end-to-end: build a skeleton, bind a mesh, pose it,
+  and now RETARGET animation onto it — all from natural language. The new
+  `build_rig rig_type='retarget'` follows SideFX's documented core retarget
+  workflow: Rig Match Pose (with bounding-box match to auto align/scale the
+  source to the target) -> Map Points (per-joint source->target mapping) ->
+  Full Body IK, with an optional skinned preview through Joint Deform.
+- **Automatic joint mapping.** The only interactive step of a retarget
+  (mapping joints between two skeletons) is now done procedurally by name: a
+  built-in Mixamo -> MorfyAI-biped table maps the standard clip out of the
+  box, and a `name` mode matches joints whose names line up for custom
+  skeletons. Node types are resolved at runtime to tolerate version drift.
+- The agent is instructed to verify a retarget visually: scrub the timeline,
+  capture the viewport, and confirm the target mirrors the source motion
+  (feet planted, limbs not twisted) — flagging an empty/misnamed Map Points
+  mapping when nothing moves.
+- Added the retarget nodes to the MCP node-input reference
+  (`kinefx--rigmatchpose`, `kinefx--mappoints`, `kinefx--rigstashpose`).
+
+## 2.13 — 2026-08-28
+
+**New built-in skills: character rigging (KineFX)**
+- MorfyAI can now build full character rigs from a natural-language prompt,
+  closing the biggest gap in its workflow coverage (sims, look-dev, and
+  modeling were covered; rigging wasn't). All using stock KineFX SOPs
+  (H19.5+), verified against SideFX docs:
+  - **Skeleton** — `build_rig rig_type='skeleton'` procedurally generates a
+    joint chain (biped / quadruped / simple chain) as a polyline with
+    `name`+`transform` point attributes, then runs it through Rig Doctor and
+    Orient Joints. Can fit the skeleton's proportions to an existing
+    character mesh's bounding box (`fit_to_geometry`), attach control shapes
+    (Attach Joint Geometry), and appends a Visualize Rig node so the joints
+    are clearly visible in the viewport.
+  - **Skinning** — `build_rig rig_type='skinning'` binds a mesh: skin ->
+    Joint Capture Proximity (or Biharmonic for higher-quality organic
+    weights) -> Joint Deform, wiring the skeleton as both rest/capture pose
+    and animated pose (Joint Deform's three inputs).
+  - **Pose** — `build_rig rig_type='pose'` appends Rig Pose (FK) and
+    optional Full Body IK (H19+), and can apply a TEST POSE by rotating a
+    named joint purely through parameters — no viewport interaction needed.
+- **Vision-assisted verification.** Rig correctness is mostly visual, so the
+  agent is now instructed to LOOK at the rig after each step: after building
+  a skeleton it captures the viewport to confirm the joints sit inside the
+  mesh with plausible proportions, and after skinning it applies a test pose
+  and captures the deformation to catch candy-wrapper collapse or unbound
+  areas — using `capture_viewport` when the main model has vision, or the
+  `visual_check` skill (cheap vision model) otherwise. The unified
+  `build_rig` skill also runs a data-level check (cooks the output, counts
+  joints/points, reports errors) after every build and surfaces a `next_step`
+  pointer to the visual pass.
+- **Dispatcher pattern.** Like `build_sim` for sims, the single
+  `skill__build_rig` entry point fronts three hidden per-task skills
+  (`build_rig_skeleton` / `build_rig_skinning` / `build_rig_pose`), so the
+  AI sees one tool with a `rig_type` switch instead of three near-duplicate
+  tools. Aliases (bones/joints, bind/capture/weights, fk/ik) map to the
+  canonical rig_type.
+- Added the full modern KineFX node set to the MCP node-input reference
+  (`kinefx--skeleton`, `rigdoctor`, `kinefx--orientjoints`,
+  `kinefx--rigpose`, `kinefx--jointcaptureproximity`,
+  `kinefx--jointcapturebiharmonic`, `kinefx--jointdeform`,
+  `kinefx--visualizerig`, `kinefx--attachjointgeo`, `kinefx--fullbodyik`) so
+  the AI wires these chains with the correct input ports.
+
 ## 2.12 — 2026-08-27
 
 **Fixes**
