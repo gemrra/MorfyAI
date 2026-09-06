@@ -81,13 +81,18 @@ browser, not just the in-app update check.
   previous top entry. Same shape as a `CHANGELOG.md` entry, just JS objects:
   `{ version, date, title, latest, changes: [{ type, text }, ...] }`
   (`type` ∈ `new` | `improved` | `fixed` | `changed` | `release`).
-- The live file lives on `naraserver` (ZimaOS) at
-  `/DATA/AppData/morfyai/changelog/changelog.html`, served by the
-  `morfyai-changelog` container on port `18789`, reverse-proxied to
-  `morfyfx.com/morfyai/changelog` via Nginx Proxy Manager. To update it:
+- The live site is the whole `website/` folder, served by the
+  `morfyai-changelog` container (nginx, port `18789`) on **naraserver**
+  (ZimaOS), mounted at `/DATA/AppData/morfyai/site/` and reverse-proxied to
+  `morfyfx.com/morfyai/` via Nginx Proxy Manager (through Cloudflare).
+  To deploy both pages:
 
   ```
-  scp changelog.html naraserver:/DATA/AppData/morfyai/changelog/changelog.html
+  scp website/changelog.html website/index.html naraserver:/DATA/AppData/morfyai/site/
   ```
 
-  No container restart needed — nginx serves the file straight off disk.
+  No container restart needed — nginx serves the files straight off disk.
+  Cloudflare may cache the old page for a few minutes; add `?cb=1` to the
+  URL to verify the deploy, or purge the cache in the Cloudflare dashboard.
+  (Note: the old path `/DATA/AppData/morfyai/changelog/` from earlier notes
+  is stale — the real mount is `site/`.)
