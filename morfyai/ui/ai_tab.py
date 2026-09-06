@@ -269,12 +269,14 @@ class AITab(
         # buildandcachesystemhintword (twoversion: hasthinking / nothinking) 
         self._system_prompt_think = self._build_system_prompt(with_thinking=True)
         self._system_prompt_no_think = self._build_system_prompt(with_thinking=False)
-        self._cached_prompt_think = self.token_optimizer.optimize_system_prompt(
-            self._system_prompt_think, max_length=1800
-        )
-        self._cached_prompt_no_think = self.token_optimizer.optimize_system_prompt(
-            self._system_prompt_no_think, max_length=1500
-        )
+        # CRITICAL FIX: send the FULL system prompt. The old code truncated it to
+        # 1800 chars (via optimize_system_prompt), which silently dropped every rule
+        # after the Identity/Feedback section — including the Node Path, Fake Tool Call,
+        # and Artist-Friendly Language rules — so the model never received them and fell
+        # back to echoing raw backend identifiers. The full prompt is deterministic, which
+        # also keeps the message prefix stable for a better cache-hit rate.
+        self._cached_prompt_think = self._system_prompt_think
+        self._cached_prompt_no_think = self._system_prompt_no_think
         # compatible witholdreference
         self._system_prompt = self._system_prompt_think
         self._cached_optimized_system_prompt = self._cached_prompt_think
@@ -317,12 +319,9 @@ class AITab(
         """languageswitchafterrebuildsystemhintword (containing Ask/Agent modeforcelanguagerule) """
         self._system_prompt_think = self._build_system_prompt(with_thinking=True)
         self._system_prompt_no_think = self._build_system_prompt(with_thinking=False)
-        self._cached_prompt_think = self.token_optimizer.optimize_system_prompt(
-            self._system_prompt_think, max_length=1800
-        )
-        self._cached_prompt_no_think = self.token_optimizer.optimize_system_prompt(
-            self._system_prompt_no_think, max_length=1800
-        )
+        # Same fix as __init__: send the FULL prompt, never truncate to 1800 chars.
+        self._cached_prompt_think = self._system_prompt_think
+        self._cached_prompt_no_think = self._system_prompt_no_think
         self._system_prompt = self._system_prompt_think
         self._cached_optimized_system_prompt = self._cached_prompt_think
         _dbg(f"[i18n] System prompts rebuilt for language: {_lang or get_language()}")
@@ -844,6 +843,14 @@ Node Path Output Rules (MUST follow when mentioning nodes in replies):
 -Wrong: "Created node scatter1 and connected to box1" (missing full path, user cannot click to navigate)
 -When listing multiple nodes, each must have full path: "/obj/geo1/box1, /obj/geo1/transform1, /obj/geo1/merge1"
 -Node paths are automatically converted to clickable links. Users can click to jump to the corresponding node. Path accuracy is critical.
+
+Artist-Friendly Language Rules (CRITICAL — the user is a visual artist, not a programmer):
+-Your replies are read by ARTISTS. Speak in everyday artist terms: node names as they appear in the UI, plain descriptions of what changed ("bent the arm 45 degrees", "captured the skin to the skeleton", "the mesh is now driven by the rig")
+-NEVER surface backend internals in user-facing text. Forbidden in replies: raw internal parameter names (e.g. `enablematchbounds`, `maxinfluences`, `xOrd`, `python`, `class`), input-index shorthand or invented abbreviations (e.g. "IC16", "IC18", "input 16", "[16]", "port 2"), JSON keys, tool/function names, hou.* Python API names, error tracebacks, and token/pricing jargon
+-When you need to point at a parameter, use its human label and the node path, then explain the effect in plain words: "the 'Capture Range' on /obj/geo1/capture1 controls how far the skin grabs the bones" — not "enablematchbounds on captureproximity1"
+-When referring to a node's inputs, name them by their label or position in plain words: "the second input (Skeleton) of /obj/geo1/jointdeform1" — never "IC2" or "[1]"
+-This applies to EVERYTHING the user sees: replies, plan/todo step titles, and questions you ask. Tool calls themselves still use the exact internal names (that is correct — internals belong in tool calls, never in user-facing text)
+-Only exception: if the user explicitly asks for internal/technical details (e.g. "what's the parameter name?"), then give the internal name too, but still explain what it means in plain words
 
 Fake Tool Call Prevention (highest priority — violation = failure):
 -You MUST NEVER write text that looks like tool execution results in your reply

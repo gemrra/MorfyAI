@@ -4,6 +4,28 @@ All notable changes to MorfyAI are documented here. One entry per release —
 this is also what gets pasted into the GitHub Release notes and the public
 changelog page at morfyfx.com/morfyai/changelog.
 
+## 2.15 — 2026-09-06
+
+**Fixes**
+- Fixed the AI replying in raw backend jargon (internal parameter names like
+  `enablematchbounds`, invented input-index shorthand like "IC16"/"IC18",
+  JSON keys, tool names). Two-part fix:
+  - **System prompt was being silently truncated.** The main agent path sent
+    only the first ~1800 characters of the ~26k-character system prompt
+    (an upstream-inherited "token optimization"), so every behavioral rule
+    after the Identity/Feedback section — node-path formatting, fake-tool-call
+    prevention, tool-call parameter rules, verification mandates, the rigging
+    workflow guidance — never actually reached the model. The full prompt is
+    now sent. This also makes the context-usage ring honest: it always
+    estimated tokens as if the full prompt were sent, so estimates now match
+    reality. (Cost impact: ~6k extra input tokens per request, mostly
+    cache-hit priced — a fair trade for the rules actually applying.)
+  - Added explicit **Artist-Friendly Language rules** to the system prompt:
+    replies must speak in artist terms; raw parameter names, input-index
+    shorthand/abbreviations, JSON keys, tool names, and API names are
+    forbidden in user-facing text (point at parameters by their human label
+    + node path instead). Internal names still belong inside tool calls.
+
 ## 2.14 — 2026-09-06
 
 **New built-in skill: mocap retargeting (KineFX)**
