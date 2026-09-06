@@ -117,11 +117,40 @@
             <span class="rlatest">Latest</span>
           </div>
           <div>
-            <div class="rtitle">Rigging, mocap retargeting &amp; reply-quality fix</div>
+            <div class="rtitle">Reply-quality fix — no more backend jargon</div>
             <div class="rgroup">
-              <div class="rchange"><span class="rtag new">New</span><span>Character rigging goes end-to-end — all from natural language. <b>2.13:</b> build a KineFX skeleton (biped, quadruped, or a simple chain — proportions fitted to your mesh), bind the skin (Joint Capture Proximity/Biharmonic → Joint Deform), and pose it (Rig Pose FK + Full Body IK, test poses without touching the viewport). <b>2.14:</b> retarget mocap onto it — a Mixamo/FBX clip transfers onto your skeleton via Rig Match Pose → Map Points → Full Body IK, with automatic Mixamo joint mapping and a live skinned preview.</span></div>
-              <div class="rchange"><span class="rtag new">New</span><span>Vision-assisted verification for rigs: after building a skeleton the agent looks at the viewport to confirm joints sit inside the mesh with plausible proportions; after skinning it applies a test pose and checks the deformation (candy-wrapper collapse, unbound areas); after retargeting it confirms the motion tracks the source.</span></div>
               <div class="rchange"><span class="rtag fixed">Fixed</span><span>Fixed the AI replying in raw backend jargon — internal parameter names like <code>enablematchbounds</code>, invented input-index shorthand like "IC16"/"IC18", JSON keys, tool names. Root cause: the system prompt was silently truncated to ~1800 of its ~26k characters (inherited from upstream), so the behavioral rules never actually reached the model. The full prompt is now sent, and explicit Artist-Friendly Language rules keep replies in artist terms — parameters are referred to by their human label + node path, never by internal names.</span></div>
+              <div class="rchange"><span class="rtag improved">Improved</span><span>The context-usage ring now matches reality — it always estimated tokens as if the full prompt were sent, so estimates and reality were out of sync before.</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rrow reveal">
+          <div class="rmeta">
+            <div class="rver">2.14</div>
+            <div class="rdate">6 Sep 2026</div>
+          </div>
+          <div>
+            <div class="rtitle">Mocap retargeting</div>
+            <div class="rgroup">
+              <div class="rchange"><span class="rtag new">New</span><span><code>build_rig</code> gains <code>rig_type='retarget'</code>: transfer animation from a source skeleton (Mixamo/FBX mocap) onto your KineFX skeleton — Rig Match Pose → Map Points → Full Body IK, with an optional skinned preview through Joint Deform so you see the character move.</span></div>
+              <div class="rchange"><span class="rtag new">New</span><span>Automatic joint mapping — the only interactive step of a retarget is done procedurally by name: a built-in Mixamo → MorfyAI-biped table maps standard clips out of the box, and a <code>name</code> mode matches joints whose names line up for custom skeletons.</span></div>
+              <div class="rchange"><span class="rtag improved">Improved</span><span>After retargeting, the agent scrubs the timeline and checks the viewport to confirm the target mirrors the source motion (feet planted, limbs not twisted) — flagging an empty or misnamed joint mapping when nothing moves.</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rrow reveal">
+          <div class="rmeta">
+            <div class="rver">2.13</div>
+            <div class="rdate">28 Aug 2026</div>
+          </div>
+          <div>
+            <div class="rtitle">Character rigging (KineFX)</div>
+            <div class="rgroup">
+              <div class="rchange"><span class="rtag new">New</span><span>Build full character rigs from natural language, closing the biggest gap in workflow coverage. <b>Skeleton:</b> a procedurally generated joint chain (biped, quadruped, or a simple chain) fitted to your character mesh's proportions, through Rig Doctor and Orient Joints, with optional control shapes. <b>Skinning:</b> bind the mesh — Joint Capture Proximity or Biharmonic → Joint Deform. <b>Pose:</b> Rig Pose (FK) and optional Full Body IK, with test poses applied through parameters alone — no viewport interaction needed.</span></div>
+              <div class="rchange"><span class="rtag new">New</span><span>Vision-assisted verification for rigs: after building a skeleton the agent looks at the viewport to confirm joints sit inside the mesh with plausible proportions; after skinning it applies a test pose and checks the deformation (candy-wrapper collapse, unbound areas left behind).</span></div>
+              <div class="rchange"><span class="rtag improved">Improved</span><span>One <code>build_rig</code> entry point fronts all of it with a <code>rig_type</code> switch (skeleton / skinning / pose / retarget), the same pattern as <code>build_sim</code> — the AI sees one tool instead of near-duplicates.</span></div>
             </div>
           </div>
         </div>
