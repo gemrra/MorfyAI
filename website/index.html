@@ -368,8 +368,8 @@
             <a class="btn-pill btn-outline" href="https://morfyfx.com/morfyai/changelog">Changelog</a>
           </div>
           <div class="fact-row">
-            <span><b>47</b> tools</span>
-            <span><b>12</b> sim skills</span>
+            <span><b>51</b> tools</span>
+            <span><b>17</b> sim &amp; rig skills</span>
             <span><b>10</b> providers</span>
             <span><b>MIT</b> license</span>
           </div>
@@ -385,8 +385,8 @@
           <div class="btile stat amber-tile">
             <span class="tag-pill dark-on-light" style="background:rgba(26,20,0,.12); color:#1a1400;">tools</span>
             <div>
-              <div class="stat-num">47</div>
-              <div class="stat-cap">node ops, diagnostics, and simulation, all in one panel</div>
+              <div class="stat-num">51</div>
+              <div class="stat-cap">node ops, sims, rigging, and diagnostics — all in one panel</div>
             </div>
           </div>
           <div class="btile stat lav-tile">
@@ -409,6 +409,10 @@
             <div class="demo-item on" data-demo="build">
               <div class="dh"><h4>Write custom VEX</h4><span class="dtag">create_wrangle_node</span></div>
               <p>Ask for a wrangle in plain language — it writes the VEX and drops the node straight in.</p>
+            </div>
+            <div class="demo-item" data-demo="rig">
+              <div class="dh"><h4>Rig a character</h4><span class="dtag">build_rig</span></div>
+              <p>Skeleton, skinning, and mocap retargeting — built, wired, and checked by eye.</p>
             </div>
             <div class="demo-item" data-demo="fix">
               <div class="dh"><h4>Fix an error</h4><span class="dtag">check_errors</span></div>
@@ -463,6 +467,26 @@
                   </div>
                   <div class="toolstack">
                     <div class="row"><span class="ok">✓</span><span class="fn">create_wrangle_node</span><span class="arg">pyrosource1</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="demo-scenario" id="demo-rig" style="display:none;">
+                <div class="duser"><div class="b">rig this character and put a Mixamo run cycle on it</div></div>
+                <div class="dai">
+                  <div class="head"><img src="assets/morfyai-logo.png" alt=""><b>MorfyAI</b></div>
+                  <div class="txt">On it — I built a biped skeleton fitted to your mesh, bound the skin to it, and retargeted the run clip onto the rig. Everything is live in <span class="node-link">character_rig</span>, and I looked at the viewport at each step: the joints sit inside the body with the right proportions, and the deformation bends cleanly at the elbows and knees — no pinching, nothing left behind.</div>
+                  <table class="msg-table">
+                    <tr><th>Step</th><th>Result</th></tr>
+                    <tr><td>Skeleton</td><td>25 joints, fitted to the mesh</td></tr>
+                    <tr><td>Skinning</td><td>bound — smooth bends, no unbound areas</td></tr>
+                    <tr><td>Retarget</td><td>run cycle tracking the source motion</td></tr>
+                  </table>
+                  <div class="toolstack">
+                    <div class="row"><span class="ok">✓</span><span class="fn">build_rig</span><span class="arg">skeleton</span></div>
+                    <div class="row"><span class="ok">✓</span><span class="fn">build_rig</span><span class="arg">skinning</span></div>
+                    <div class="row"><span class="ok">✓</span><span class="fn">build_rig</span><span class="arg">retarget</span></div>
+                    <div class="row"><span class="ok">✓</span><span class="fn">capture_viewport</span><span class="arg">visual check</span></div>
                   </div>
                 </div>
               </div>
@@ -607,9 +631,9 @@
       <!-- TOOLKIT — scattered chip cluster -->
       <section id="simsuite" style="padding-top:0;">
         <div class="sec-eyebrow">Toolkit</div>
-        <h2 style="margin-bottom:16px;">Solvers, code, and everything around them</h2>
+        <h2 style="margin-bottom:16px;">Solvers, rigs, code, and everything around them</h2>
         <p style="font-size:15px; color:var(--ink-dim); max-width:600px; line-height:1.7; margin-bottom:36px;">
-          Sim skills cook and verify the same way you just saw above. Underneath that, it's speaking the languages you already use — VEX, Python, HDAs, node graphs — plus curated recipes for installed third-party tools.
+          Sim skills cook and verify the same way you just saw above. Since 2.13, character rigs are one prompt away — skeleton, skinning, posing, and mocap retargeting built and wired for you, then checked by eye through the viewport. Underneath that, it's speaking the languages you already use — VEX, Python, HDAs, node graphs — plus curated recipes for installed third-party tools.
         </p>
 
         <div class="scatter-wrap reveal-stagger" style="margin-top:0;">
@@ -621,6 +645,9 @@
           <span class="scatter-chip sc-dark sc-fill">POP</span>
           <span class="scatter-chip sc-light sc-fill">Ocean</span>
           <span class="scatter-chip sc-dark">Whitewater</span>
+          <span class="scatter-chip sc-amber sc-fill">KineFX</span>
+          <span class="scatter-chip sc-light">Skinning</span>
+          <span class="scatter-chip sc-dark sc-fill">Mocap</span>
           <span class="scatter-chip sc-amber sc-fill">VEX</span>
           <span class="scatter-chip sc-light">Python</span>
           <span class="scatter-chip sc-dark">HDA</span>
@@ -682,7 +709,7 @@
               </div>
             </div>
             <div class="hood-body">
-              <p>32 pre-built diagnostic skills ship in the box. On top of that, <code>@tool</code>, <code>@hook</code>, and <code>@ui_button</code> decorators let <span class="hlt">anyone extend the panel</span> — no changes to core code required.</p>
+              <p>55 pre-built skills ship in the box — sims, rigging, diagnostics, everyday utilities. On top of that, <code>@tool</code>, <code>@hook</code>, and <code>@ui_button</code> decorators let <span class="hlt">anyone extend the panel</span> — no changes to core code required.</p>
             </div>
           </div>
 
@@ -947,6 +974,7 @@
   var demoTabs = document.querySelectorAll('#demoTabs .demo-item');
   var demoPaths = {
     build: 'Writing a wrangle',
+    rig: 'Rigging a character',
     fix: 'Debugging pyrosolver1',
     explain: 'Reading the network',
     optimize: 'Cook performance',
@@ -958,6 +986,7 @@
   // Rotates through real, powerful models across providers — not just one.
   var demoModels = {
     build: 'Opus 4.8',
+    rig: 'GPT-5.1',
     fix: 'GPT-5.1',
     explain: 'Fable 5',
     optimize: 'Sonnet 5',

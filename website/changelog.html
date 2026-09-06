@@ -112,9 +112,24 @@
 
         <div class="rrow reveal">
           <div class="rmeta">
+            <div class="rver">2.15</div>
+            <div class="rdate">6 Sep 2026</div>
+            <span class="rlatest">Latest</span>
+          </div>
+          <div>
+            <div class="rtitle">Rigging, mocap retargeting &amp; reply-quality fix</div>
+            <div class="rgroup">
+              <div class="rchange"><span class="rtag new">New</span><span>Character rigging goes end-to-end — all from natural language. <b>2.13:</b> build a KineFX skeleton (biped, quadruped, or a simple chain — proportions fitted to your mesh), bind the skin (Joint Capture Proximity/Biharmonic → Joint Deform), and pose it (Rig Pose FK + Full Body IK, test poses without touching the viewport). <b>2.14:</b> retarget mocap onto it — a Mixamo/FBX clip transfers onto your skeleton via Rig Match Pose → Map Points → Full Body IK, with automatic Mixamo joint mapping and a live skinned preview.</span></div>
+              <div class="rchange"><span class="rtag new">New</span><span>Vision-assisted verification for rigs: after building a skeleton the agent looks at the viewport to confirm joints sit inside the mesh with plausible proportions; after skinning it applies a test pose and checks the deformation (candy-wrapper collapse, unbound areas); after retargeting it confirms the motion tracks the source.</span></div>
+              <div class="rchange"><span class="rtag fixed">Fixed</span><span>Fixed the AI replying in raw backend jargon — internal parameter names like <code>enablematchbounds</code>, invented input-index shorthand like "IC16"/"IC18", JSON keys, tool names. Root cause: the system prompt was silently truncated to ~1800 of its ~26k characters (inherited from upstream), so the behavioral rules never actually reached the model. The full prompt is now sent, and explicit Artist-Friendly Language rules keep replies in artist terms — parameters are referred to by their human label + node path, never by internal names.</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rrow reveal">
+          <div class="rmeta">
             <div class="rver">2.12</div>
             <div class="rdate">27 Aug 2026</div>
-            <span class="rlatest">Latest</span>
           </div>
           <div>
             <div class="rtitle">Node layout protection</div>
