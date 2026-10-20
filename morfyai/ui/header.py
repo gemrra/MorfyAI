@@ -286,8 +286,8 @@ class HeaderMixin:
         self.mcp_status_chip.setObjectName("mcpStatusChip")
         self.mcp_status_chip.setCursor(QtCore.Qt.PointingHandCursor)
         self.mcp_status_chip.setProperty("connected", False)
-        self.mcp_status_chip.setToolTip("MCP disconnected — click to open Connect to Claude")
-        self.mcp_status_chip.clicked.connect(self._open_claude_connect)
+        self.mcp_status_chip.setToolTip("MCP disconnected — click to start the server")
+        self.mcp_status_chip.clicked.connect(self._start_mcp_from_chip)
         row.addWidget(self.mcp_status_chip)
 
         # ⚙ settings entry point (opens the consolidated Settings dialog)
@@ -448,6 +448,29 @@ class HeaderMixin:
             chip.setToolTip("MCP server running — waiting for a client")
         else:
             chip.setToolTip("MCP disconnected — click to start the server")
+
+    def _start_mcp_from_chip(self):
+        """Start MorfyAI's MCP server without opening the Claude setup dialog."""
+        chip = getattr(self, "mcp_status_chip", None)
+        if chip is not None:
+            chip.setEnabled(False)
+        try:
+            from ..utils import claude_connect as cc
+            ok, message, _url = cc.start()
+            message = str(message).strip()
+            _dbg("[MCP] Header button:", message)
+            self._refresh_mcp_status_chip()
+            if not ok and chip is not None:
+                chip.setToolTip(f"MCP could not start: {message}")
+        except Exception as e:
+            import traceback
+            _dbg("[MCP] Header start failed:", e, traceback.format_exc())
+            self._refresh_mcp_status_chip()
+            if chip is not None:
+                chip.setToolTip(f"MCP failed to start: {e}")
+        finally:
+            if chip is not None:
+                chip.setEnabled(True)
 
     def _show_overflow_menu(self):
         """Show the overflow menu — collects low-frequency features."""

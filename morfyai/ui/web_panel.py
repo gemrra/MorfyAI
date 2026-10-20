@@ -488,12 +488,19 @@ class Bridge(QtCore.QObject):
             self._err("mcpInfo failed", e)
             return json.dumps({"text": "MCP status unavailable"})
 
-    @QtCore.Slot()
+    @QtCore.Slot(result=str)
     def mcpStart(self):
         try:
-            self.owner.mcp_start()
+            result = self.owner.mcp_start()
+            if isinstance(result, tuple):
+                ok, msg = result
+                if not ok:
+                    self._err("mcpStart failed", msg)
+                return json.dumps({"ok": bool(ok), "message": str(msg)})
+            return json.dumps({"ok": True, "message": str(result or "")})
         except Exception as e:
             self._err("mcpStart failed", e)
+            return json.dumps({"ok": False, "message": str(e)})
 
     @QtCore.Slot(result=str)
     def mcpConnectionReport(self):
@@ -2308,9 +2315,13 @@ class MorfyWebPanel(QtWidgets.QWidget):
     def mcp_start(self):
         try:
             from ..utils import claude_connect as cc
-            cc.start()
-        except Exception:
-            pass
+            ok, msg, _url = cc.start()
+            if not ok:
+                _dbg("[WebPanel] MCP start failed: %s" % msg)
+            return bool(ok), str(msg)
+        except Exception as e:
+            _dbg("[WebPanel] MCP start exception: %s" % e)
+            return False, str(e)
 
     def mcp_connection_report(self):
         """Same live status/config data the old 'Connect to Claude' dialog

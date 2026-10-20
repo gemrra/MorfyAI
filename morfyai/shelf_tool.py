@@ -29,8 +29,8 @@ except Exception as e:
         title="MorfyAI Error"
     )
     import traceback
-    print("=" * 60)
-    print("MorfyAI Error Traceback:")
-    print("=" * 60)
-    traceback.print_exc()
-    print("=" * 60)
+    try:
+        from morfyai.utils.debug_log import log as _debug_log
+        _debug_log("[Shelf Tool] MorfyAI failed to launch:", e, "\n", traceback.format_exc())
+    except Exception:
+        pass

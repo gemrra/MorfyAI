@@ -29,6 +29,53 @@ sys.modules.pop('launcher', None)
 import launcher
 launcher.show_tool()]]></scriptCode>
       </scriptItem>
+
+      <scriptItem id="morfyai_turn_on_mcp">
+        <label>Turn On MCP</label>
+        <scriptCode><![CDATA[import os, sys, traceback
+import hou
+
+# Resolve this installed copy before importing its MCP modules.
+_r = os.environ.get('MORFYAI')
+if not _r:
+    try:
+        _r = hou.getenv('MORFYAI')
+    except Exception:
+        _r = None
+if _r and os.path.isdir(_r):
+    if _r in sys.path:
+        sys.path.remove(_r)
+    sys.path.insert(0, _r)
+
+_debug_log = None
+try:
+    sys.modules.pop('launcher', None)
+    import launcher
+    launcher._prioritize_and_isolate()
+    from morfyai.utils.debug_log import log as _debug_log
+except Exception:
+    pass
+
+try:
+    from morfyai.utils.mcp.server import ensure_mcp_running
+    _ok, _message = ensure_mcp_running(auto_start=True)
+    _message = str(_message).strip()
+    if _debug_log:
+        _debug_log('[MCP Menu]', _message)
+    _severity = hou.severityType.Message if _ok else hou.severityType.Warning
+    hou.ui.setStatusMessage('MorfyAI MCP: ' + _message, severity=_severity)
+except Exception as _error:
+    if _debug_log:
+        _debug_log('[MCP Menu] Start failed:', _error, traceback.format_exc())
+    try:
+        hou.ui.setStatusMessage(
+            'MorfyAI MCP failed to start. See MorfyAI Debug Console.',
+            severity=hou.severityType.Error,
+        )
+    except Exception:
+        pass
+]]></scriptCode>
+      </scriptItem>
     </subMenu>
   </menuBar>
 </mainMenu>

@@ -340,11 +340,11 @@ class ReflectionModule:
                     result["new_rules"] = deep_result.get("new_rules", [])
                 except Exception as e:
                     _dbg(f"[Reflection] LLM deep reflection failed: {e}")
-                    traceback.print_exc()
+                    _dbg(traceback.format_exc())
 
         except Exception as e:
             _dbg(f"[Reflection] Reflection flow error: {e}")
-            traceback.print_exc()
+            _dbg(traceback.format_exc())
 
         return result
 
@@ -624,7 +624,7 @@ class ReflectionModule:
 
         except Exception as e:
             _dbg(f"[Sleep] Light-sleep failed: {e}")
-            traceback.print_exc()
+            _dbg(traceback.format_exc())
 
         return result
 
@@ -754,7 +754,7 @@ class ReflectionModule:
 
         except Exception as e:
             _dbg(f"[Sleep] Deep-sleep failed: {e}")
-            traceback.print_exc()
+            _dbg(traceback.format_exc())
 
         return result
 

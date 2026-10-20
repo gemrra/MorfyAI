@@ -6,7 +6,7 @@
 
 *AI co-pilot for SideFX Houdini — part of the **MorfyFX** ecosystem.*
 
-[![Version](https://img.shields.io/badge/version-2.8-fb7a1a)](VERSION)
+[![Version](https://img.shields.io/badge/version-2.17-fb7a1a)](VERSION)
 [![License](https://img.shields.io/badge/license-MIT-94a3b8)](#license)
 [![Houdini](https://img.shields.io/badge/Houdini-19.5%2B-FF6B00)](https://www.sidefx.com)
 
@@ -47,6 +47,8 @@ AI:   ✓ created /obj/geo1/mpmsource1 (sphere emitter)
 
 ## Install
 
+### Windows release
+
 Download the latest release and drop it straight into Houdini's `packages/` folder — no script to run:
 
 1. Grab `MorfyAI-<version>.zip` from the [Releases page](../../releases/latest).
@@ -56,12 +58,40 @@ Download the latest release and drop it straight into Houdini's `packages/` fold
 
 From then on, **Settings → Updates** checks for new versions and installs them with one click — no need to repeat this process manually.
 
-### Development / running from a git clone
+### Linux from a source checkout
 
-If you're working on MorfyAI itself (not just using it), you can run it straight from a cloned repo instead of a release zip:
+The Windows release includes Windows-only compiled Python files and cannot run on Linux. For Linux, clone the repository and install dependencies with the Python interpreter bundled with the Houdini version you use:
+
+```bash
+cd /path/to/MorfyAI
+/opt/hfs20.5/bin/hython tools/linux/install_dependencies.py
+```
+
+For Houdini versions that use different Python minor versions, run the command once with each version's `hython`; it creates a separate dependency folder for each. If a standalone MCP client runs `morfyai/utils/mcp/proxy.py` with a different Python version, also run the installer with that Python executable. Then register the clone from Houdini's Python Shell:
 
 ```python
-import sys; sys.path.insert(0, r"E:\AILocal\MorfyAI")
+import sys; sys.path.insert(0, "/path/to/MorfyAI")
+import install; install.install()
+```
+
+Restart Houdini. The installer writes the package pointer under `$HOUDINI_USER_PREF_DIR/packages/`.
+
+### Build a Linux release ZIP
+
+After preparing a dependency folder for each Houdini Python version you want to support, build a Linux ZIP:
+
+```bash
+python tools/release/build_zip.py --platform linux
+```
+
+The ZIP contains the Linux dependency folders and can be extracted directly into `$HOUDINI_USER_PREF_DIR/packages/` (commonly `~/houdini20.5/packages/`).
+
+### Development / running from a git clone
+
+If you're working on MorfyAI itself, the installer can point Houdini at the clone so you can edit it in place. Run this inside Houdini's Python Shell, replacing the path with the clone location:
+
+```python
+import sys; sys.path.insert(0, "/path/to/MorfyAI")
 import install; install.install()
 ```
 

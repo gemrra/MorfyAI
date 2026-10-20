@@ -147,7 +147,7 @@ class HookManager:
                 callback(**kwargs)
             except Exception as e:
                 _dbg(f"[Hook] ⚠ {event} callback error: {e}")
-                traceback.print_exc()
+                _dbg(traceback.format_exc())
 
     def fire_filter(self, event: str, value: Any, **kwargs) -> Any:
         """Pipeline-style filter event (each callback receives a value, returns a modified value).
@@ -167,7 +167,7 @@ class HookManager:
                     value = result
             except Exception as e:
                 _dbg(f"[Hook] ⚠ {event} filter error: {e}")
-                traceback.print_exc()
+                _dbg(traceback.format_exc())
         return value
 
     # ---------- externaltoolmanage ----------
@@ -513,7 +513,7 @@ def load_all_plugins():
             _load_single_plugin(f, module_name, disabled_list, manager)
         except Exception as e:
             _dbg(f"[Hook] ✖ Load plugin {module_name} failed: {e}")
-            traceback.print_exc()
+            _dbg(traceback.format_exc())
 
     _plugins_loaded = True
     if _loaded_plugins:
@@ -595,7 +595,7 @@ def _load_single_plugin(filepath: Path, module_name: str,
             _dbg(f"[Hook] ✔ Plugin {plugin_name} v{info.get('version', '?')} loaded")
         except Exception as e:
             _dbg(f"[Hook] ✖ Plugin {plugin_name} register() failed: {e}")
-            traceback.print_exc()
+            _dbg(traceback.format_exc())
             _loaded_plugins[plugin_name]["enabled"] = False
 
 
@@ -630,7 +630,7 @@ def reload_plugin(plugin_name: str) -> bool:
         return True
     except Exception as e:
         _dbg(f"[Hook] ✖ Reload plugin {plugin_name} failed: {e}")
-        traceback.print_exc()
+        _dbg(traceback.format_exc())
         return False
 
 

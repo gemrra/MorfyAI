@@ -164,7 +164,8 @@ def check_update(timeout: float = 8.0) -> dict:
     try:
         import requests  # type: ignore
     except ImportError:
-        lib_dir = str(_PROJECT_ROOT / "lib")
+        from shared.common_utils import get_lib_dir
+        lib_dir = str(get_lib_dir(str(_PROJECT_ROOT)))
         if lib_dir not in sys.path:
             sys.path.insert(0, lib_dir)
         import requests  # type: ignore
@@ -287,7 +288,8 @@ def download_and_apply(progress_callback=None) -> dict:
     try:
         import requests  # type: ignore
     except ImportError:
-        lib_dir = str(_PROJECT_ROOT / "lib")
+        from shared.common_utils import get_lib_dir
+        lib_dir = str(get_lib_dir(str(_PROJECT_ROOT)))
         if lib_dir not in sys.path:
             sys.path.insert(0, lib_dir)
         import requests  # type: ignore
@@ -409,5 +411,5 @@ def restart_plugin():
     except Exception as e:
         _dbg(f"[Updater] Restart failed: {e}")
         import traceback
-        traceback.print_exc()
+        _dbg(traceback.format_exc())
         return None
