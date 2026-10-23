@@ -7,26 +7,28 @@ import sys
 from datetime import datetime
 
 
+def _log_morfyai_error(message):
+    try:
+        from morfyai.utils.debug_log import log as debug_log
+        debug_log("[MorfyAI]", message)
+    except Exception:
+        pass
+
+
 def get_lib_dir(repo_root=None):
-    """Pick the vendored dependency folder matching the *running* interpreter.
+    """Return the vendored dependency folder for this OS and Python ABI.
 
-    Houdini's bundled Python version varies by release (3.10/3.11 through
-    H21, 3.13 as the default build starting with H22) and compiled
-    extensions (.pyd) are ABI-locked to one Python minor version -- a
-    cp311 wheel cannot load under a cp313 interpreter or vice versa. Rather
-    than making the user match a specific Houdini Python build, MorfyAI
-    ships one vendored lib/ per supported minor version and picks the
-    right one here, keyed off sys.version_info -- MorfyAI adapts to
-    whatever Houdini the user already has, not the other way around.
-
-    'lib' (no suffix) is the original/default vendor folder, built for
-    Python 3.11 (matches Houdini <=21's bundled interpreter). Newer
-    minor versions get a 'lib_pyXY' sibling folder; add one per version
-    as needed by installing deps with that interpreter via
-    `python -m pip install --target lib_pyXY <packages>`.
+    Linux wheels contain native shared objects and must stay separate from
+    the Windows .pyd bundles. Python 3.11 uses the unsuffixed folder; other
+    Python minors use a ``_pyXY`` suffix. Windows retains the legacy ``lib``
+    fallback for older supported interpreter versions.
     """
     root = repo_root or get_repo_root()
     major, minor = sys.version_info[0], sys.version_info[1]
+    if sys.platform.startswith("linux"):
+        suffix = "" if (major, minor) == (3, 11) else f"_py{major}{minor}"
+        return os.path.join(root, "lib_linux" + suffix)
+
     if (major, minor) != (3, 11):
         versioned = os.path.join(root, f"lib_py{major}{minor}")
         if os.path.isdir(versioned):
@@ -91,7 +93,7 @@ def load_config(config_name, dcc_type=None):
                         key, value = line.strip().split(":", 1)
                         config[key] = value
         except Exception as e:
-            print(f"Failed to load config: {e}")
+            _log_morfyai_error(f"Failed to load config: {e}")
 
     return config, config_path
 
@@ -118,7 +120,7 @@ def save_config(config_name, config, dcc_type=None):
                 f.write(f"{key}:{value}\n")
         return True, config_path
     except Exception as e:
-        print(f"Failed to save config: {e}")
+        _log_morfyai_error(f"Failed to save config: {e}")
         return False, ""
 
 def get_history_path(history_name, dcc_type=None):
@@ -142,7 +144,7 @@ def add_to_history(history_name, entry, dcc_type=None):
             f.write(f"{entry}|{timestamp}\n")
         return True
     except Exception as e:
-        print(f"Failed to add history entry: {e}")
+        _log_morfyai_error(f"Failed to add history entry: {e}")
         return False
 
 def load_history(history_name, dcc_type=None):
@@ -163,5 +165,5 @@ def load_history(history_name, dcc_type=None):
 
         return history
     except Exception as e:
-        print(f"Failed to load history: {e}")
+        _log_morfyai_error(f"Failed to load history: {e}")
         return []

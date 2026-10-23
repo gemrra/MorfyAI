@@ -6,9 +6,9 @@ separate window WITHOUT touching the existing panel. Use this to verify the
 redesigned UI loads and chats in Houdini before the full port replaces the old
 panel.
 
-Run inside Houdini (Windows -> Python Source Editor):
+Run inside Houdini's Python Shell:
 
-    import sys; sys.path.insert(0, r"E:/AILocal/MorfyAI")
+    import sys; sys.path.insert(0, "/path/to/MorfyAI")
     import launch_web; launch_web.show()
 """
 
@@ -19,10 +19,12 @@ _ROOT = os.path.dirname(os.path.abspath(__file__))
 
 
 def _pick_lib_dir():
-    """Same version-aware pick as launcher.py -- vendored .pyd binaries are
-    locked to one Python minor version, and Houdini's bundled Python differs
-    by release, so use whichever vendor folder matches THIS interpreter."""
+    """Select the dependency bundle for this OS and Python minor version."""
     major, minor = sys.version_info[0], sys.version_info[1]
+    if sys.platform.startswith("linux"):
+        prefix = "lib_linux"
+        suffix = "" if (major, minor) == (3, 11) else f"_py{major}{minor}"
+        return os.path.join(_ROOT, prefix + suffix)
     if (major, minor) != (3, 11):
         versioned = os.path.join(_ROOT, f"lib_py{major}{minor}")
         if os.path.isdir(versioned):
@@ -64,7 +66,11 @@ def show():
         from morfyai.ui.web_panel import MorfyWebPanel
     except Exception as e:
         import traceback
-        traceback.print_exc()
+        try:
+            from morfyai.utils.debug_log import log as _debug_log
+            _debug_log("[Web Panel] Failed to import web panel:", e, "\n", traceback.format_exc())
+        except Exception:
+            pass
         try:
             QtWidgets.QMessageBox.critical(None, "MorfyAI Web", f"Failed to import web panel:\n{e}")
         except Exception:
@@ -88,7 +94,11 @@ def show():
         win.setCentralWidget(panel)
     except Exception as e:
         import traceback
-        traceback.print_exc()
+        try:
+            from morfyai.utils.debug_log import log as _debug_log
+            _debug_log("[Web Panel] Failed to create web panel:", e, "\n", traceback.format_exc())
+        except Exception:
+            pass
         try:
             QtWidgets.QMessageBox.critical(None, "MorfyAI Web", f"Failed to create web panel:\n{e}")
         except Exception:

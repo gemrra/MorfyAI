@@ -4,6 +4,33 @@ All notable changes to MorfyAI are documented here. One entry per release —
 this is also what gets pasted into the GitHub Release notes and the public
 changelog page at morfyfx.com/morfyai/changelog.
 
+## 2.17 — 2026-10-03
+
+**New**
+- Clicking the MCP indicator in the MorfyAI window starts the Houdini MCP
+  server directly, without opening the Claude connection setup dialog.
+- Added a **Turn On MCP** action to Houdini's MorfyAI menu.
+
+**Improved**
+- MorfyAI and MCP diagnostics, including expected client connection resets,
+  are routed to MorfyAI's Debug Console instead of cluttering Houdini's
+  console.
+
+## 2.16 — 2026-09-20
+
+**Fixes**
+- Fixed MCP startup on Houdini 22 / Python 3.13 when Houdini's preloaded
+  `attr` package shadowed MorfyAI's vendored `attrs` dependency. MorfyAI now
+  puts its Python 3.13 vendor directory first and clears conflicting partial
+  imports before loading FastMCP.
+- Fixed MCP restart after stopping: the stop event is cleared before a new
+  server thread starts, and status no longer reports uptime for a stopped
+  server.
+- MCP startup errors now propagate to the Houdini panel instead of being
+  silently swallowed, making future startup failures actionable.
+- Reopening MorfyAI reloads the MCP modules so a repaired package can be
+  activated without restarting the entire Houdini session.
+
 ## 2.15 — 2026-09-06
 
 **Fixes**

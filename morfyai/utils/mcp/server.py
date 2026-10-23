@@ -24,13 +24,13 @@ from typing import Any, Optional, Callable
 
 
 def _bootstrap_pywin32_from_lib():
-	"""Make the vendored fastmcp/mcp stack importable.
+	"""Put the vendored MCP dependencies on sys.path.
 
 	fastmcp + deps are installed via `pip install --target lib/`. The `mcp` package
 	imports `pywintypes` (pywin32), but pywin32's .pth side-effects are NOT applied
 	for a --target install, so we replicate them: ensure lib/ is on sys.path, add
 	win32 / win32\\lib / Pythonwin, and register the pywin32_system32 DLL directory.
-	Fully guarded — no-op if absent or not on Windows.
+	The Windows-specific path setup is skipped when those files are absent.
 	"""
 	import sys
 	try:
@@ -41,13 +41,27 @@ def _bootstrap_pywin32_from_lib():
 		# 3.13 as of H22), so use whichever vendor folder matches THIS
 		# interpreter -- see shared.common_utils.get_lib_dir.
 		major, minor = sys.version_info[0], sys.version_info[1]
-		lib = os.path.join(root, f"lib_py{major}{minor}") if (major, minor) != (3, 11) else os.path.join(root, "lib")
-		if not os.path.isdir(lib):
-			lib = os.path.join(root, "lib")
+		if sys.platform.startswith("linux"):
+			prefix = "lib_linux"
+			suffix = "" if (major, minor) == (3, 11) else f"_py{major}{minor}"
+			lib = os.path.join(root, prefix + suffix)
+		else:
+			lib = os.path.join(root, f"lib_py{major}{minor}") if (major, minor) != (3, 11) else os.path.join(root, "lib")
+			if not os.path.isdir(lib):
+				lib = os.path.join(root, "lib")
 		if not os.path.isdir(lib):
 			return
-		if lib not in sys.path:
-			sys.path.insert(0, lib)
+		# Houdini can preload conflicting or partially imported MCP dependencies.
+		while lib in sys.path:
+			sys.path.remove(lib)
+		sys.path.insert(0, lib)
+		foreign_safe = {
+			"fastmcp", "mcp", "uvicorn", "starlette", "sse_starlette", "anyio",
+			"attr", "attrs", "jsonschema",
+		}
+		for name in list(sys.modules):
+			if name.split(".", 1)[0] in foreign_safe:
+				sys.modules.pop(name, None)
 		for sub in ("win32", os.path.join("win32", "lib"), "Pythonwin"):
 			p = os.path.join(lib, sub)
 			if os.path.isdir(p) and p not in sys.path:
@@ -712,12 +726,13 @@ def _route_server_logs_to_debug_console():
 		def emit(self, record):
 			try:
 				if _dbg:
-					_dbg(f"[MCP] {record.getMessage()}")
+					_dbg(f"[MCP] {self.format(record)}")
 			except Exception:
 				pass
 
 	handler = _DebugConsoleHandler()
 	handler.setLevel(logging.INFO)
+	handler.setFormatter(logging.Formatter("%(levelname)s | %(threadName)s | %(message)s"))
 	for name in ("uvicorn", "uvicorn.access", "uvicorn.error", "uvicorn.asgi",
 				 "fastmcp", "FastMCP", "mcp", "starlette"):
 		try:
@@ -737,8 +752,35 @@ def _mcp_thread_runner():
 			asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 	except Exception:
 		pass
-	loop = asyncio.new_event_loop()
+	# Houdini replaces asyncio.new_event_loop() with its haio UI loop. That
+	# loop enforces main-thread ownership, so calling run_until_complete() from
+	# this MCP worker thread raises "Current thread is not the main thread".
+	# FastMCP runs independently of Houdini's UI loop; give it a regular asyncio
+	# loop owned by this worker instead.
+	if os.name == "nt" and hasattr(asyncio, "ProactorEventLoop"):
+		loop = asyncio.ProactorEventLoop()
+	else:
+		loop = asyncio.SelectorEventLoop()
 	asyncio.set_event_loop(loop)
+	def _debug_loop_exception(loop, context):
+		"""Route async MCP diagnostics to MorfyAI's Debug Console."""
+		exc = context.get("exception")
+		handle = context.get("handle")
+		callback = getattr(handle, "_callback", None)
+		callback_name = getattr(callback, "__qualname__", "")
+		message = context.get("message", "Unhandled asyncio event-loop exception")
+		if (isinstance(exc, ConnectionResetError)
+				and getattr(exc, "winerror", None) == 10054
+				and callback_name.endswith("_call_connection_lost")):
+			log.info("[MCP] Client connection reset during socket cleanup (WinError 10054)")
+		elif exc is not None:
+			import traceback
+			detail = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+			log.error("[MCP] %s\n%s", message, detail.rstrip())
+		else:
+			log.error("[MCP] %s | %r", message, context)
+
+	loop.set_exception_handler(_debug_loop_exception)
 
 	async def run_server_until_stopped():
 		global mcp, _server_start_time
@@ -748,15 +790,48 @@ def _mcp_thread_runner():
 		host = s.host or "127.0.0.1"
 		port = s.port or 9000
 		transport = s.transport or "streamable-http"
+		server_holder = []
+		uvicorn_module = None
+		original_server_class = None
 		try:
+			# FastMCP hides Uvicorn's Server instance. Track it so shutdown can ask
+			# Uvicorn to close its listening socket cleanly before restarting.
+			import uvicorn
+			uvicorn_module = uvicorn
+			original_server_class = uvicorn.Server
+
+			class _TrackedServer(original_server_class):
+				def __init__(self, *args, **kwargs):
+					super().__init__(*args, **kwargs)
+					server_holder.append(self)
+
+			uvicorn.Server = _TrackedServer
+		except Exception:
+			pass
+		try:
+			try:
+				from sse_starlette.sse import AppStatus
+				AppStatus.should_exit = False
+			except Exception:
+				pass
+			_route_server_logs_to_debug_console()
 			# show_banner=False: FastMCP's ASCII banner is printed straight to
 			# stdout via rich.Console (not through logging), so
-			# _route_server_logs_to_debug_console() below never catches it —
-			# it always leaked into the native Houdini Console regardless.
-			server_task = asyncio.create_task(mcp.run_async(transport=transport, host=host, port=port, show_banner=False))
+			# _route_server_logs_to_debug_console() below never catches it.
+			server_task = asyncio.create_task(mcp.run_async(
+				transport=transport, host=host, port=port, show_banner=False
+			))
+			for _ in range(50):
+				if server_holder or server_task.done():
+					break
+				await asyncio.sleep(0.01)
 		except Exception as e:
 			log.exception("Failed to start MCP server: %s", e)
 			return
+		finally:
+			if uvicorn_module is not None and original_server_class is not None:
+				uvicorn_module.Server = original_server_class
+		server_instance = server_holder[0] if server_holder else None
 		_server_start_time = time.time()
 		log.info("MCP server started at http://%s:%s/mcp/", host, port)
 		# Keep uvicorn's access logs out of the Houdini Console — route to MorfyAI's
@@ -765,21 +840,71 @@ def _mcp_thread_runner():
 		try:
 			_n = 0
 			while not stop_event.is_set():
+				if server_task.done():
+					try:
+						server_task.result()
+					except asyncio.CancelledError:
+						pass
+					except BaseException:
+						log.exception("MCP server stopped unexpectedly during startup or runtime")
+					else:
+						log.error("MCP server exited unexpectedly")
+					return
 				await asyncio.sleep(0.1)
 				_n += 1
 				if _n <= 30 and _n % 5 == 0:
 					_route_server_logs_to_debug_console()
 		finally:
-			log.info("🛑 Shutdown requested. Cancelling server...")
-			server_task.cancel()
+			log.info("Stopping MCP server task...")
+			if not server_task.done() and server_instance is not None:
+				# Cancellation skips Uvicorn's shutdown() on Linux and leaves the
+				# port bound. Ask Uvicorn and SSE streams to exit through their
+				# normal lifecycle first.
+				server_instance.should_exit = True
+				try:
+					from sse_starlette.sse import AppStatus
+					AppStatus.should_exit = True
+				except Exception:
+					pass
+				try:
+					await asyncio.wait_for(asyncio.shield(server_task), timeout=5.0)
+				except asyncio.TimeoutError:
+					log.warning("Graceful MCP shutdown timed out; cancelling server task")
+					server_instance.force_exit = True
+					server_task.cancel()
+					try:
+						await server_task
+					except BaseException:
+						pass
+				except asyncio.CancelledError:
+					pass
+				except BaseException:
+					log.exception("MCP server stopped with an error")
+			elif not server_task.done():
+				server_task.cancel()
+				try:
+					await server_task
+				except BaseException:
+					pass
 			try:
-				await server_task
-			except asyncio.CancelledError:
+				from sse_starlette.sse import AppStatus
+				AppStatus.should_exit = False
+			except Exception:
 				pass
 			log.info("Server shutdown completed.")
 
-	loop.run_until_complete(run_server_until_stopped())
-	loop.close()
+	try:
+		loop.run_until_complete(run_server_until_stopped())
+	finally:
+		# Drain ancillary SSE/async-generator tasks before closing the worker
+		# loop, otherwise they can keep the port or session state alive.
+		pending = [task for task in asyncio.all_tasks(loop) if not task.done()]
+		for task in pending:
+			task.cancel()
+		if pending:
+			loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+		loop.run_until_complete(loop.shutdown_asyncgens())
+		loop.close()
 
 
 def ensure_mcp_running(auto_start: bool = True) -> tuple[bool, str]:
@@ -795,6 +920,8 @@ def ensure_mcp_running(auto_start: bool = True) -> tuple[bool, str]:
 		return False, "configdisable MCP (mcp_enabled=false) . "
 	if mcp_thread_handle and mcp_thread_handle.is_alive():
 		return True, "MCP service alreadyinrun. "
+	# A previous stop must not leave the next server lifecycle disabled.
+	stop_event.clear()
 	mcp = FastMCP("Houdini MCP Server")  # type: ignore
 	_setup_fastmcp_tools()
 	if auto_start:
@@ -833,7 +960,7 @@ def stop_mcp_server(timeout: float = 3.0) -> tuple[bool, str]:
 def get_mcp_status() -> dict:
 	s = read_settings()
 	running = bool(mcp_thread_handle and mcp_thread_handle.is_alive())
-	uptime = (time.time() - _server_start_time) if (_server_start_time) else None
+	uptime = (time.time() - _server_start_time) if (running and _server_start_time) else None
 	secs = (time.time() - _last_client_activity) if _last_client_activity else None
 	return {
 		"running": running,

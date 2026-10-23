@@ -25,14 +25,12 @@ _MORFYAI_DIR = os.path.join(_ROOT_DIR, 'morfyai')
 
 
 def _pick_lib_dir():
-    """Vendored deps are ABI-locked to one Python minor version (.pyd
-    binaries). Houdini's bundled Python varies by release (3.11 through
-    H21, 3.13 as of H22), so pick whichever vendor folder matches THIS
-    interpreter instead of requiring a specific Houdini Python build —
-    MorfyAI adapts to whatever Houdini the user has installed.
-    'lib' is the default/legacy folder (Python 3.11); newer minor
-    versions get a 'lib_pyXY' sibling, added as they're supported."""
+    """Select the dependency bundle for this OS and Python minor version."""
     major, minor = sys.version_info[0], sys.version_info[1]
+    if sys.platform.startswith("linux"):
+        prefix = "lib_linux"
+        suffix = "" if (major, minor) == (3, 11) else f"_py{major}{minor}"
+        return os.path.join(_ROOT_DIR, prefix + suffix)
     if (major, minor) != (3, 11):
         versioned = os.path.join(_ROOT_DIR, f'lib_py{major}{minor}')
         if os.path.isdir(versioned):
@@ -100,6 +98,19 @@ def launch_morfyai():
     # THIS install every time — not just on the first launch.
     _prioritize_and_isolate()
 
+    try:
+        from morfyai.utils.debug_log import install_exception_routing
+        install_exception_routing(_ROOT_DIR)
+    except Exception:
+        pass
+
+    # Reload web-panel and MCP modules when the panel is reopened so updated
+    # startup fixes take effect without restarting Houdini.
+    for _name in list(sys.modules):
+        if (_name == 'morfyai.ui.web_panel' or
+                _name.startswith('morfyai.utils.mcp')):
+            del sys.modules[_name]
+
     tool_path = os.path.join(os.path.dirname(__file__), "morfyai")
     if tool_path not in sys.path:
         sys.path.insert(0, tool_path)
@@ -119,9 +130,21 @@ def launch_morfyai():
 
         return main.show_tool()
     except Exception as e:
-        print(f"Failed to launch MorfyAI: {e}")
         import traceback
-        traceback.print_exc()
+        try:
+            from morfyai.utils.debug_log import log as _debug_log
+            _debug_log("[Launcher] Failed to launch MorfyAI:", e, "\n", traceback.format_exc())
+        except Exception:
+            pass
+        try:
+            import hou
+            hou.ui.displayMessage(
+                f"MorfyAI failed to launch: {e}\n\nSee MorfyAI's Debug Console for details.",
+                severity=hou.severityType.Error,
+                title="MorfyAI Error",
+            )
+        except Exception:
+            pass
         return None
 
 def launch():
@@ -131,8 +154,11 @@ def launch():
     if dcc == "houdini":
         return launch_morfyai()
     else:
-        print("Error: Houdini not detected.")
-        print("Please run this tool inside Houdini.")
+        try:
+            from morfyai.utils.debug_log import log as _debug_log
+            _debug_log("[Launcher] Houdini was not detected; MorfyAI must be started inside Houdini.")
+        except Exception:
+            pass
         return None
 
 # Global variable to store the window instance

@@ -676,7 +676,7 @@ class AITab(
         except Exception as e:
             import traceback
             _dbg(f"[Memory] Reflection hook error: {e}")
-            traceback.print_exc()
+            _dbg(traceback.format_exc())
 
     def _get_personality_injection(self) -> str:
         """getpropertyinjecttext (attachto system prompt end) """
@@ -6503,7 +6503,7 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
             return True
         except Exception as e:
             _dbg(f"[Cache] Failed to save all sessions: {e}")
-            import traceback; traceback.print_exc()
+            import traceback; _dbg(traceback.format_exc())
             return False
 
     def _restore_all_sessions(self) -> bool:
@@ -6696,7 +6696,7 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
 
         except Exception as e:
             _dbg(f"[Cache] Failed to restore multi-session: {e}")
-            import traceback; traceback.print_exc()
+            import traceback; _dbg(traceback.format_exc())
             return False
 
     def _archive_cache(self) -> bool:
@@ -7248,7 +7248,7 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
                 self._render_single_group(messages, si, ei)
             except Exception:
                 import traceback
-                traceback.print_exc()
+                _dbg(traceback.format_exc())
 
     def _render_single_group(self, messages: list, si: int, ei: int):
         """renderonemessagegroup"""
@@ -7342,7 +7342,7 @@ SideFX Labs Node Usage Rules (MUST follow strictly):
                     rendered_count += added
             except Exception:
                 import traceback
-                traceback.print_exc()
+                _dbg(traceback.format_exc())
 
             # whenbetweenpre-calculatecheck
             elapsed_ms = (time.time() - start_time) * 1000

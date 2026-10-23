@@ -3804,7 +3804,7 @@ class HoudiniMCP:
             
         except Exception as e:
             import traceback
-            traceback.print_exc()
+            _dbg(f"[MCP Client] Viewport screenshot failed: {e}\n{traceback.format_exc()}")
             return {"success": False, "error": f"viewportscreenshotFailed: {str(e)}"}
 
     def _tool_unknown(self, tool_name: str) -> Dict[str, Any]:
@@ -3947,12 +3947,12 @@ class HoudiniMCP:
                 except Exception as e:
                     _dbg(f"[MCP Client] Create geo container error: {e}")
                     import traceback
-                    traceback.print_exc()
+                    _dbg(traceback.format_exc())
                     return network
         except Exception as e:
             _dbg(f"[MCP Client] _ensure_target_network error: {e}")
             import traceback
-            traceback.print_exc()
+            _dbg(traceback.format_exc())
         return network
 
     def _sanitize_node_name(self, name: Optional[str]) -> Optional[str]:
