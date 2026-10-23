@@ -76,11 +76,10 @@ git push origin main
 Only needed if the release is worth announcing to end users browsing in a
 browser, not just the in-app update check.
 
-- Edit the `RELEASES` array at the top of the changelog page's `<script>`
-  block — prepend one object (newest first), remove `latest: true` from the
-  previous top entry. Same shape as a `CHANGELOG.md` entry, just JS objects:
-  `{ version, date, title, latest, changes: [{ type, text }, ...] }`
-  (`type` ∈ `new` | `improved` | `fixed` | `changed` | `release`).
+- Update the rendered release rows in `website/changelog.html` to match the
+  new `CHANGELOG.md` entry: prepend a `.rrow` block (newest first), add the
+  `Latest` badge there, and remove it from the previous top entry. Use change
+  types `new`, `improved`, `fixed`, `changed`, or `release` for tag classes.
 - The live site is the whole `website/` folder, served by the
   `morfyai-changelog` container (nginx, port `18789`) on **naraserver**
   (ZimaOS), mounted at `/DATA/AppData/morfyai/site/` and reverse-proxied to

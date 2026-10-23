@@ -4,7 +4,7 @@ All notable changes to MorfyAI are documented here. One entry per release —
 this is also what gets pasted into the GitHub Release notes and the public
 changelog page at morfyfx.com/morfyai/changelog.
 
-## 2.17 — 2026-10-03
+## 2.17 — 2026-10-23
 
 **New**
 - Clicking the MCP indicator in the MorfyAI window starts the Houdini MCP
