@@ -114,6 +114,7 @@ _resource_lock = threading.RLock()
 
 # simpletaskqueue (UI event loop consumecost) 
 task_queue: queue.Queue = queue.Queue()
+_houdini_ui_thread_id: int | None = None
 
 
 def _fastmcp_available() -> bool:
@@ -174,6 +175,26 @@ def _setup_fastmcp_tools():
 				return err(f"withinparterror: {e}", code="internal_error")
 		_wrapped.__name__ = getattr(fn, "__name__", "wrapped")
 		return _wrapped
+
+	def ui_thread_wrapper(fn: Callable[..., dict]) -> Callable[..., dict]:
+		"""Run GUI-only Houdini operations on the thread that owns the UI."""
+		@functools.wraps(fn)
+		def _dispatch(*args, **kwargs) -> dict:
+			target_thread = _houdini_ui_thread_id
+			if target_thread is None or threading.get_ident() == target_thread:
+				return fn(*args, **kwargs)
+			done = threading.Event()
+			result: list[dict] = []
+			def _run() -> None:
+				try:
+					result.append(fn(*args, **kwargs))
+				finally:
+					done.set()
+			task_queue.put(_run)
+			if not done.wait(180.0):
+				return err("Timed out waiting for Houdini's UI thread. Ensure the MorfyAI panel is open.", code="ui_thread_timeout")
+			return result[0] if result else err("Houdini UI task returned no result")
+		return _dispatch
 
 	@mcp.tool  # type: ignore[attr-defined]
 	@tool_wrapper
@@ -648,11 +669,10 @@ def _setup_fastmcp_tools():
 		return {"status": "success", "message": "Task queue status retrieved.", "data": {"tasks_in_queue": task_queue.qsize(), "recent_results": getattr(mcp, "recent_results", []) if mcp else []}}
 
 	@mcp.tool(name="viewport_flipbook", description="render Houdini viewportandreturnimageresourcesourcelink")  # type: ignore[attr-defined]
+	@ui_thread_wrapper
 	@tool_wrapper
-	def viewport_flipbook(start_frame: int = 1, end_frame: int = 24) -> dict:
+	def viewport_flipbook(start_frame: int = 1, end_frame: int = 24, width: int = 1280, height: int = 720) -> dict:
 		global _registered_flipbook_resources
-		if not read_settings().enable_flipbook:
-			return err("viewport_flipbook is disabled in settings (enable_flipbook=false).")
 		timeId = time.time_ns()
 		if hou is None:
 			return err("Houdini environmentunavailable. ")
@@ -661,7 +681,7 @@ def _setup_fastmcp_tools():
 			return err("findnotto Scene Viewer, mustin GUI moderun. ")
 		tmp_dir = tempfile.gettempdir()
 		output_template = os.path.join(tmp_dir, f"flipbook_{timeId}.$F4.jpg")
-		resolution = (100, 100)
+		resolution = (max(64, min(int(width), 4096)), max(64, min(int(height), 4096)))
 		timeline = hou.playbar
 		if not start_frame:
 			start_frame = int(timeline.frameRange()[0])
@@ -707,6 +727,18 @@ def _setup_fastmcp_tools():
 				},
 			},
 		}
+
+	# Register the expanded rigging, animation, geometry and scene-inspection API.
+	# These calls are marshalled to Houdini's UI thread because HOM is not thread-safe.
+	try:
+		from .advanced_tools import register_tools as _register_advanced_tools
+		_register_advanced_tools(
+			mcp, ok, err, tool_wrapper,
+			task_queue=task_queue,
+			ui_thread_id=lambda: _houdini_ui_thread_id,
+		)
+	except Exception:
+		log.exception("Failed to register advanced MCP tools")
 
 
 def _route_server_logs_to_debug_console():
@@ -908,13 +940,14 @@ def _mcp_thread_runner():
 
 
 def ensure_mcp_running(auto_start: bool = True) -> tuple[bool, str]:
-	global mcp, mcp_thread_handle
+	global mcp, mcp_thread_handle, _houdini_ui_thread_id
 	try:
 		from fastmcp import FastMCP  # type: ignore
 	except Exception:
 		return False, "fastmcp notinstall, skip MCP service start. "
 	if hou is None:
 		return False, "notdetectto Houdini environment (hou) , skip MCP service start. "
+	_houdini_ui_thread_id = threading.get_ident()
 	s = read_settings()
 	if not s.enabled:
 		return False, "configdisable MCP (mcp_enabled=false) . "

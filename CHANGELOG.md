@@ -4,6 +4,13 @@ All notable changes to MorfyAI are documented here. One entry per release —
 this is also what gets pasted into the GitHub Release notes and the public
 changelog page at morfyfx.com/morfyai/changelog.
 
+## 2.18 — 2026-11-02
+
+**New**
+- Added 44 MCP tools for controller creation and configuration, parameter authoring and organization, animation, geometry and packed-piece inspection, node operations, viewport and network screenshots, scene saving, and undo/redo.
+
+**Improved**
+- Houdini UI operations now run on Houdini's UI thread. Flipbooks accept custom output dimensions, and parameter schemas include conditional visibility information.
 ## 2.17 — 2026-10-23
 
 **New**

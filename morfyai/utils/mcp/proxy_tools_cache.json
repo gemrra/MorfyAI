@@ -368,14 +368,1454 @@
       "additionalProperties": false,
       "properties": {
         "start_frame": {
-          "default": 1,
-          "type": "integer"
+          "type": "integer",
+          "default": 1
         },
         "end_frame": {
-          "default": 24,
-          "type": "integer"
+          "type": "integer",
+          "default": 24
+        },
+        "width": {
+          "type": "integer",
+          "default": 1280
+        },
+        "height": {
+          "type": "integer",
+          "default": 720
         }
       },
+      "type": "object"
+    }
+  },
+  {
+    "name": "create_rig_controller",
+    "description": "Create a visible, selectable Null controller object in an OBJ network.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "parent_path": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "shape": {
+          "type": "string",
+          "default": "circle"
+        },
+        "color": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {}
+                },
+                {}
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "size": {
+          "type": "number",
+          "default": 1.0
+        },
+        "position": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {}
+                },
+                {}
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "orientation": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {}
+                },
+                {}
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "type": "object",
+      "required": [
+        "parent_path",
+        "name"
+      ]
+    }
+  },
+  {
+    "name": "configure_controller",
+    "description": "Change controller display shape, color, orientation or display scale.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "controller_path": {
+          "type": "string"
+        },
+        "shape": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {}
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "color": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {}
+                },
+                {}
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "orientation": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {}
+                },
+                {}
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "display_scale": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {}
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "type": "object",
+      "required": [
+        "controller_path"
+      ]
+    }
+  },
+  {
+    "name": "set_controller_channels",
+    "description": "Set parameter channel keyability, lock state and visibility.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "controller_path": {
+          "type": "string"
+        },
+        "channels": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "type": "object",
+      "required": [
+        "controller_path",
+        "channels"
+      ]
+    }
+  },
+  {
+    "name": "create_parameter",
+    "description": "Add a spare scalar, toggle, string or menu parameter to a node.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "node_path": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string",
+          "default": ""
+        },
+        "parm_type": {
+          "type": "string",
+          "default": "float"
+        },
+        "default": {
+          "default": 0.0
+        },
+        "minimum": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {}
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "maximum": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {}
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "menu": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {}
+                },
+                {}
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "type": "object",
+      "required": [
+        "node_path",
+        "name"
+      ]
+    }
+  },
+  {
+    "name": "promote_parameter",
+    "description": "Copy a parameter template to a destination node and link the source to it.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "source_node_path": {
+          "type": "string"
+        },
+        "source_parameter": {
+          "type": "string"
+        },
+        "destination_node_path": {
+          "type": "string"
+        },
+        "promoted_name": {
+          "type": "string",
+          "default": ""
+        },
+        "label": {
+          "type": "string",
+          "default": ""
+        }
+      },
+      "type": "object",
+      "required": [
+        "source_node_path",
+        "source_parameter",
+        "destination_node_path"
+      ]
+    }
+  },
+  {
+    "name": "organize_parameters",
+    "description": "Organize existing spare parameters into a folder in the requested order.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "node_path": {
+          "type": "string"
+        },
+        "folder": {
+          "type": "string"
+        },
+        "order": {
+          "type": "array",
+          "items": {}
+        },
+        "labels": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                {}
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "help_text": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                {}
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "type": "object",
+      "required": [
+        "node_path",
+        "folder",
+        "order"
+      ]
+    }
+  },
+  {
+    "name": "bind_controller_handle",
+    "description": "Bind a rig channel to a visible controller transform and activate its Houdini xform handle.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "controller_path": {
+          "type": "string"
+        },
+        "parameter_path": {
+          "type": "string"
+        },
+        "handle_type": {
+          "type": "string",
+          "default": "transform"
+        },
+        "axis": {
+          "type": "string",
+          "default": "x"
+        },
+        "controller_parameter": {
+          "type": "string",
+          "default": ""
+        }
+      },
+      "type": "object",
+      "required": [
+        "controller_path",
+        "parameter_path"
+      ]
+    }
+  },
+  {
+    "name": "inspect_controller",
+    "description": "Inspect controller display channels, spare parameters and registered bindings.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "controller_path": {
+          "type": "string"
+        }
+      },
+      "type": "object",
+      "required": [
+        "controller_path"
+      ]
+    }
+  },
+  {
+    "name": "get_parameter_schema",
+    "description": "Return Houdini parameter templates, defaults, ranges, menus and tuple components.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "node_path": {
+          "type": "string",
+          "default": ""
+        },
+        "node_type": {
+          "type": "string",
+          "default": ""
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "set_parameter_reference",
+    "description": "Set a Houdini expression reference from a destination parameter to a source.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "target_node_path": {
+          "type": "string"
+        },
+        "target_parameter": {
+          "type": "string"
+        },
+        "source_node_path": {
+          "type": "string"
+        },
+        "source_parameter": {
+          "type": "string"
+        },
+        "language": {
+          "type": "string",
+          "default": "hscript"
+        }
+      },
+      "type": "object",
+      "required": [
+        "target_node_path",
+        "target_parameter",
+        "source_node_path",
+        "source_parameter"
+      ]
+    }
+  },
+  {
+    "name": "inspect_parameter_reference",
+    "description": "Inspect expression and referenced parameter for a Houdini channel.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "node_path": {
+          "type": "string"
+        },
+        "parameter": {
+          "type": "string"
+        }
+      },
+      "type": "object",
+      "required": [
+        "node_path",
+        "parameter"
+      ]
+    }
+  },
+  {
+    "name": "manage_subnet_interface",
+    "description": "Create VOP connectors, label SOP subnet inputs, create SOP outputs and add spare parameters.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "subnet_path": {
+          "type": "string"
+        },
+        "inputs": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {}
+                },
+                {}
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "outputs": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {}
+                },
+                {}
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "parameters": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {}
+                },
+                {}
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "type": "object",
+      "required": [
+        "subnet_path"
+      ]
+    }
+  },
+  {
+    "name": "get_node_flags",
+    "description": "Read display, render, bypass and template flags.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "node_path": {
+          "type": "string"
+        }
+      },
+      "type": "object",
+      "required": [
+        "node_path"
+      ]
+    }
+  },
+  {
+    "name": "set_node_flags",
+    "description": "Set supported display, render, bypass and template node flags.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "node_path": {
+          "type": "string"
+        },
+        "flags": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "type": "object",
+      "required": [
+        "node_path",
+        "flags"
+      ]
+    }
+  },
+  {
+    "name": "inspect_node_cook",
+    "description": "Inspect node cook state, errors, warnings and cook duration when available.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "node_path": {
+          "type": "string"
+        }
+      },
+      "type": "object",
+      "required": [
+        "node_path"
+      ]
+    }
+  },
+  {
+    "name": "get_timeline",
+    "description": "Return active frame, FPS, frame range and playback range.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
+    "name": "set_current_frame",
+    "description": "Set Houdini's current frame.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "frame": {
+          "type": "number"
+        }
+      },
+      "type": "object",
+      "required": [
+        "frame"
+      ]
+    }
+  },
+  {
+    "name": "set_keyframes",
+    "description": "Set keyframes as frame/value pairs using the requested interpolation.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "node_path": {
+          "type": "string"
+        },
+        "parameter": {
+          "type": "string"
+        },
+        "keyframes": {
+          "type": "array",
+          "items": {}
+        },
+        "interpolation": {
+          "type": "string",
+          "default": "bezier"
+        }
+      },
+      "type": "object",
+      "required": [
+        "node_path",
+        "parameter",
+        "keyframes"
+      ]
+    }
+  },
+  {
+    "name": "get_keyframes",
+    "description": "Return frame, value, interpolation and tangent data for parameter keys.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "node_path": {
+          "type": "string"
+        },
+        "parameter": {
+          "type": "string"
+        }
+      },
+      "type": "object",
+      "required": [
+        "node_path",
+        "parameter"
+      ]
+    }
+  },
+  {
+    "name": "delete_keyframes",
+    "description": "Delete keyframes at a frame or inside an inclusive frame range.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "node_path": {
+          "type": "string"
+        },
+        "parameter": {
+          "type": "string"
+        },
+        "start_frame": {
+          "type": "number"
+        },
+        "end_frame": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {}
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "type": "object",
+      "required": [
+        "node_path",
+        "parameter",
+        "start_frame"
+      ]
+    }
+  },
+  {
+    "name": "evaluate_parameter",
+    "description": "Evaluate a parameter at a frame without changing the active frame.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "node_path": {
+          "type": "string"
+        },
+        "parameter": {
+          "type": "string"
+        },
+        "frame": {
+          "type": "number"
+        }
+      },
+      "type": "object",
+      "required": [
+        "node_path",
+        "parameter",
+        "frame"
+      ]
+    }
+  },
+  {
+    "name": "set_animation_interpolation",
+    "description": "Change interpolation on all keys or keys inside a frame range.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "node_path": {
+          "type": "string"
+        },
+        "parameter": {
+          "type": "string"
+        },
+        "start_frame": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {}
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "end_frame": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {}
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "interpolation": {
+          "type": "string",
+          "default": "bezier"
+        }
+      },
+      "type": "object",
+      "required": [
+        "node_path",
+        "parameter"
+      ]
+    }
+  },
+  {
+    "name": "get_geometry_summary",
+    "description": "Summarize cooked geometry counts, primitive types, bounds, attributes and groups.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "sop_path": {
+          "type": "string"
+        },
+        "frame": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {}
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "type": "object",
+      "required": [
+        "sop_path"
+      ]
+    }
+  },
+  {
+    "name": "list_geometry_attributes",
+    "description": "List geometry attribute names, data types, tuple sizes and classes.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "sop_path": {
+          "type": "string"
+        },
+        "attribute_class": {
+          "type": "string",
+          "default": "all"
+        },
+        "frame": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {}
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "type": "object",
+      "required": [
+        "sop_path"
+      ]
+    }
+  },
+  {
+    "name": "get_attribute_values",
+    "description": "Read a bounded range of point, primitive, vertex or detail attribute values.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "sop_path": {
+          "type": "string"
+        },
+        "attribute_class": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "start": {
+          "type": "integer",
+          "default": 0
+        },
+        "count": {
+          "type": "integer",
+          "default": 100
+        },
+        "frame": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {}
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "type": "object",
+      "required": [
+        "sop_path",
+        "attribute_class",
+        "name"
+      ]
+    }
+  },
+  {
+    "name": "list_geometry_groups",
+    "description": "List point and primitive geometry groups and member counts.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "sop_path": {
+          "type": "string"
+        },
+        "group_class": {
+          "type": "string",
+          "default": "all"
+        },
+        "frame": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {}
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "type": "object",
+      "required": [
+        "sop_path"
+      ]
+    }
+  },
+  {
+    "name": "inspect_packed_pieces",
+    "description": "Inspect packed primitives, identity, transform, pivot and bounds.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "sop_path": {
+          "type": "string"
+        },
+        "piece_attribute": {
+          "type": "string",
+          "default": "name"
+        },
+        "frame": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {}
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "type": "object",
+      "required": [
+        "sop_path"
+      ]
+    }
+  },
+  {
+    "name": "compare_geometry_frames",
+    "description": "Compare packed piece positions and transforms across frames; restore active frame.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "sop_path": {
+          "type": "string"
+        },
+        "frames": {
+          "type": "array",
+          "items": {}
+        },
+        "piece_attribute": {
+          "type": "string",
+          "default": "name"
+        }
+      },
+      "type": "object",
+      "required": [
+        "sop_path",
+        "frames"
+      ]
+    }
+  },
+  {
+    "name": "inspect_transform",
+    "description": "Inspect local and world node transform or a packed primitive transform.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "node_path": {
+          "type": "string"
+        },
+        "frame": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {}
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "piece_index": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {}
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "type": "object",
+      "required": [
+        "node_path"
+      ]
+    }
+  },
+  {
+    "name": "capture_viewport",
+    "description": "Capture the Scene Viewer with optional frame, camera and shading overrides.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "width": {
+          "type": "integer",
+          "default": 1280
+        },
+        "height": {
+          "type": "integer",
+          "default": 720
+        },
+        "frame": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {}
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "camera_path": {
+          "type": "string",
+          "default": ""
+        },
+        "shading": {
+          "type": "string",
+          "default": ""
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "capture_viewport_frames",
+    "description": "Capture selected Scene Viewer frames and restore frame, camera and shading.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "frames": {
+          "type": "array",
+          "items": {}
+        },
+        "width": {
+          "type": "integer",
+          "default": 1280
+        },
+        "height": {
+          "type": "integer",
+          "default": 720
+        },
+        "camera_path": {
+          "type": "string",
+          "default": ""
+        },
+        "shading": {
+          "type": "string",
+          "default": ""
+        }
+      },
+      "type": "object",
+      "required": [
+        "frames"
+      ]
+    }
+  },
+  {
+    "name": "capture_network_editor",
+    "description": "Capture the Network Editor displaying a network and optionally focus listed nodes.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "network_path": {
+          "type": "string"
+        },
+        "node_paths": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {}
+                },
+                {}
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "width": {
+          "type": "integer",
+          "default": 1280
+        },
+        "height": {
+          "type": "integer",
+          "default": 720
+        }
+      },
+      "type": "object",
+      "required": [
+        "network_path"
+      ]
+    }
+  },
+  {
+    "name": "frame_network_items",
+    "description": "Frame specified nodes in the Network Editor without laying out unrelated nodes.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "network_path": {
+          "type": "string"
+        },
+        "node_paths": {
+          "type": "array",
+          "items": {}
+        }
+      },
+      "type": "object",
+      "required": [
+        "network_path",
+        "node_paths"
+      ]
+    }
+  },
+  {
+    "name": "get_node_positions",
+    "description": "Read positions for specific nodes.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "node_paths": {
+          "type": "array",
+          "items": {}
+        }
+      },
+      "type": "object",
+      "required": [
+        "node_paths"
+      ]
+    }
+  },
+  {
+    "name": "set_node_positions",
+    "description": "Set positions on listed nodes only.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "positions": {
+          "type": "array",
+          "items": {}
+        }
+      },
+      "type": "object",
+      "required": [
+        "positions"
+      ]
+    }
+  },
+  {
+    "name": "layout_selected_nodes",
+    "description": "Arrange only selected nodes in a stable line, leaving all others untouched.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "node_paths": {
+          "type": "array",
+          "items": {}
+        },
+        "direction": {
+          "type": "string",
+          "default": "right"
+        },
+        "spacing": {
+          "type": "number",
+          "default": 2.0
+        }
+      },
+      "type": "object",
+      "required": [
+        "node_paths"
+      ]
+    }
+  },
+  {
+    "name": "manage_network_box",
+    "description": "Update a Network Box's members, title, color and fit.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "parent_path": {
+          "type": "string"
+        },
+        "box_name": {
+          "type": "string"
+        },
+        "node_paths": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {}
+                },
+                {}
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "remove_node_paths": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {}
+                },
+                {}
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "title": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {}
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "color": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {}
+                },
+                {}
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "fit": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "type": "object",
+      "required": [
+        "parent_path",
+        "box_name"
+      ]
+    }
+  },
+  {
+    "name": "get_network_layout",
+    "description": "Return child nodes, connections, positions and network boxes for layout verification.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "network_path": {
+          "type": "string"
+        }
+      },
+      "type": "object",
+      "required": [
+        "network_path"
+      ]
+    }
+  },
+  {
+    "name": "begin_undo_group",
+    "description": "Begin a Houdini undo block.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "type": "object",
+      "required": [
+        "name"
+      ]
+    }
+  },
+  {
+    "name": "end_undo_group",
+    "description": "End the currently open Houdini undo block.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "default": ""
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "undo",
+    "description": "Undo one or more Houdini operations.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "steps": {
+          "type": "integer",
+          "default": 1
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "redo",
+    "description": "Redo one or more Houdini operations.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "steps": {
+          "type": "integer",
+          "default": 1
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "name": "save_scene_as",
+    "description": "Save the current Houdini scene to a separate file path.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string"
+        }
+      },
+      "type": "object",
+      "required": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "get_scene_state",
+    "description": "Return current scene file, modified status, Houdini version and timeline frame.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
       "type": "object"
     }
   },
