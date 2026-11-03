@@ -741,6 +741,17 @@ def _setup_fastmcp_tools():
 		log.exception("Failed to register advanced MCP tools")
 
 
+	# CHOP channel data, exports, references, diagnostics and Motion FX capture.
+	try:
+		from .chop_tools import register_tools as _register_chop_tools
+		_register_chop_tools(
+			mcp, ok, err, tool_wrapper,
+			task_queue=task_queue,
+			ui_thread_id=lambda: _houdini_ui_thread_id,
+		)
+	except Exception:
+		log.exception("Failed to register CHOP MCP tools")
+
 def _route_server_logs_to_debug_console():
 	"""Send uvicorn / fastmcp / starlette logs to MorfyAI's Debug Console instead of
 	letting them spam the native Houdini Console (the 'POST /mcp 200 OK' lines).

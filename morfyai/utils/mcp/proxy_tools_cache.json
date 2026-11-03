@@ -1827,5 +1827,207 @@
       "properties": {},
       "type": "object"
     }
+  },
+  {
+    "name": "get_chop_export_flag",
+    "description": "Read whether a CHOP node's export flag is enabled.",
+    "inputSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "chop_path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "chop_path"
+      ]
+    }
+  },
+  {
+    "name": "set_chop_export_flag",
+    "description": "Enable or disable a CHOP node export flag.",
+    "inputSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "chop_path": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "chop_path",
+        "enabled"
+      ]
+    }
+  },
+  {
+    "name": "evaluate_chop_channel",
+    "description": "Evaluate a CHOP output channel at a frame or time. If neither is provided, use Houdini's current frame; frame and time are mutually exclusive.",
+    "inputSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "chop_path": {
+          "type": "string"
+        },
+        "channel_name": {
+          "type": "string"
+        },
+        "frame": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "time": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "chop_path",
+        "channel_name"
+      ]
+    }
+  },
+  {
+    "name": "list_chop_channels",
+    "description": "List CHOP output channels with sample count, time/frame range, and sample rate.",
+    "inputSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "chop_path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "chop_path"
+      ]
+    }
+  },
+  {
+    "name": "inspect_chop_exports",
+    "description": "Inspect a CHOP node export flag, per-channel destination, and active export status.",
+    "inputSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "chop_path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "chop_path"
+      ]
+    }
+  },
+  {
+    "name": "create_chop_channel_reference",
+    "description": "Set a parameter to reference a channel from a CHOP output. Existing animation/expressions require replace_existing=true.",
+    "inputSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "target_parameter_path": {
+          "type": "string"
+        },
+        "chop_path": {
+          "type": "string"
+        },
+        "channel_name": {
+          "type": "string"
+        },
+        "replace_existing": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "target_parameter_path",
+        "chop_path",
+        "channel_name"
+      ]
+    }
+  },
+  {
+    "name": "inspect_chop_channel_reference",
+    "description": "Inspect a parameter expression and resolve any referenced CHOP output channel.",
+    "inputSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "target_parameter_path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "target_parameter_path"
+      ]
+    }
+  },
+  {
+    "name": "capture_chop_view",
+    "description": "Capture the requested CHOP in Motion FX View or capture the current Channel Editor.",
+    "inputSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "chop_path": {
+          "type": "string"
+        },
+        "view_type": {
+          "type": "string",
+          "default": "motion_fx"
+        },
+        "width": {
+          "type": "integer",
+          "default": 1280
+        },
+        "height": {
+          "type": "integer",
+          "default": 720
+        }
+      },
+      "required": [
+        "chop_path"
+      ]
+    }
+  },
+  {
+    "name": "inspect_chop_network_diagnostics",
+    "description": "Inspect errors and warnings on every node under a CHOP network; optionally cook nodes first.",
+    "inputSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "chop_network_path": {
+          "type": "string"
+        },
+        "cook_nodes": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "chop_network_path"
+      ]
+    }
   }
 ]

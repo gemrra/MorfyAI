@@ -4,6 +4,16 @@ All notable changes to MorfyAI are documented here. One entry per release —
 this is also what gets pasted into the GitHub Release notes and the public
 changelog page at morfyfx.com/morfyai/changelog.
 
+## 2.19 — 2026-11-03
+
+**New**
+- Added CHOP export-flag read/write and per-channel export destination/status inspection.
+- Added CHOP channel evaluation by frame or time, plus channel inventories with sample rate and time/frame ranges.
+- Added CHOP channel-reference creation and inspection, Motion FX/Channel Editor capture, and diagnostics across CHOP networks.
+
+**Improved**
+- CHOP operations that use Houdini's interface run on Houdini's UI thread.
+
 ## 2.18 — 2026-11-02
 
 **New**
@@ -11,6 +21,7 @@ changelog page at morfyfx.com/morfyai/changelog.
 
 **Improved**
 - Houdini UI operations now run on Houdini's UI thread. Flipbooks accept custom output dimensions, and parameter schemas include conditional visibility information.
+
 ## 2.17 — 2026-10-23
 
 **New**
